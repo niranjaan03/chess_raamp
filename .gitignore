@@ -1,0 +1,8 @@
+puzzles/
+stockfish/
+.DS_Store
+node_modules/
+dist/
+
+*.parquet
+src/data/openings/chess open.parquet

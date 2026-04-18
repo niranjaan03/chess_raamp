@@ -1,0 +1,326 @@
+/* Chess Move Classification Color Scheme
+   Based on chess.py color_map for professional, consistent UI/UX
+*/
+
+:root {
+  /* Brilliant Move - Blue (Best play with sacrifice/risk) */
+  --color-brilliant-bg: #3b82f6;
+  --color-brilliant-border: #1e40af;
+  --color-brilliant-text: #ffffff;
+
+  /* Great Move - Cyan (Excellent within small margin) */
+  --color-great-bg: #06b6d4;
+  --color-great-border: #0369a1;
+  --color-great-text: #ffffff;
+
+  /* Book Move - Light Blue (Opening theory) */
+  --color-book-bg: #0ea5e9;
+  --color-book-border: #0369a1;
+  --color-book-text: #ffffff;
+
+  /* Best Move - Green (Perfect) */
+  --color-best-bg: #16a34a;
+  --color-best-border: #15803d;
+  --color-best-text: #ffffff;
+
+  /* Excellent Move - Light Green (Near-perfect) */
+  --color-excellent-bg: #22c55e;
+  --color-excellent-border: #16a34a;
+  --color-excellent-text: #ffffff;
+
+  /* Good Move - Lime (Solid) */
+  --color-good-bg: #84cc16;
+  --color-good-border: #65a30d;
+  --color-good-text: #ffffff;
+
+  /* Novelty - Cyan (Rare/new) */
+  --color-novelty-bg: #06b6d4;
+  --color-novelty-border: #0369a1;
+  --color-novelty-text: #ffffff;
+
+  /* Inaccuracy - Amber (Minor error) */
+  --color-inaccuracy-bg: #f59e0b;
+  --color-inaccuracy-border: #d97706;
+  --color-inaccuracy-text: #ffffff;
+
+  /* Mistake - Orange (Significant error) */
+  --color-mistake-bg: #f97316;
+  --color-mistake-border: #ea580c;
+  --color-mistake-text: #ffffff;
+
+  /* Miss - Yellow (Missed opportunity) */
+  --color-miss-bg: #eab308;
+  --color-miss-border: #ca8a04;
+  --color-miss-text: #ffffff;
+
+  /* Blunder - Red (Major error) */
+  --color-blunder-bg: #ef4444;
+  --color-blunder-border: #dc2626;
+  --color-blunder-text: #ffffff;
+
+  /* Default/Unknown */
+  --color-default-bg: #9ca3af;
+  --color-default-border: #6b7280;
+  --color-default-text: #ffffff;
+}
+
+/* Move Badge Base Style */
+.move-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  border: 2px solid;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.move-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.move-badge:active {
+  transform: scale(0.98);
+}
+
+/* Specific Move Types */
+.move-badge.brilliant {
+  background-color: var(--color-brilliant-bg);
+  border-color: var(--color-brilliant-border);
+  color: var(--color-brilliant-text);
+}
+
+.move-badge.great {
+  background-color: var(--color-great-bg);
+  border-color: var(--color-great-border);
+  color: var(--color-great-text);
+}
+
+.move-badge.book {
+  background-color: var(--color-book-bg);
+  border-color: var(--color-book-border);
+  color: var(--color-book-text);
+}
+
+.move-badge.best {
+  background-color: var(--color-best-bg);
+  border-color: var(--color-best-border);
+  color: var(--color-best-text);
+}
+
+.move-badge.excellent {
+  background-color: var(--color-excellent-bg);
+  border-color: var(--color-excellent-border);
+  color: var(--color-excellent-text);
+}
+
+.move-badge.good {
+  background-color: var(--color-good-bg);
+  border-color: var(--color-good-border);
+  color: var(--color-good-text);
+}
+
+.move-badge.novelty {
+  background-color: var(--color-novelty-bg);
+  border-color: var(--color-novelty-border);
+  color: var(--color-novelty-text);
+}
+
+.move-badge.inaccuracy {
+  background-color: var(--color-inaccuracy-bg);
+  border-color: var(--color-inaccuracy-border);
+  color: var(--color-inaccuracy-text);
+}
+
+.move-badge.mistake {
+  background-color: var(--color-mistake-bg);
+  border-color: var(--color-mistake-border);
+  color: var(--color-mistake-text);
+}
+
+.move-badge.miss {
+  background-color: var(--color-miss-bg);
+  border-color: var(--color-miss-border);
+  color: var(--color-miss-text);
+}
+
+.move-badge.blunder {
+  background-color: var(--color-blunder-bg);
+  border-color: var(--color-blunder-border);
+  color: var(--color-blunder-text);
+}
+
+/* Move Label Text */
+.move-label {
+  font-weight: 700;
+  font-size: 0.875rem;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+/* Accuracy Display */
+.accuracy-excellent {
+  color: var(--color-excellent-bg);
+  font-weight: 700;
+}
+
+.accuracy-good {
+  color: var(--color-good-bg);
+  font-weight: 700;
+}
+
+.accuracy-inaccuracy {
+  color: var(--color-inaccuracy-bg);
+  font-weight: 700;
+}
+
+.accuracy-mistake {
+  color: var(--color-mistake-bg);
+  font-weight: 700;
+}
+
+.accuracy-blunder {
+  color: var(--color-blunder-bg);
+  font-weight: 700;
+}
+
+/* Move Card Styling */
+.move-card {
+  border-left: 4px solid;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.move-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.move-card.brilliant {
+  border-left-color: var(--color-brilliant-bg);
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.move-card.great {
+  border-left-color: var(--color-great-bg);
+  background-color: rgba(6, 182, 212, 0.05);
+}
+
+.move-card.book {
+  border-left-color: var(--color-book-bg);
+  background-color: rgba(14, 165, 233, 0.05);
+}
+
+.move-card.best {
+  border-left-color: var(--color-best-bg);
+  background-color: rgba(22, 163, 74, 0.05);
+}
+
+.move-card.excellent {
+  border-left-color: var(--color-excellent-bg);
+  background-color: rgba(34, 197, 94, 0.05);
+}
+
+.move-card.good {
+  border-left-color: var(--color-good-bg);
+  background-color: rgba(132, 204, 22, 0.05);
+}
+
+.move-card.novelty {
+  border-left-color: var(--color-novelty-bg);
+  background-color: rgba(6, 182, 212, 0.05);
+}
+
+.move-card.inaccuracy {
+  border-left-color: var(--color-inaccuracy-bg);
+  background-color: rgba(245, 158, 11, 0.05);
+}
+
+.move-card.mistake {
+  border-left-color: var(--color-mistake-bg);
+  background-color: rgba(249, 115, 22, 0.05);
+}
+
+.move-card.miss {
+  border-left-color: var(--color-miss-bg);
+  background-color: rgba(234, 179, 8, 0.05);
+}
+
+.move-card.blunder {
+  border-left-color: var(--color-blunder-bg);
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+/* Bar Chart Colors */
+.stat-bar {
+  border-radius: 0.25rem;
+  transition: all 0.3s ease;
+}
+
+.stat-bar.best {
+  background-color: var(--color-best-bg);
+}
+
+.stat-bar.excellent {
+  background-color: var(--color-excellent-bg);
+}
+
+.stat-bar.good {
+  background-color: var(--color-good-bg);
+}
+
+.stat-bar.inaccuracy {
+  background-color: var(--color-inaccuracy-bg);
+}
+
+.stat-bar.mistake {
+  background-color: var(--color-mistake-bg);
+}
+
+.stat-bar.blunder {
+  background-color: var(--color-blunder-bg);
+}
+
+/* Legend */
+.color-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 0.25rem;
+  border: 2px solid;
+}
+
+.legend-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* Mobile Responsive */
+@media (max-width: 640px) {
+  .move-badge {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .color-legend {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

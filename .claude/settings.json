@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash('/Users/niranjaan/Downloads/chess ramp/stockfish/stockfish-macos-m1-apple-silicon')",
+      "Bash(sysctl -n hw.ncpu hw.physicalcpu hw.logicalcpu hw.memsize)",
+      "Bash(printf \"uci\\\\nsetoption name Threads value 6\\\\nsetoption name Hash value 256\\\\nsetoption name UCI_ShowWDL value true\\\\nsetoption name MultiPV value 2\\\\nucinewgame\\\\nisready\\\\nposition startpos moves e2e4 e7e5 g1f3 b8c6 f1b5 a7a6\\\\ngo depth 18\\\\n\")",
+      "Bash(node --check server/stockfishBridge.js)",
+      "Bash(node --input-type=module -e \"import\\('./src/controllers/EngineController.js'\\).then\\(m => console.log\\('EngineController loads'\\)\\).catch\\(e => console.error\\('FAIL:', e.message\\)\\)\")",
+      "Bash(node -e ':*)",
+      "Bash(node --input-type=module -e ':*)",
+      "Bash(curl -sS -o /dev/null -w \"no-UA: HTTP %{http_code}\\\\n\" 'https://api.chess.com/pub/player/hikaru/stats' --max-time 10)",
+      "Bash(curl -sS -o /dev/null -w \"browser-UA: HTTP %{http_code}\\\\n\" -H 'User-Agent: Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36' 'https://api.chess.com/pub/player/hikaru/stats' --max-time 10)",
+      "Bash(curl -sS -o /dev/null -w \"contact-UA: HTTP %{http_code}\\\\n\" -H 'User-Agent: chess-analyzer/1.0 \\(contact: dev@example.com\\)' 'https://api.chess.com/pub/player/hikaru/stats' --max-time 10)",
+      "Bash(curl -sS 'https://api.chess.com/pub/player/hikaru/games/2025/10/pgn' --max-time 15)",
+      "Bash(curl -sS 'https://api.chess.com/pub/player/hikaru/games/archives' --max-time 10)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('archives count:', len\\(d.get\\('archives',[]\\)\\)\\); print\\('last 3:', d.get\\('archives',[]\\)[-3:]\\)\")"
+    ]
+  }
+}
