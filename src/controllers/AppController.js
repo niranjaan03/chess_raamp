@@ -11,7 +11,6 @@ import EngineController from './EngineController';
 import OpeningPracticeController from './OpeningPracticeController';
 import PuzzleController from './PuzzleController';
 import SoundController from './SoundController';
-import { computeAccuracy } from '../lib/chesskit/accuracy.js';
 
 const RAW_GOOGLE_CLIENT_ID = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID)
   ? import.meta.env.VITE_GOOGLE_CLIENT_ID

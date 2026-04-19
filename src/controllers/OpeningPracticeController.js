@@ -44,35 +44,6 @@ const OPENING_STATS_SLUG_ALIASES = {
   'Damiano Defense': 'petrov-s-defense',
   'Chigorin Defense': 'queen-s-gambit-declined'
 };
-const OPENING_IMAGE_ALIASES = {
-  'opening-images/albin-countergambit.png': 'opening-images/blumenfeld-countergambit.png',
-  'opening-images/belgrade-gambit.png': 'opening-images/four-knights-game.png',
-  'opening-images/budapest-gambit.png': 'opening-images/benko-gambit.png',
-  'opening-images/caro-kann-classical.png': 'opening-images/caro-kann-defense.png',
-  'opening-images/caro-kann-panov.png': 'opening-images/caro-kann-defense.png',
-  'opening-images/catalan-closed.png': 'opening-images/catalan-opening.png',
-  'opening-images/catalan-open.png': 'opening-images/catalan-opening.png',
-  'opening-images/chigorin-defense.png': 'opening-images/queen-s-gambit-declined.png',
-  'opening-images/damiano-defense.png': 'opening-images/petrov-s-defense.png',
-  'opening-images/dunst-opening.png': 'opening-images/van-geet-opening.png',
-  'opening-images/evans-gambit.png': 'opening-images/italian-game.png',
-  'opening-images/french-classical.png': 'opening-images/french-defense.png',
-  'opening-images/french-tarrasch.png': 'opening-images/french-defense.png',
-  'opening-images/french-winawer.png': 'opening-images/french-defense.png',
-  'opening-images/giuoco-piano.png': 'opening-images/italian-game.png',
-  'opening-images/halloween-gambit.png': 'opening-images/four-knights-game.png',
-  'opening-images/hungarian-defense.png': 'opening-images/italian-game.png',
-  'opening-images/modern-benoni.png': 'opening-images/benoni-defense.png',
-  'opening-images/scotch-gambit.png': 'opening-images/scotch-game.png',
-  'opening-images/sicilian-dragon.png': 'opening-images/sicilian-defense.png',
-  'opening-images/sicilian-grand-prix.png': 'opening-images/sicilian-defense.png',
-  'opening-images/sicilian-najdorf.png': 'opening-images/sicilian-defense.png',
-  'opening-images/sicilian-rossolimo.png': 'opening-images/sicilian-defense.png',
-  'opening-images/sicilian-sveshnikov.png': 'opening-images/sicilian-defense.png',
-  'opening-images/smith-morra-gambit.png': 'opening-images/sicilian-defense.png',
-  'opening-images/stonewall-attack.png': 'opening-images/london-system.png',
-  'opening-images/two-knights-defense.png': 'opening-images/italian-game.png'
-};
 const BLACK_REPERTOIRE_NAMES = new Set([
   'Alekhine Defense',
   'Australian Defense',
@@ -242,7 +213,6 @@ const OpeningPracticeController = (function () {
     var clean = path.trim();
     if (clean.startsWith('./')) clean = clean.slice(2);
     if (clean.startsWith('/')) clean = clean.slice(1);
-    clean = OPENING_IMAGE_ALIASES[clean] || clean;
     if (!clean) return DEFAULT_OPENING_IMG;
     var prefix = CLEAN_BASE_URL ? (CLEAN_BASE_URL + '/') : '';
     return prefix + clean;
@@ -279,6 +249,15 @@ const OpeningPracticeController = (function () {
 
   function getColorBadgeClass(color) {
     return color === 'b' ? 'black-badge' : 'white-badge';
+  }
+
+  function compareOpeningNames(a, b) {
+    var nameA = (a && a.name ? a.name : '').trim();
+    var nameB = (b && b.name ? b.name : '').trim();
+    return nameA.localeCompare(nameB, undefined, {
+      sensitivity: 'base',
+      numeric: true
+    });
   }
 
   function isSicilianFamilyOpening(opening) {
@@ -370,7 +349,7 @@ const OpeningPracticeController = (function () {
       display.push(buildGroupedOpening('sicilian', sicilianMembers));
     }
 
-    return display.filter(Boolean);
+    return display.filter(Boolean).sort(compareOpeningNames);
   }
 
   // ===== PERSISTENCE HELPERS =====
@@ -815,7 +794,7 @@ const OpeningPracticeController = (function () {
     }
     document.getElementById('detailVarCount').textContent = opening.variations.length + ' variation' + (opening.variations.length !== 1 ? 's' : '');
 
-    // Render variation list
+    // Render variation list — each variation offers Practice and Drill modes.
     var varList = document.getElementById('variationList');
     varList.innerHTML = opening.variations.map(function (v, idx) {
       return '<div class="variation-item" data-idx="' + idx + '">' +
@@ -823,16 +802,24 @@ const OpeningPracticeController = (function () {
         '<div class="var-item-name">' + v.name + '</div>' +
         '<div class="var-item-pgn">' + v.pgn + '</div>' +
         '</div>' +
-        '<button class="btn-start-practice" data-idx="' + idx + '">Practice</button>' +
+        '<div class="var-item-actions">' +
+          '<button class="btn-start-practice" data-idx="' + idx + '" data-mode="practice" title="Guided line training with hints and explanations">' +
+            '<span class="var-item-action-icon">&#127919;</span>Practice' +
+          '</button>' +
+          '<button class="btn-start-practice btn-start-drill" data-idx="' + idx + '" data-mode="drill" title="Replay the line from memory — no hints">' +
+            '<span class="var-item-action-icon">&#128293;</span>Drill' +
+          '</button>' +
+        '</div>' +
         '</div>';
     }).join('');
 
-    // Attach click handlers
+    // Attach click handlers — mode is read from data-mode on the button.
     varList.querySelectorAll('.btn-start-practice').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         var idx = parseInt(this.getAttribute('data-idx'));
-        startPractice(idx);
+        var mode = this.getAttribute('data-mode') || 'practice';
+        startPractice(idx, mode);
       });
     });
   }
@@ -928,10 +915,14 @@ const OpeningPracticeController = (function () {
   }
 
   // ===== PRACTICE MODE =====
-  function startPractice(variationIdx) {
+  function startPractice(variationIdx, requestedMode) {
     if (!currentOpening) return;
     currentVariation = currentOpening.variations[variationIdx];
     if (!currentVariation) return;
+
+    if (requestedMode !== undefined) {
+      practiceMode = normalizePracticeMode(requestedMode);
+    }
 
     isPracticing = true;
     wrongMove = false;
@@ -1357,13 +1348,35 @@ const OpeningPracticeController = (function () {
         '<div class="skeleton-card opening-skeleton-card"><div class="skeleton-media"></div><div class="skeleton-line w-40"></div><div class="skeleton-line w-78"></div><div class="skeleton-line w-52"></div></div>';
     }
 
-    import('../lib/openingData').then(function (module) {
-      OPENING_DATA = module.default;
+    Promise.all([
+      import('../lib/openingData'),
+      import('../lib/openingDataExtra')
+    ]).then(function (modules) {
+      var base = (modules[0] && modules[0].default) || [];
+      var extra = (modules[1] && modules[1].default) || [];
+      OPENING_DATA = mergeOpeningSources(base, extra);
       setupUI();
     }).catch(function (err) {
       console.error('Failed to load opening data:', err);
       if (container) container.innerHTML = '<div class="no-openings">Failed to load openings data.</div>';
     });
+  }
+
+  function mergeOpeningSources(base, extra) {
+    var byName = Object.create(null);
+    var merged = [];
+    (base || []).forEach(function (op) {
+      if (!op || !op.name) return;
+      byName[op.name] = op;
+      merged.push(op);
+    });
+    (extra || []).forEach(function (op) {
+      if (!op || !op.name) return;
+      if (byName[op.name]) return; // keep existing curated entry on collision
+      byName[op.name] = op;
+      merged.push(op);
+    });
+    return merged;
   }
 
   function setupUI() {

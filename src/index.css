@@ -612,12 +612,19 @@ body {
 /* Eval Bar */
 .eval-section {
   display: flex;
-  gap: 10px;
+  gap: 14px;
   align-items: center;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 10px;
+  padding: 14px 16px;
+}
+.eval-section > div:first-child {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .eval-bar-container {
   display: flex;
@@ -641,9 +648,15 @@ body {
 .black-fill { background: linear-gradient(180deg, #151515, #000000); }
 .eval-score {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-weight: bold;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
   color: var(--text-primary);
+  letter-spacing: -0.02em;
+  min-width: 64px;
+  text-align: right;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .eval-info { flex: 1; }
 .eval-depth, .eval-nodes {
@@ -1311,6 +1324,8 @@ body {
 
 .opening-name { font-family: var(--font-display); font-size: 0.9rem; color: var(--text-primary); margin-bottom: 4px; }
 .opening-eco { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); }
+.eval-section .opening-name { font-size: 1.05rem; margin-bottom: 0; }
+.eval-section .opening-eco { font-size: 0.78rem; }
 
 .fetch-results {
   margin-top: 8px;
@@ -2841,6 +2856,47 @@ body {
 .btn-start-practice {
   flex-shrink: 0;
   margin-left: 12px;
+}
+.var-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+.var-item-actions .btn-start-practice {
+  margin-left: 0;
+  gap: 6px;
+  padding: 7px 14px;
+}
+.var-item-action-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+  margin-right: 4px;
+}
+.btn-start-drill {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.btn-start-drill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+@media (max-width: 640px) {
+  .variation-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .var-item-actions {
+    margin-left: 0;
+    justify-content: stretch;
+  }
+  .var-item-actions .btn-start-practice {
+    flex: 1;
+  }
 }
 
 /* --- Practice View --- */

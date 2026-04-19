@@ -1,0 +1,335 @@
+name,pgn,uci,epd,result
+Watkins Opening,1. e3,e2e3,rnbqkbnr/pppppppp/8/8/8/4P3/PPPP1PPP/RNBQKBNR b - -,
+Liardet Defence,1. e3 b6,e2e3 b7b6,rnbqkbnr/p1pppppp/1p6/8/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Polish Defence,1. e3 c5,e2e3 c7c5,rnbqkbnr/pp1ppppp/8/2p5/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Classical Defence,1. e3 b5,e2e3 b7b5,rnbqkbnr/p1pppppp/8/1p6/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Modern Defence,1. e3 e6,e2e3 e7e6,rnbqkbnr/pppp1ppp/4p3/8/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Wild Boar Defence,1. e3 g5,e2e3 g7g5,rnbqkbnr/pppppp1p/8/6p1/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Raven Defence,1. e3 Nh6,e2e3 g8h6,rnbqkb1r/pppppppp/7n/8/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Balkan Defence,1. e3 Nc6,e2e3 b8c6,r1bqkbnr/pppppppp/2n5/8/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Andryushkov Defence,1. e3 c6,e2e3 c7c6,rnbqkbnr/pp1ppppp/2p5/8/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Marmaliser Defence,1. e3 a5,e2e3 a7a5,rnbqkbnr/1ppppppp/8/p7/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Taelman Defence,1. e3 a6,e2e3 a7a6,rnbqkbnr/1ppppppp/p7/8/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Iranian Defence,1. e3 f6,e2e3 f7f6,rnbqkbnr/ppppp1pp/5p2/8/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Dutch Defence,1. e3 h5,e2e3 h7h5,rnbqkbnr/ppppppp1/8/7p/8/4P3/PPPP1PPP/RNBQKBNR w - -,
+Wizard Attack,1. c4,c2c4,rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR b - -,
+Swedish Opening,1. g3,g2g3,rnbqkbnr/pppppppp/8/8/8/6P1/PPPPPP1P/RNBQKBNR b - -,
+Laniakean Attack,1. a4,a2a4,rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b - -,
+Dragon Attack,1. Nh3,g1h3,rnbqkbnr/pppppppp/8/8/8/7N/PPPPPPPP/RNBQKB1R b - -,
+German Opening,1. b3,b2b3,rnbqkbnr/pppppppp/8/8/8/1P6/P1PPPPPP/RNBQKBNR b - -,
+Croatian Attack,1. g4,g2g4,rnbqkbnr/pppppppp/8/8/6P1/8/PPPPPP1P/RNBQKBNR b - -,
+Steenhuis Attack,1. Na3,b1a3,rnbqkbnr/pppppppp/8/8/8/N7/PPPPPPPP/R1BQKBNR b - -,
+Siberian Opening,1. a3,a2a3,rnbqkbnr/pppppppp/8/8/8/P7/1PPPPPPP/RNBQKBNR b - -,
+Kitten Attack,1. b4,b2b4,rnbqkbnr/pppppppp/8/8/1P6/8/P1PPPPPP/RNBQKBNR b - -,
+Avatar Opening,1. f3,f2f3,rnbqkbnr/pppppppp/8/8/8/5P2/PPPPP1PP/RNBQKBNR b - -,
+Wolf Opening,1. c3,c2c3,rnbqkbnr/pppppppp/8/8/8/2P5/PP1PPPPP/RNBQKBNR b - -,
+Beasley Opening,1. h3,h2h3,rnbqkbnr/pppppppp/8/8/8/7P/PPPPPPP1/RNBQKBNR b - -,
+Nagorko Attack,1. h4,h2h4,rnbqkbnr/pppppppp/8/8/7P/8/PPPPPPP1/RNBQKBNR b - -,
+Persian Attack,1. f4,f2f4,rnbqkbnr/pppppppp/8/8/5P2/8/PPPPP1PP/RNBQKBNR b - -,
+Polar Bear Attack,1. Nc3,b1c3,rnbqkbnr/pppppppp/8/8/8/2N5/PPPPPPPP/R1BQKBNR b - -,
+Atomic Attack,1. Nf3,g1f3,rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b - -,
+Splitian Opening,1. d3,d2d3,rnbqkbnr/pppppppp/8/8/8/3P4/PPP1PPPP/RNBQKBNR b - -,
+Queen's Pawn Attack,1. d4,d2d4,rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b - -,
+King's Pawn Attack,1. e4,e2e4,rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - -,
+Taelman's Proof,1. Nc3 d5,b1c3 d7d5,rnbqkbnr/ppp1pppp/8/3p4/8/2N5/PPPPPPPP/R1BQKBNR w - -,0-1
+Taelman's Proof,1. Nf3 e5,g1f3 e7e5,rnbqkbnr/pppp1ppp/8/4p3/8/5N2/PPPPPPPP/RNBQKB1R w - -,0-1
+Nagorko's Proof,1. f4 e5,f2f4 e7e5,rnbqkbnr/pppp1ppp/8/4p3/5P2/8/PPPPP1PP/RNBQKBNR w - -,0-1
+Nagorko's Proof,1. h4 g5,h2h4 g7g5,rnbqkbnr/pppppp1p/8/6p1/7P/8/PPPPPPP1/RNBQKBNR w - -,0-1
+Nye's Proof,1. h3 Nh6,h2h3 g8h6,rnbqkb1r/pppppppp/7n/8/8/7P/PPPPPPP1/RNBQKBNR w - -,0-1
+Steenhuis's Proof,1. f3 e6,f2f3 e7e6,rnbqkbnr/pppp1ppp/4p3/8/8/5P2/PPPPP1PP/RNBQKBNR w - -,0-1
+Steenhuis's Proof Improved,1. f3 d5,f2f3 d7d5,rnbqkbnr/ppp1pppp/8/3p4/8/5P2/PPPPP1PP/RNBQKBNR w - -,0-1
+Steenhuis's Proof,1. a3 e6,a2a3 e7e6,rnbqkbnr/pppp1ppp/4p3/8/8/P7/1PPPPPPP/RNBQKBNR w - -,0-1
+Classical System,1. c3 e6,c2c3 e7e6,rnbqkbnr/pppp1ppp/4p3/8/8/2P5/PP1PPPPP/RNBQKBNR w - -,
+Steenhuis's Proof,1. c3 e5,c2c3 e7e5,rnbqkbnr/pppp1ppp/8/4p3/8/2P5/PP1PPPPP/RNBQKBNR w - -,0-1
+Steenhuis's Proof,1. Na3 e6,b1a3 e7e6,rnbqkbnr/pppp1ppp/4p3/8/8/N7/PPPPPPPP/R1BQKBNR w - -,0-1
+Reverse Open Game,1. b3 e6,b2b3 e7e6,rnbqkbnr/pppp1ppp/4p3/8/8/1P6/P1PPPPPP/RNBQKBNR w - -,
+Goldovski Defence,1. g3 c5,g2g3 c7c5,rnbqkbnr/pp1ppppp/8/2p5/8/6P1/PPPPPP1P/RNBQKBNR w - -,
+Classical System,1. a4 b5,a2a4 b7b5,rnbqkbnr/p1pppppp/8/1p6/P7/8/1PPPPPPP/RNBQKBNR w - -,
+Modern System,1. a4 e6,a2a4 e7e6,rnbqkbnr/pppp1ppp/4p3/8/P7/8/1PPPPPPP/RNBQKBNR w - -,
+Modest System,1. Na3 e6 2. b3,b1a3 e7e6 b2b3,rnbqkbnr/pppp1ppp/4p3/8/8/NP6/P1PPPPPP/R1BQKBNR b - -,0-1
+Modest System,1. b3 e6 2. Na3,b2b3 e7e6 b1a3,rnbqkbnr/pppp1ppp/4p3/8/8/NP6/P1PPPPPP/R1BQKBNR b - -,0-1
+Jarosz Attack,1. g4 g6 2. c4,g2g4 g7g6 c2c4,rnbqkbnr/pppppp1p/6p1/8/2P3P1/8/PP1PPP1P/RNBQKBNR b - -,
+Jarosz Attack,1. c4 g6 2. g4,c2c4 g7g6 g2g4,rnbqkbnr/pppppp1p/6p1/8/2P3P1/8/PP1PPP1P/RNBQKBNR b - -,
+Modest System,1. g4 g6 2. b3,g2g4 g7g6 b2b3,rnbqkbnr/pppppp1p/6p1/8/6P1/1P6/P1PPPP1P/RNBQKBNR b - -,
+Wolf-Haupt Proof,1. g4 g6 2. Nh3,g2g4 g7g6 g1h3,rnbqkbnr/pppppp1p/6p1/8/6P1/7N/PPPPPP1P/RNBQKB1R b - -,0-1
+Wolf-Haupt Proof,1. Nh3 g6 2. g4,g1h3 g7g6 g2g4,rnbqkbnr/pppppp1p/6p1/8/6P1/7N/PPPPPP1P/RNBQKB1R b - -,0-1
+Double Jump,1. g4 g6 2. b4,g2g4 g7g6 b2b4,rnbqkbnr/pppppp1p/6p1/8/1P4P1/8/P1PPPP1P/RNBQKBNR b - -,0-1
+Double Jump,1. b4 g6 2. g4,b2b4 g7g6 g2g4,rnbqkbnr/pppppp1p/6p1/8/1P4P1/8/P1PPPP1P/RNBQKBNR b - -,0-1
+Modest System,1. b3 g6 2. g4,b2b3 g7g6 g2g4,rnbqkbnr/pppppp1p/6p1/8/6P1/1P6/P1PPPP1P/RNBQKBNR b - -,
+Open Defence,1. Nh3 e6 2. e3,g1h3 e7e6 e2e3,rnbqkbnr/pppp1ppp/4p3/8/8/4P2N/PPPP1PPP/RNBQKB1R b - -,
+Wanderertom Attack,1. g3 Nh6 2. c4,g2g3 g8h6 c2c4,rnbqkb1r/pppppppp/7n/8/2P5/6P1/PP1PPP1P/RNBQKBNR b - -,
+Modest System,1. g3 Nh6 2. b3,g2g3 g8h6 b2b3,rnbqkb1r/pppppppp/7n/8/8/1P4P1/P1PPPP1P/RNBQKBNR b - -,
+Wanderertom Attack,1. c4 Nh6 2. g3,c2c4 g8h6 g2g3,rnbqkb1r/pppppppp/7n/8/2P5/6P1/PP1PPP1P/RNBQKBNR b - -,
+Modest System,1. b3 Nh6 2. g3,b2b3 g8h6 g2g3,rnbqkb1r/pppppppp/7n/8/8/1P4P1/P1PPPP1P/RNBQKBNR b - -,
+Knight Gambit,1. g3 Nh6 2. g4,g2g3 g8h6 g3g4,rnbqkb1r/pppppppp/7n/8/6P1/8/PPPPPP1P/RNBQKBNR b - -,
+Exchange Attack,1. g3 c5 2. b4,g2g3 c7c5 b2b4,rnbqkbnr/pp1ppppp/8/2p5/1P6/6P1/P1PPPP1P/RNBQKBNR b - -,
+Steenhuis's Proof,1. c4 b6 2. a4,c2c4 b7b6 a2a4,rnbqkbnr/p1pppppp/1p6/8/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. a4 b6 2. c4,a2a4 b7b6 c2c4,rnbqkbnr/p1pppppp/1p6/8/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Wing System,1. a4 b6 2. e3,a2a4 b7b6 e2e3,rnbqkbnr/p1pppppp/1p6/8/P7/4P3/1PPP1PPP/RNBQKBNR b - -,1-0
+Frâncu's Proof,1. c4 f5 2. e4,c2c4 f7f5 e2e4,rnbqkbnr/ppppp1pp/8/5p2/2P1P3/8/PP1P1PPP/RNBQKBNR b - -,1-0
+Frâncu's Proof,1. c4 Na6 2. c5,c2c4 b8a6 c4c5,r1bqkbnr/pppppppp/n7/2P5/8/8/PP1PPPPP/RNBQKBNR b - -,1-0
+Frâncu's Proof,1. c4 h5 2. g4,c2c4 h7h5 g2g4,rnbqkbnr/ppppppp1/8/7p/2P3P1/8/PP1PPP1P/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. c4 h5 2. a4,c2c4 h7h5 a2a4,rnbqkbnr/ppppppp1/8/7p/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. c4 f6 2. a4,c2c4 f7f6 a2a4,rnbqkbnr/ppppp1pp/5p2/8/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. c4 h6 2. a4,c2c4 h7h6 a2a4,rnbqkbnr/ppppppp1/7p/8/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. c4 g5 2. a4,c2c4 g7g5 a2a4,rnbqkbnr/pppppp1p/8/6p1/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. c4 Nh6 2. a4,c2c4 g8h6 a2a4,rnbqkb1r/pppppppp/7n/8/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Wizard Hybrid,1. c4 e6 2. e3,c2c4 e7e6 e2e3,rnbqkbnr/pppp1ppp/4p3/8/2P5/4P3/PP1P1PPP/RNBQKBNR b - -,
+Steenhuis's Proof,1. a4 h5 2. c4,a2a4 h7h5 c2c4,rnbqkbnr/ppppppp1/8/7p/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. a4 f6 2. c4,a2a4 f7f6 c2c4,rnbqkbnr/ppppp1pp/5p2/8/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. a4 h6 2. c4,a2a4 h7h6 c2c4,rnbqkbnr/ppppppp1/7p/8/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. a4 g5 2. c4,a2a4 g7g5 c2c4,rnbqkbnr/pppppp1p/8/6p1/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. a4 Nh6 2. c4,a2a4 g8h6 c2c4,rnbqkb1r/pppppppp/7n/8/P1P5/8/1P1PPPPP/RNBQKBNR b - -,1-0
+Central Wizard Attack,1. c4 e6 2. c5,c2c4 e7e6 c4c5,rnbqkbnr/pppp1ppp/4p3/2P5/8/8/PP1PPPPP/RNBQKBNR b - -,
+Modest Opening,1. e3 e6 2. b3,e2e3 e7e6 b2b3,rnbqkbnr/pppp1ppp/4p3/8/8/1P2P3/P1PP1PPP/RNBQKBNR b - -,
+Modest Opening,1. b3 e6 2. e3,b2b3 e7e6 e2e3,rnbqkbnr/pppp1ppp/4p3/8/8/1P2P3/P1PP1PPP/RNBQKBNR b - -,
+Wing Opening,1. e3 e6 2. a4,e2e3 e7e6 a2a4,rnbqkbnr/pppp1ppp/4p3/8/P7/4P3/1PPP1PPP/RNBQKBNR b - -,
+Wing Opening,1. a4 e6 2. e3,a2a4 e7e6 e2e3,rnbqkbnr/pppp1ppp/4p3/8/P7/4P3/1PPP1PPP/RNBQKBNR b - -,
+Wizard Hybrid,1. e3 e6 2. c4,e2e3 e7e6 c2c4,rnbqkbnr/pppp1ppp/4p3/8/2P5/4P3/PP1P1PPP/RNBQKBNR b - -,
+Watkins's Proof,1. e3 e6 2. b4,e2e3 e7e6 b2b4,rnbqkbnr/pppp1ppp/4p3/8/1P6/4P3/P1PP1PPP/RNBQKBNR b - -,1-0
+Watkins's Proof,1. b4 e6 2. e3,b2b4 e7e6 e2e3,rnbqkbnr/pppp1ppp/4p3/8/1P6/4P3/P1PP1PPP/RNBQKBNR b - -,1-0
+Rajesh Attack,1. e3 c5 2. Qf3,e2e3 c7c5 d1f3,rnbqkbnr/pp1ppppp/8/2p5/8/4PQ2/PPPP1PPP/RNB1KBNR b - -,
+Pindakaas Attack,1. e3 c5 2. Bc4,e2e3 c7c5 f1c4,rnbqkbnr/pp1ppppp/8/2p5/2B5/4P3/PPPP1PPP/RNBQK1NR b - -,
+Taelman Attack,1. e3 c5 2. Bd3,e2e3 c7c5 f1d3,rnbqkbnr/pp1ppppp/8/2p5/8/3BP3/PPPP1PPP/RNBQK1NR b - -,
+Bishop Attack,1. e3 c5 2. Bb5,e2e3 c7c5 f1b5,rnbqkbnr/pp1ppppp/8/1Bp5/8/4P3/PPPP1PPP/RNBQK1NR b - -,1-0
+Queen Attack,1. e3 b6 2. Qh5,e2e3 b7b6 d1h5,rnbqkbnr/p1pppppp/1p6/7Q/8/4P3/PPPP1PPP/RNB1KBNR b - -,
+Wing System,1. e3 b6 2. a4,e2e3 b7b6 a2a4,rnbqkbnr/p1pppppp/1p6/8/P7/4P3/1PPP1PPP/RNBQKBNR b - -,1-0
+Frâncu-Nye Proof,1. e3 c6 2. Bb5,e2e3 c7c6 f1b5,rnbqkbnr/pp1ppppp/2p5/1B6/8/4P3/PPPP1PPP/RNBQK1NR b - -,1-0
+Steenhuis's Proof,1. e3 c6 2. e4,e2e3 c7c6 e3e4,rnbqkbnr/pp1ppppp/2p5/8/4P3/8/PPPP1PPP/RNBQKBNR b - -,1-0
+Nye's Proof,1. b4 c5 2. bxc5 a5,b2b4 c7c5 b4c5 a7a5,rnbqkbnr/1p1ppppp/8/p1P5/8/8/P1PPPPPP/RNBQKBNR w - -,0-1
+Andrejić's Proof,1. g4 g6 2. g5 c5,g2g4 g7g6 g4g5 c7c5,rnbqkbnr/pp1ppp1p/6p1/2p3P1/8/8/PPPPPP1P/RNBQKBNR w - -,0-1
+Andrejić's Proof,1. g4 c5 2. g5 g6,g2g4 c7c5 g4g5 g7g6,rnbqkbnr/pp1ppp1p/6p1/2p3P1/8/8/PPPPPP1P/RNBQKBNR w - -,0-1
+Steenhuis's Proof,1. g4 g6 2. b4 h5,g2g4 g7g6 b2b4 h7h5,rnbqkbnr/pppppp2/6p1/7p/1P4P1/8/P1PPPP1P/RNBQKBNR w - -,0-1
+Steenhuis's Proof,1. b4 g6 2. g4 h5,b2b4 g7g6 g2g4 h7h5,rnbqkbnr/pppppp2/6p1/7p/1P4P1/8/P1PPPP1P/RNBQKBNR w - -,0-1
+Fianchetto Defence,1. Nh3 g5 2. Nxg5 Bg7,g1h3 g7g5 h3g5 f8g7,rnbqk1nr/ppppppbp/8/6N1/8/8/PPPPPPPP/RNBQKB1R w - -,
+Stayalive Defence,1. g3 c5 2. Nh3 g5,g2g3 c7c5 g1h3 g7g5,rnbqkbnr/pp1ppp1p/8/2p3p1/8/6PN/PPPPPP1P/RNBQKB1R w - -,
+Stayalive Defence,1. Nh3 c5 2. g3 g5,g1h3 c7c5 g2g3 g7g5,rnbqkbnr/pp1ppp1p/8/2p3p1/8/6PN/PPPPPP1P/RNBQKB1R w - -,
+Demon Defence,1. c4 b5 2. cxb5 d6,c2c4 b7b5 c4b5 d7d6,rnbqkbnr/p1p1pppp/3p4/1P6/8/8/PP1PPPPP/RNBQKBNR w - -,
+Swiss Defence,1. c4 b5 2. cxb5 e6,c2c4 b7b5 c4b5 e7e6,rnbqkbnr/p1pp1ppp/4p3/1P6/8/8/PP1PPPPP/RNBQKBNR w - -,
+Wizard Defence,1. e3 g5 2. Ba6 bxa6,e2e3 g7g5 f1a6 b7a6,rnbqkbnr/p1pppp1p/p7/6p1/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 a5,e2e3 b7b5 f1b5 a7a5,rnbqkbnr/2pppppp/8/pB6/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 Nf6,e2e3 b7b5 f1b5 g8f6,rnbqkb1r/p1pppppp/5n2/1B6/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 g6,e2e3 b7b5 f1b5 g7g6,rnbqkbnr/p1pppp1p/6p1/1B6/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 h6,e2e3 b7b5 f1b5 h7h6,rnbqkbnr/p1ppppp1/7p/1B6/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 f6,e2e3 b7b5 f1b5 f7f6,rnbqkbnr/p1ppp1pp/5p2/1B6/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 f5,e2e3 b7b5 f1b5 f7f5,rnbqkbnr/p1ppp1pp/8/1B3p2/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 h5,e2e3 b7b5 f1b5 h7h5,rnbqkbnr/p1ppppp1/8/1B5p/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 e5,e2e3 b7b5 f1b5 e7e5,rnbqkbnr/p1pp1ppp/8/1B2p3/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 g5,e2e3 b7b5 f1b5 g7g5,rnbqkbnr/p1pppp1p/8/1B4p1/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Taelman's Proof,1. e3 b5 2. Bxb5 c5,e2e3 b7b5 f1b5 c7c5,rnbqkbnr/p2ppppp/8/1Bp5/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Antique Defence,1. e3 b5 2. Bxb5 c6,e2e3 b7b5 f1b5 c7c6,rnbqkbnr/p2ppppp/2p5/1B6/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Suicide Defence,1. e3 b5 2. Bxb5 Bb7,e2e3 b7b5 f1b5 c8b7,rn1qkbnr/pbpppppp/8/1B6/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Knight Defence,1. e3 b5 2. Bxb5 Nh6,e2e3 b7b5 f1b5 g8h6,rnbqkb1r/p1pppppp/7n/1B6/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Pawn Defence,1. e3 b5 2. Bxb5 e6,e2e3 b7b5 f1b5 e7e6,rnbqkbnr/p1pp1ppp/4p3/1B6/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Double Pawn Defence,1. e3 e6 2. Ba6 bxa6,e2e3 e7e6 f1a6 b7a6,rnbqkbnr/p1pp1ppp/p3p3/8/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Classical Attack,1. e3 e6 2. Ba6 Nxa6,e2e3 e7e6 f1a6 b8a6,r1bqkbnr/pppp1ppp/n3p3/8/8/4P3/PPPP1PPP/RNBQK1NR w - -,
+Roboamn Defence,1. e3 c5 2. Bc4 d5,e2e3 c7c5 f1c4 d7d5,rnbqkbnr/pp2pppp/8/2pp4/2B5/4P3/PPPP1PPP/RNBQK1NR w - -,
+Snuverink Defence,1. e3 c5 2. Bd3 Nf6,e2e3 c7c5 f1d3 g8f6,rnbqkb1r/pp1ppppp/5n2/2p5/8/3BP3/PPPP1PPP/RNBQK1NR w - -,1-0
+Bosman Defence,1. e3 c5 2. Bd3 g6,e2e3 c7c5 f1d3 g7g6,rnbqkbnr/pp1ppp1p/6p1/2p5/8/3BP3/PPPP1PPP/RNBQK1NR w - -,
+Standard Defence,1. e3 c5 2. Bd3 h5,e2e3 c7c5 f1d3 h7h5,rnbqkbnr/pp1pppp1/8/2p4p/8/3BP3/PPPP1PPP/RNBQK1NR w - -,
+Wing Defence,1. e3 c5 2. Bd3 a5,e2e3 c7c5 f1d3 a7a5,rnbqkbnr/1p1ppppp/8/p1p5/8/3BP3/PPPP1PPP/RNBQK1NR w - -,
+Classical Polish Defence,1. e3 c5 2. Ba6 Nxa6,e2e3 c7c5 f1a6 b8a6,r1bqkbnr/pp1ppppp/n7/2p5/8/4P3/PPPP1PPP/RNBQK1NR w - -,
+Chussi Defence,1. e3 c5 2. Bb5 g5,e2e3 c7c5 f1b5 g7g5,rnbqkbnr/pp1ppp1p/8/1Bp3p1/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Pindakaas Defence,1. e3 c5 2. Bb5 Qc7,e2e3 c7c5 f1b5 d8c7,rnb1kbnr/ppqppppp/8/1Bp5/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Czech Defence,1. e3 c5 2. Bb5 a5,e2e3 c7c5 f1b5 a7a5,rnbqkbnr/1p1ppppp/8/pBp5/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Morrison Defence,1. e3 c5 2. Bb5 Nh6,e2e3 c7c5 f1b5 g8h6,rnbqkb1r/pp1ppppp/7n/1Bp5/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Advance Variation,1. e3 c5 2. Bb5 c4,e2e3 c7c5 f1b5 c5c4,rnbqkbnr/pp1ppppp/8/1B6/2p5/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Kpa Defence,1. e3 b6 2. a4 e5,e2e3 b7b6 a2a4 e7e5,rnbqkbnr/p1pp1ppp/1p6/4p3/P7/4P3/1PPP1PPP/RNBQKBNR w - -,1-0
+Kpa Defence,1. a4 b6 2. e3 e5,a2a4 b7b6 e2e3 e7e5,rnbqkbnr/p1pp1ppp/1p6/4p3/P7/4P3/1PPP1PPP/RNBQKBNR w - -,1-0
+Kpa Defence,1. a4 e5 2. e3 b6,a2a4 e7e5 e2e3 b7b6,rnbqkbnr/p1pp1ppp/1p6/4p3/P7/4P3/1PPP1PPP/RNBQKBNR w - -,1-0
+Sports Attack,1. Nh3 e6 2. b4 Bxb4 3. d3,g1h3 e7e6 b2b4 f8b4 d2d3,rnbqk1nr/pppp1ppp/4p3/8/1b6/3P3N/P1P1PPPP/RNBQKB1R b - -,
+Stayalive Attack,1. Nh3 e6 2. b4 Bxb4 3. d4,g1h3 e7e6 b2b4 f8b4 d2d4,rnbqk1nr/pppp1ppp/4p3/8/1b1P4/7N/P1P1PPPP/RNBQKB1R b - -,
+Zooey Attack,1. g3 Nh6 2. Nh3 d6 3. Ng5,g2g3 g8h6 g1h3 d7d6 h3g5,rnbqkb1r/ppp1pppp/3p3n/6N1/8/6P1/PPPPPP1P/RNBQKB1R b - -,
+Croatian-Swedish Attack,1. g3 Nh6 2. Nh3 d6 3. g4,g2g3 g8h6 g1h3 d7d6 g3g4,rnbqkb1r/ppp1pppp/3p3n/8/6P1/7N/PPPPPP1P/RNBQKB1R b - -,
+Russian Variation,1. g3 Nh6 2. b3 g6 3. Nh3,g2g3 g8h6 b2b3 g7g6 g1h3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. g3 Nh6 2. Nh3 g6 3. b3,g2g3 g8h6 g1h3 g7g6 b2b3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. g3 g6 2. b3 Nh6 3. Nh3,g2g3 g7g6 b2b3 g8h6 g1h3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. g3 g6 2. Nh3 Nh6 3. b3,g2g3 g7g6 g1h3 g8h6 b2b3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. b3 Nh6 2. g3 g6 3. Nh3,b2b3 g8h6 g2g3 g7g6 g1h3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. b3 Nh6 2. Nh3 g6 3. g3,b2b3 g8h6 g1h3 g7g6 g2g3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. b3 g6 2. g3 Nh6 3. Nh3,b2b3 g7g6 g2g3 g8h6 g1h3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. b3 g6 2. Nh3 Nh6 3. g3,b2b3 g7g6 g1h3 g8h6 g2g3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. Nh3 Nh6 2. g3 g6 3. b3,g1h3 g8h6 g2g3 g7g6 b2b3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. Nh3 Nh6 2. b3 g6 3. g3,g1h3 g8h6 b2b3 g7g6 g2g3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. Nh3 g6 2. g3 Nh6 3. b3,g1h3 g7g6 g2g3 g8h6 b2b3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Russian Variation,1. Nh3 g6 2. b3 Nh6 3. g3,g1h3 g7g6 b2b3 g8h6 g2g3,rnbqkb1r/pppppp1p/6pn/8/8/1P4PN/P1PPPP1P/RNBQKB1R b - -,
+Improved Zooey Attack,1. g3 c5 2. b4 cxb4 3. Nh3,g2g3 c7c5 b2b4 c5b4 g1h3,rnbqkbnr/pp1ppppp/8/8/1p6/6PN/P1PPPP1P/RNBQKB1R b - -,
+Improved Zooey Attack,1. Nh3 c5 2. b4 cxb4 3. g3,g1h3 c7c5 b2b4 c5b4 g2g3,rnbqkbnr/pp1ppppp/8/8/1p6/6PN/P1PPPP1P/RNBQKB1R b - -,
+Taelman's Proof,1. c4 d5 2. cxd5 Qxd5 3. g4,c2c4 d7d5 c4d5 d8d5 g2g4,rnb1kbnr/ppp1pppp/8/3q4/6P1/8/PP1PPP1P/RNBQKBNR b - -,1-0
+Steenhuis's Proof,1. c4 a5 2. b4 axb4 3. Qc2,c2c4 a7a5 b2b4 a5b4 d1c2,rnbqkbnr/1ppppppp/8/8/1pP5/8/P1QPPPPP/RNB1KBNR b - -,1-0
+Steenhuis's Proof,1. c4 Nf6 2. e4 Nxe4 3. Bd3,c2c4 g8f6 e2e4 f6e4 f1d3,rnbqkb1r/pppppppp/8/8/2P1n3/3B4/PP1P1PPP/RNBQK1NR b - -,1-0
+Canadian Attack,1. e3 Nc6 2. Ba6 bxa6 3. d4,e2e3 b8c6 f1a6 b7a6 d2d4,r1bqkbnr/p1pppppp/p1n5/8/3P4/4P3/PPP2PPP/RNBQK1NR b - -,
+Obradović Attack,1. e3 Nc6 2. Ba6 bxa6 3. b4,e2e3 b8c6 f1a6 b7a6 b2b4,r1bqkbnr/p1pppppp/p1n5/8/1P6/4P3/P1PP1PPP/RNBQK1NR b - -,
+Czech Attack,1. e3 Nc6 2. Ba6 bxa6 3. Qh5,e2e3 b8c6 f1a6 b7a6 d1h5,r1bqkbnr/p1pppppp/p1n5/7Q/8/4P3/PPPP1PPP/RNB1K1NR b - -,1-0
+Amit Attack,1. e3 Nc6 2. Ba6 bxa6 3. a4,e2e3 b8c6 f1a6 b7a6 a2a4,r1bqkbnr/p1pppppp/p1n5/8/P7/4P3/1PPP1PPP/RNBQK1NR b - -,1-0
+Old Wild Boar,1. e3 g5 2. Ba6 Nxa6 3. b4,e2e3 g7g5 f1a6 b8a6 b2b4,r1bqkbnr/pppppp1p/n7/6p1/1P6/4P3/P1PP1PPP/RNBQK1NR b - -,
+Old Bishop Defence,1. e3 b5 2. Bxb5 Ba6 3. Bxa6,e2e3 b7b5 f1b5 c8a6 b5a6,rn1qkbnr/p1pppppp/B7/8/8/4P3/PPPP1PPP/RNBQK1NR b - -,
+Liardet Attack,1. e3 e6 2. Ba6 Nxa6 3. Qf3,e2e3 e7e6 f1a6 b8a6 d1f3,r1bqkbnr/pppp1ppp/n3p3/8/8/4PQ2/PPPP1PPP/RNB1K1NR b - -,
+Beltman Attack,1. e3 e6 2. Ba6 Nxa6 3. h4,e2e3 e7e6 f1a6 b8a6 h2h4,r1bqkbnr/pppp1ppp/n3p3/8/7P/4P3/PPPP1PP1/RNBQK1NR b - -,
+Kibbitz Attack,1. e3 e6 2. b4 Bxb4 3. Qh5,e2e3 e7e6 b2b4 f8b4 d1h5,rnbqk1nr/pppp1ppp/4p3/7Q/1b6/4P3/P1PP1PPP/RNB1KBNR b - -,0-1
+Pawnik Attack,1. e3 e6 2. b4 Bxb4 3. Bc4,e2e3 e7e6 b2b4 f8b4 f1c4,rnbqk1nr/pppp1ppp/4p3/8/1bB5/4P3/P1PP1PPP/RNBQK1NR b - -,
+Andryushkov Attack,1. e3 e6 2. b4 Bxb4 3. Bb5,e2e3 e7e6 b2b4 f8b4 f1b5,rnbqk1nr/pppp1ppp/4p3/1B6/1b6/4P3/P1PP1PPP/RNBQK1NR b - -,0-1
+Wing Attack,1. e3 e6 2. b4 Bxb4 3. a4,e2e3 e7e6 b2b4 f8b4 a2a4,rnbqk1nr/pppp1ppp/4p3/8/Pb6/4P3/2PP1PPP/RNBQKBNR b - -,
+Wing Attack,1. a4 e6 2. b4 Bxb4 3. e3,a2a4 e7e6 b2b4 f8b4 e2e3,rnbqk1nr/pppp1ppp/4p3/8/Pb6/4P3/2PP1PPP/RNBQKBNR b - -,
+Bozick Attack,1. e3 e6 2. b4 Bxb4 3. Bd3,e2e3 e7e6 b2b4 f8b4 f1d3,rnbqk1nr/pppp1ppp/4p3/8/1b6/3BP3/P1PP1PPP/RNBQK1NR b - -,
+Kibbitz Attack,1. b4 e6 2. e3 Bxb4 3. Qh5,b2b4 e7e6 e2e3 f8b4 d1h5,rnbqk1nr/pppp1ppp/4p3/7Q/1b6/4P3/P1PP1PPP/RNB1KBNR b - -,0-1
+Pawnik Attack,1. b4 e6 2. e3 Bxb4 3. Bc4,b2b4 e7e6 e2e3 f8b4 f1c4,rnbqk1nr/pppp1ppp/4p3/8/1bB5/4P3/P1PP1PPP/RNBQK1NR b - -,
+Andryushkov Attack,1. b4 e6 2. e3 Bxb4 3. Bb5,b2b4 e7e6 e2e3 f8b4 f1b5,rnbqk1nr/pppp1ppp/4p3/1B6/1b6/4P3/P1PP1PPP/RNBQK1NR b - -,0-1
+Wing Attack,1. b4 e6 2. e3 Bxb4 3. a4,b2b4 e7e6 e2e3 f8b4 a2a4,rnbqk1nr/pppp1ppp/4p3/8/Pb6/4P3/2PP1PPP/RNBQKBNR b - -,
+Bozick Attack,1. b4 e6 2. e3 Bxb4 3. Bd3,b2b4 e7e6 e2e3 f8b4 f1d3,rnbqk1nr/pppp1ppp/4p3/8/1b6/3BP3/P1PP1PPP/RNBQK1NR b - -,
+Andrejić's Proof,1. e3 c5 2. Ba6 Nxa6 3. d4,e2e3 c7c5 f1a6 b8a6 d2d4,r1bqkbnr/pp1ppppp/n7/2p5/3P4/4P3/PPP2PPP/RNBQK1NR b - -,0-1
+Classical Polish Pawn Defence,1. e3 c5 2. Ba6 Nxa6 3. e4,e2e3 c7c5 f1a6 b8a6 e3e4,r1bqkbnr/pp1ppppp/n7/2p5/4P3/8/PPPP1PPP/RNBQK1NR b - -,
+Oğul System,1. e3 c5 2. Ba6 Nxa6 3. Ne2,e2e3 c7c5 f1a6 b8a6 g1e2,r1bqkbnr/pp1ppppp/n7/2p5/8/4P3/PPPPNPPP/RNBQK2R b - -,
+Geneva Attack,1. e3 b6 2. Ba6 Nxa6 3. Qg4,e2e3 b7b6 f1a6 b8a6 d1g4,r1bqkbnr/p1pppppp/np6/8/6Q1/4P3/PPPP1PPP/RNB1K1NR b - -,
+Serbian Attack,1. e3 b6 2. Ba6 Nxa6 3. Qe2,e2e3 b7b6 f1a6 b8a6 d1e2,r1bqkbnr/p1pppppp/np6/8/8/4P3/PPPPQPPP/RNB1K1NR b - -,
+Queen Attack Improved,1. e3 b6 2. Ba6 Nxa6 3. Qh5,e2e3 b7b6 f1a6 b8a6 d1h5,r1bqkbnr/p1pppppp/np6/7Q/8/4P3/PPPP1PPP/RNB1K1NR b - -,
+Classical Wing System,1. e3 b6 2. a4 b5 3. Bxb5,e2e3 b7b6 a2a4 b6b5 f1b5,rnbqkbnr/p1pppppp/8/1B6/P7/4P3/1PPP1PPP/RNBQK1NR b - -,1-0
+Classical Wing System,1. a4 b6 2. e3 b5 3. Bxb5,a2a4 b7b6 e2e3 b6b5 f1b5,rnbqkbnr/p1pppppp/8/1B6/P7/4P3/1PPP1PPP/RNBQK1NR b - -,1-0
+Geerlings Defence,1. e3 b5 2. Bxb5 Ba6 3. Bxd7 Qxd7,e2e3 b7b5 f1b5 c8a6 b5d7 d8d7,rn2kbnr/p1pqpppp/b7/8/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Bishop Defence,1. e3 b5 2. Bxb5 Ba6 3. Bxd7 Nxd7,e2e3 b7b5 f1b5 c8a6 b5d7 b8d7,r2qkbnr/p1pnpppp/b7/8/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Mega Bot Defence,1. e3 b5 2. Bxb5 Nh6 3. Bxd7 Kxd7,e2e3 b7b5 f1b5 g8h6 b5d7 e8d7,rnbq1b1r/p1pkpppp/7n/8/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Nagorko Defence,1. e3 b5 2. Bxb5 Nh6 3. Bxd7 Bxd7,e2e3 b7b5 f1b5 g8h6 b5d7 c8d7,rn1qkb1r/p1pbpppp/7n/8/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Two Knights Defence,1. e3 b5 2. Bxb5 Nh6 3. Bxd7 Nxd7,e2e3 b7b5 f1b5 g8h6 b5d7 b8d7,r1bqkb1r/p1pnpppp/7n/8/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Mexican Defence,1. e3 b5 2. Bxb5 e6 3. Bxd7 Nxd7,e2e3 b7b5 f1b5 e7e6 b5d7 b8d7,r1bqkbnr/p1pn1ppp/4p3/8/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Andrejić's Proof,1. e3 e6 2. b4 Bxb4 3. Bb5 Bxd2,e2e3 e7e6 b2b4 f8b4 f1b5 b4d2,rnbqk1nr/pppp1ppp/4p3/1B6/8/4P3/P1Pb1PPP/RNBQK1NR w - -,0-1
+Andrejić's Proof,1. b4 e6 2. e3 Bxb4 3. Bb5 Bxd2,b2b4 e7e6 e2e3 f8b4 f1b5 b4d2,rnbqk1nr/pppp1ppp/4p3/1B6/8/4P3/P1Pb1PPP/RNBQK1NR w - -,0-1
+Jarosz Defence,1. e3 c5 2. Ba6 Nxa6 3. Ne2 Qb6,e2e3 c7c5 f1a6 b8a6 g1e2 d8b6,r1b1kbnr/pp1ppppp/nq6/2p5/8/4P3/PPPPNPPP/RNBQK2R w - -,
+Laine Defence,1. e3 c5 2. Ba6 Nxa6 3. Ne2 Nb4,e2e3 c7c5 f1a6 b8a6 g1e2 a6b4,r1bqkbnr/pp1ppppp/8/2p5/1n6/4P3/PPPPNPPP/RNBQK2R w - -,
+Old Polish Defence,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4,r1bqkbnr/pp1ppppp/n7/8/1p6/4P3/P1PP1PPP/RNBQK1NR w - -,
+Old Polish Defence,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6,r1bqkbnr/pp1ppppp/n7/8/1p6/4P3/P1PP1PPP/RNBQK1NR w - -,
+Wortel Defence,1. e3 c5 2. Bb5 e6 3. Bxd7 Bxd7,e2e3 c7c5 f1b5 e7e6 b5d7 c8d7,rn1qkbnr/pp1b1ppp/4p3/2p5/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Esko Defence,1. e3 c5 2. Bb5 e6 3. Bxd7 Kxd7,e2e3 c7c5 f1b5 e7e6 b5d7 e8d7,rnbq1bnr/pp1k1ppp/4p3/2p5/8/4P3/PPPP1PPP/RNBQK1NR w - -,1-0
+Dutch Game,1. e3 b6 2. Ba6 Nxa6 3. Qe2 Nc5,e2e3 b7b6 f1a6 b8a6 d1e2 a6c5,r1bqkbnr/p1pppppp/1p6/2n5/8/4P3/PPPPQPPP/RNB1K1NR w - -,
+Retreat Defence,1. e3 b6 2. Ba6 Nxa6 3. Qh5 Nb8,e2e3 b7b6 f1a6 b8a6 d1h5 a6b8,rnbqkbnr/p1pppppp/1p6/7Q/8/4P3/PPPP1PPP/RNB1K1NR w - -,1-0
+Dragon-Lord Attack,1. Nh3 e6 2. b4 Bxb4 3. Ng5 Qxg5 4. g4,g1h3 e7e6 b2b4 f8b4 h3g5 d8g5 g2g4,rnb1k1nr/pppp1ppp/4p3/6q1/1b4P1/8/P1PPPP1P/RNBQKB1R b - -,0-1
+Joddle Attack,1. Nh3 e6 2. b4 Bxb4 3. Ng5 Qxg5 4. g3,g1h3 e7e6 b2b4 f8b4 h3g5 d8g5 g2g3,rnb1k1nr/pppp1ppp/4p3/6q1/1b6/6P1/P1PPPP1P/RNBQKB1R b - -,
+Dragon-Lord Attack,1. Nh3 e6 2. Ng5 Qxg5 3. b4 Bxb4 4. g4,g1h3 e7e6 h3g5 d8g5 b2b4 f8b4 g2g4,rnb1k1nr/pppp1ppp/4p3/6q1/1b4P1/8/P1PPPP1P/RNBQKB1R b - -,0-1
+Joddle Attack,1. Nh3 e6 2. Ng5 Qxg5 3. b4 Bxb4 4. g3,g1h3 e7e6 h3g5 d8g5 b2b4 f8b4 g2g3,rnb1k1nr/pppp1ppp/4p3/6q1/1b6/6P1/P1PPPP1P/RNBQKB1R b - -,
+Andrejić's Proof,1. e3 Nc6 2. Ba6 bxa6 3. Qh5 Rb8 4. Qxh7,e2e3 b8c6 f1a6 b7a6 d1h5 a8b8 h5h7,1rbqkbnr/p1pppppQ/p1n5/8/8/4P3/PPPP1PPP/RNB1K1NR b - -,1-0
+Andrejić's Proof,1. e3 b5 2. Bxb5 Ba6 3. Bxd7 Qxd7 4. Qe2,e2e3 b7b5 f1b5 c8a6 b5d7 d8d7 d1e2,rn2kbnr/p1pqpppp/b7/8/8/4P3/PPPPQPPP/RNB1K1NR b - -,1-0
+Sjaak Gambit,1. e3 b5 2. Bxb5 Ba6 3. Bxd7 Qxd7 4. Ke2,e2e3 b7b5 f1b5 c8a6 b5d7 d8d7 e1e2,rn2kbnr/p1pqpppp/b7/8/8/4P3/PPPPKPPP/RNBQ2NR b - -,1-0
+Knight Variation,1. e3 b5 2. Bxb5 Nh6 3. Bxd7 Kxd7 4. Nc3,e2e3 b7b5 f1b5 g8h6 b5d7 e8d7 b1c3,rnbq1b1r/p1pkpppp/7n/8/8/2N1P3/PPPP1PPP/R1BQK1NR b - -,1-0
+Pawn Variation,1. e3 b5 2. Bxb5 Nh6 3. Bxd7 Kxd7 4. g4,e2e3 b7b5 f1b5 g8h6 b5d7 e8d7 g2g4,rnbq1b1r/p1pkpppp/7n/8/6P1/4P3/PPPP1P1P/RNBQK1NR b - -,1-0
+Queen Variation,1. e3 b5 2. Bxb5 Nh6 3. Bxd7 Bxd7 4. Qh5,e2e3 b7b5 f1b5 g8h6 b5d7 c8d7 d1h5,rn1qkb1r/p1pbpppp/7n/7Q/8/4P3/PPPP1PPP/RNB1K1NR b - -,1-0
+Sjaak Attack,1. e3 b5 2. Bxb5 Nh6 3. Bxd7 Bxd7 4. h3,e2e3 b7b5 f1b5 g8h6 b5d7 c8d7 h2h3,rn1qkb1r/p1pbpppp/7n/8/8/4P2P/PPPP1PP1/RNBQK1NR b - -,1-0
+Watkins Attack,1. e3 b5 2. Bxb5 Nh6 3. Bxd7 Nxd7 4. e4,e2e3 b7b5 f1b5 g8h6 b5d7 b8d7 e3e4,r1bqkb1r/p1pnpppp/7n/8/4P3/8/PPPP1PPP/RNBQK1NR b - -,1-0
+Bosman Attack,1. e3 b5 2. Bxb5 Nh6 3. Bxd7 Nxd7 4. c4,e2e3 b7b5 f1b5 g8h6 b5d7 b8d7 c2c4,r1bqkb1r/p1pnpppp/7n/8/2P5/4P3/PP1P1PPP/RNBQK1NR b - -,1-0
+Knight Attack,1. e3 b5 2. Bxb5 e6 3. Bxd7 Bxd7 4. Nh3,e2e3 b7b5 f1b5 e7e6 b5d7 c8d7 g1h3,rn1qkbnr/p1pb1ppp/4p3/8/8/4P2N/PPPP1PPP/RNBQK2R b - -,1-0
+Double Pawn Attack,1. e3 b5 2. Bxb5 e6 3. Bxd7 Bxd7 4. Na3,e2e3 b7b5 f1b5 e7e6 b5d7 c8d7 b1a3,rn1qkbnr/p1pb1ppp/4p3/8/8/N3P3/PPPP1PPP/R1BQK1NR b - -,1-0
+Goldovski Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. c3,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 c2c3,r1bqk1nr/pppp1ppp/n3p3/8/1b6/2P1P3/P2P1PPP/RNBQK1NR b - -,
+Stockfish Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qe2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1e2,r1bqk1nr/pppp1ppp/n3p3/8/1b6/4P3/P1PPQPPP/RNB1K1NR b - -,0-1
+Dutch Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. h4,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 h2h4,r1bqk1nr/pppp1ppp/n3p3/8/1b5P/4P3/P1PP1PP1/RNBQK1NR b - -,
+Multani Attack,1. e3 e6 2. b4 Bxb4 3. Nh3 Bxd2 4. Nxd2,e2e3 e7e6 b2b4 f8b4 g1h3 b4d2 b1d2,rnbqk1nr/pppp1ppp/4p3/8/8/4P2N/P1PN1PPP/R1BQKB1R b - -,0-1
+Nakshatra Attack,1. e3 e6 2. b4 Bxb4 3. Nh3 Bxd2 4. Bxd2,e2e3 e7e6 b2b4 f8b4 g1h3 b4d2 c1d2,rnbqk1nr/pppp1ppp/4p3/8/8/4P2N/P1PB1PPP/RN1QKB1R b - -,
+Multani Attack,1. Nh3 e6 2. b4 Bxb4 3. e3 Bxd2 4. Nxd2,g1h3 e7e6 b2b4 f8b4 e2e3 b4d2 b1d2,rnbqk1nr/pppp1ppp/4p3/8/8/4P2N/P1PN1PPP/R1BQKB1R b - -,0-1
+Nakshatra Attack,1. Nh3 e6 2. b4 Bxb4 3. e3 Bxd2 4. Bxd2,g1h3 e7e6 b2b4 f8b4 e2e3 b4d2 c1d2,rnbqk1nr/pppp1ppp/4p3/8/8/4P2N/P1PB1PPP/RN1QKB1R b - -,
+Multani Attack,1. b4 e6 2. e3 Bxb4 3. Nh3 Bxd2 4. Nxd2,b2b4 e7e6 e2e3 f8b4 g1h3 b4d2 b1d2,rnbqk1nr/pppp1ppp/4p3/8/8/4P2N/P1PN1PPP/R1BQKB1R b - -,0-1
+Andrejić's Proof,1. e3 e6 2. b4 Bxb4 3. Bc4 Bxd2 4. Bxe6,e2e3 e7e6 b2b4 f8b4 f1c4 b4d2 c4e6,rnbqk1nr/pppp1ppp/4B3/8/8/4P3/P1Pb1PPP/RNBQK1NR b - -,0-1
+Nakshatra Attack,1. b4 e6 2. e3 Bxb4 3. Nh3 Bxd2 4. Bxd2,b2b4 e7e6 e2e3 f8b4 g1h3 b4d2 c1d2,rnbqk1nr/pppp1ppp/4p3/8/8/4P2N/P1PB1PPP/RN1QKB1R b - -,
+Dipilato Attack,1. e3 e6 2. b4 Bxb4 3. Qg4 Bxd2 4. Qxg7,e2e3 e7e6 b2b4 f8b4 d1g4 b4d2 g4g7,rnbqk1nr/pppp1pQp/4p3/8/8/4P3/P1Pb1PPP/RNB1KBNR b - -,1-0
+Dipilato Attack,1. b4 e6 2. e3 Bxb4 3. Qg4 Bxd2 4. Qxg7,b2b4 e7e6 e2e3 f8b4 d1g4 b4d2 g4g7,rnbqk1nr/pppp1pQp/4p3/8/8/4P3/P1Pb1PPP/RNB1KBNR b - -,1-0
+Andrejić Variation,1. e3 c5 2. Bd3 a5 3. Bxh7 Rxh7 4. Qf3,e2e3 c7c5 f1d3 a7a5 d3h7 h8h7 d1f3,rnbqkbn1/1p1ppppr/8/p1p5/8/4PQ2/PPPP1PPP/RNB1K1NR b - -,0-1
+Lajeunesse Attack,1. e3 c5 2. Bd3 a5 3. Bxh7 Rxh7 4. c3,e2e3 c7c5 f1d3 a7a5 d3h7 h8h7 c2c3,rnbqkbn1/1p1ppppr/8/p1p5/8/2P1P3/PP1P1PPP/RNBQK1NR b - -,
+Andrejić's Proof,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. Qg4,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 d1g4,r1bqkbnr/pp1ppppp/n7/8/1p4Q1/4P3/P1PP1PPP/RNB1K1NR b - -,0-1
+Italian Variation,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. g3,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 g2g3,r1bqkbnr/pp1ppppp/n7/8/1p6/4P1P1/P1PP1P1P/RNBQK1NR b - -,
+Morrison Attack,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. Na3,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 b1a3,r1bqkbnr/pp1ppppp/n7/8/1p6/N3P3/P1PP1PPP/R1BQK1NR b - -,
+Computer Attack,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. d3,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 d2d3,r1bqkbnr/pp1ppppp/n7/8/1p6/3PP3/P1P2PPP/RNBQK1NR b - -,
+Andrejić's Proof,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. Qg4,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 d1g4,r1bqkbnr/pp1ppppp/n7/8/1p4Q1/4P3/P1PP1PPP/RNB1K1NR b - -,0-1
+Italian Variation,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. g3,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 g2g3,r1bqkbnr/pp1ppppp/n7/8/1p6/4P1P1/P1PP1P1P/RNBQK1NR b - -,
+Morrison Attack,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. Na3,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 b1a3,r1bqkbnr/pp1ppppp/n7/8/1p6/N3P3/P1PP1PPP/R1BQK1NR b - -,
+Computer Attack,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. d3,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 d2d3,r1bqkbnr/pp1ppppp/n7/8/1p6/3PP3/P1P2PPP/RNBQK1NR b - -,
+Watkins's Proof,1. e3 c5 2. Bb5 c4 3. Bxd7 Kxd7 4. b3,e2e3 c7c5 f1b5 c5c4 b5d7 e8d7 b2b3,rnbq1bnr/pp1kpppp/8/8/2p5/1P2P3/P1PP1PPP/RNBQK1NR b - -,1-0
+Bela Palanka Attack,1. e3 b6 2. Qh5 c5 3. Qxf7 Kxf7 4. Bd3,e2e3 b7b6 d1h5 c7c5 h5f7 e8f7 f1d3,rnbq1bnr/p2ppkpp/1p6/2p5/8/3BP3/PPPP1PPP/RNB1K1NR b - -,
+Old Dutch Game,1. e3 b6 2. Ba6 Nxa6 3. Qe2 Nc5 4. d3,e2e3 b7b6 f1a6 b8a6 d1e2 a6c5 d2d3,r1bqkbnr/p1pppppp/1p6/2n5/8/3PP3/PPP1QPPP/RNB1K1NR b - -,
+Death Defence,1. e3 b5 2. Bxb5 e6 3. Bxd7 Bxd7 4. Nh3 Nh6,e2e3 b7b5 f1b5 e7e6 b5d7 c8d7 g1h3 g8h6,rn1qkb1r/p1pb1ppp/4p2n/8/8/4P2N/PPPP1PPP/RNBQK2R w - -,1-0
+Brazilian Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qg4 Bxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1g4 b4d2,r1bqk1nr/pppp1ppp/n3p3/8/6Q1/4P3/P1Pb1PPP/RNB1K1NR w - -,
+Jettison Defence,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. d3 b3,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 d2d3 b4b3,r1bqkbnr/pp1ppppp/n7/8/8/1p1PP3/P1P2PPP/RNBQK1NR w - -,1-0
+Nilatac Defence,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. d3 Qc7,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 d2d3 d8c7,r1b1kbnr/ppqppppp/n7/8/1p6/3PP3/P1P2PPP/RNBQK1NR w - -,
+Witches Defence,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. d3 Rb8,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 d2d3 a8b8,1rbqkbnr/pp1ppppp/n7/8/1p6/3PP3/P1P2PPP/RNBQK1NR w - -,
+Jettison Defence,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. d3 b3,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 d2d3 b4b3,r1bqkbnr/pp1ppppp/n7/8/8/1p1PP3/P1P2PPP/RNBQK1NR w - -,1-0
+Nilatac Defence,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. d3 Qc7,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 d2d3 d8c7,r1b1kbnr/ppqppppp/n7/8/1p6/3PP3/P1P2PPP/RNBQK1NR w - -,
+Witches Defence,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. d3 Rb8,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 d2d3 a8b8,1rbqkbnr/pp1ppppp/n7/8/1p6/3PP3/P1P2PPP/RNBQK1NR w - -,
+Steenhuis Variation,1. Na3 e6 2. b3 Bxa3 3. Bxa3 d6 4. Bxd6 Qxd6 5. Qc1,b1a3 e7e6 b2b3 f8a3 c1a3 d7d6 a3d6 d8d6 d1c1,rnb1k1nr/ppp2ppp/3qp3/8/8/1P6/P1PPPPPP/R1Q1KBNR b - -,0-1
+Sports Variation,1. Nh3 g5 2. Nxg5 Bg7 3. Nxh7 Bxb2 4. Bxb2 Rxh7 5. Bd4,g1h3 g7g5 h3g5 f8g7 g5h7 g7b2 c1b2 h8h7 b2d4,rnbqk1n1/pppppp1r/8/8/3B4/8/P1PPPPPP/RN1QKB1R b - -,
+Hervetlse Race,1. g3 c5 2. d4 cxd4 3. Qxd4 g5 4. Bxg5 Qa5 5. Qxh8,g2g3 c7c5 d2d4 c5d4 d1d4 g7g5 c1g5 d8a5 d4h8,rnb1kbnQ/pp1ppp1p/8/q5B1/8/6P1/PPP1PP1P/RN2KBNR b - -,
+Watkins Race,1. e3 g5 2. Ba6 Nxa6 3. Qh5 Bg7 4. Qxh7 Bxb2 5. Qxh8,e2e3 g7g5 f1a6 b8a6 d1h5 f8g7 h5h7 g7b2 h7h8,r1bqk1nQ/pppppp2/n7/6p1/8/4P3/PbPP1PPP/RNB1K1NR b - -,1-0
+Andrejić Attack,1. e3 g5 2. Ba6 Nxa6 3. Qh5 Bg7 4. Qxh7 Bxb2 5. Bxb2,e2e3 g7g5 f1a6 b8a6 d1h5 f8g7 h5h7 g7b2 c1b2,r1bqk1nr/pppppp1Q/n7/6p1/8/4P3/PBPP1PPP/RN2K1NR b - -,1-0
+Minear Attack,1. e3 b5 2. Bxb5 e6 3. Bxd7 Bxd7 4. b4 Bxb4 5. a4,e2e3 b7b5 f1b5 e7e6 b5d7 c8d7 b2b4 f8b4 a2a4,rn1qk1nr/p1pb1ppp/4p3/8/Pb6/4P3/2PP1PPP/RNBQK1NR b - -,
+Revolutionary Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qf3 Bxd2 5. Qxb7,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1f3 b4d2 f3b7,r1bqk1nr/pQpp1ppp/n3p3/8/8/4P3/P1Pb1PPP/RNB1K1NR b - -,0-1
+American Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qf3 Bxd2 5. Kxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1f3 b4d2 e1d2,r1bqk1nr/pppp1ppp/n3p3/8/8/4PQ2/P1PK1PPP/RNB3NR b - -,0-1
+Sordid Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qf3 Bxd2 5. Bxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1f3 b4d2 c1d2,r1bqk1nr/pppp1ppp/n3p3/8/8/4PQ2/P1PB1PPP/RN2K1NR b - -,0-1
+Swedish Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qf3 Bxd2 5. Nxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1f3 b4d2 b1d2,r1bqk1nr/pppp1ppp/n3p3/8/8/4PQ2/P1PN1PPP/R1B1K1NR b - -,
+Geerlings King Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qh5 Bxd2 5. Kxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1h5 b4d2 e1d2,r1bqk1nr/pppp1ppp/n3p3/7Q/8/4P3/P1PK1PPP/RNB3NR b - -,0-1
+Geerlings Queen Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qh5 Bxd2 5. Qxf7,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1h5 b4d2 h5f7,r1bqk1nr/pppp1Qpp/n3p3/8/8/4P3/P1Pb1PPP/RNB1K1NR b - -,0-1
+Geerlings Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qh5 Bxd2 5. Nxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1h5 b4d2 b1d2,r1bqk1nr/pppp1ppp/n3p3/7Q/8/4P3/P1PN1PPP/R1B1K1NR b - -,0-1
+Super Loser Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qh5 Bxd2 5. Bxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1h5 b4d2 c1d2,r1bqk1nr/pppp1ppp/n3p3/7Q/8/4P3/P1PB1PPP/RN2K1NR b - -,
+Brazilian Bishop Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qg4 Bxd2 5. Bxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1g4 b4d2 c1d2,r1bqk1nr/pppp1ppp/n3p3/8/6Q1/4P3/P1PB1PPP/RN2K1NR b - -,
+Brazilian Knight Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qg4 Bxd2 5. Nxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1g4 b4d2 b1d2,r1bqk1nr/pppp1ppp/n3p3/8/6Q1/4P3/P1PN1PPP/R1B1K1NR b - -,
+Moura Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qg4 Bxd2 5. Qxg7,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1g4 b4d2 g4g7,r1bqk1nr/pppp1pQp/n3p3/8/8/4P3/P1Pb1PPP/RNB1K1NR b - -,
+Two Knights Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Nh3 Bxd2 5. Nxd2,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 g1h3 b4d2 b1d2,r1bqk1nr/pppp1ppp/n3p3/8/8/4P2N/P1PN1PPP/R1BQK2R b - -,
+Rai Attack,1. e3 c5 2. Bd3 a5 3. Bxh7 Rxh7 4. Qh5 Rxh5 5. Kd1,e2e3 c7c5 f1d3 a7a5 d3h7 h8h7 d1h5 h7h5 e1d1,rnbqkbn1/1p1pppp1/8/p1p4r/8/4P3/PPPP1PPP/RNBK2NR b - -,
+Nagorko Attack,1. e3 b6 2. Ba6 Nxa6 3. Qh5 c5 4. Qxh7 Rxh7 5. g3,e2e3 b7b6 f1a6 b8a6 d1h5 c7c5 h5h7 h8h7 g2g3,r1bqkbn1/p2ppppr/np6/2p5/8/4P1P1/PPPP1P1P/RNB1K1NR b - -,
+King Attack,1. e3 b6 2. Ba6 Nxa6 3. Qh5 c5 4. Qxh7 Rxh7 5. Kd1,e2e3 b7b6 f1a6 b8a6 d1h5 c7c5 h5h7 h8h7 e1d1,r1bqkbn1/p2ppppr/np6/2p5/8/4P3/PPPP1PPP/RNBK2NR b - -,
+Belgrade Attack,1. e3 b6 2. Ba6 Nxa6 3. Qh5 c5 4. Qxh7 Rxh7 5. h3,e2e3 b7b6 f1a6 b8a6 d1h5 c7c5 h5h7 h8h7 h2h3,r1bqkbn1/p2ppppr/np6/2p5/8/4P2P/PPPP1PP1/RNB1K1NR b - -,
+Morrison Attack,1. e3 b6 2. Ba6 Nxa6 3. Qh5 c5 4. Qxh7 Rxh7 5. Kf1,e2e3 b7b6 f1a6 b8a6 d1h5 c7c5 h5h7 h8h7 e1f1,r1bqkbn1/p2ppppr/np6/2p5/8/4P3/PPPP1PPP/RNB2KNR b - -,
+Andrejić's Proof,1. e3 b5 2. Bxb5 Ba6 3. Bxd7 Nxd7 4. d3 Bxd3 5. Qxd3 g6,e2e3 b7b5 f1b5 c8a6 b5d7 b8d7 d2d3 a6d3 d1d3 g7g6,r2qkbnr/p1pnpp1p/6p1/8/8/3QP3/PPP2PPP/RNB1K1NR w - -,1-0
+Seattle Defence,1. e3 b5 2. Bxb5 Ba6 3. Bxd7 Nxd7 4. d3 Bxd3 5. Qxd3 h6,e2e3 b7b5 f1b5 c8a6 b5d7 b8d7 d2d3 a6d3 d1d3 h7h6,r2qkbnr/p1pnppp1/7p/8/8/3QP3/PPP2PPP/RNB1K1NR w - -,1-0
+Queen Defence,1. e3 b5 2. Bxb5 Ba6 3. Bxd7 Nxd7 4. d3 Bxd3 5. Qxd3 Qb8,e2e3 b7b5 f1b5 c8a6 b5d7 b8d7 d2d3 a6d3 d1d3 d8b8,rq2kbnr/p1pnpppp/8/8/8/3QP3/PPP2PPP/RNB1K1NR w - -,1-0
+Rook Defence,1. e3 b5 2. Bxb5 Ba6 3. Bxd7 Nxd7 4. d3 Bxd3 5. Qxd3 Rb8,e2e3 b7b5 f1b5 c8a6 b5d7 b8d7 d2d3 a6d3 d1d3 a8b8,1r1qkbnr/p1pnpppp/8/8/8/3QP3/PPP2PPP/RNB1K1NR w - -,1-0
+Sordid Defence,1. e3 b5 2. Bxb5 e6 3. Bxd7 Bxd7 4. Na3 Bxa3 5. bxa3 Qh4,e2e3 b7b5 f1b5 e7e6 b5d7 c8d7 b1a3 f8a3 b2a3 d8h4,rn2k1nr/p1pb1ppp/4p3/8/7q/P3P3/P1PP1PPP/R1BQK1NR w - -,1-0
+Sjeng Defence,1. e3 b5 2. Bxb5 e6 3. Bxd7 Bxd7 4. Na3 Bxa3 5. bxa3 c6,e2e3 b7b5 f1b5 e7e6 b5d7 c8d7 b1a3 f8a3 b2a3 c7c6,rn1qk1nr/p2b1ppp/2p1p3/8/8/P3P3/P1PP1PPP/R1BQK1NR w - -,1-0
+Modern Beltman Attack,1. e3 e6 2. Ba6 Nxa6 3. h4 Qxh4 4. Rxh4 Ba3 5. Nxa3 b5,e2e3 e7e6 f1a6 b8a6 h2h4 d8h4 h1h4 f8a3 b1a3 b7b5,r1b1k1nr/p1pp1ppp/n3p3/1p6/7R/N3P3/PPPP1PP1/R1BQK1N1 w - -,
+Andrejić's Proof,1. e3 c5 2. Bd3 g6 3. Bxg6 fxg6 4. Qh5 gxh5 5. h4 c4,e2e3 c7c5 f1d3 g7g6 d3g6 f7g6 d1h5 g6h5 h2h4 c5c4,rnbqkbnr/pp1pp2p/8/7p/2p4P/4P3/PPPP1PP1/RNB1K1NR w - -,1-0
+Czech Variation,1. e3 c5 2. Bd3 g6 3. Bxg6 fxg6 4. Qh5 gxh5 5. h4 a5,e2e3 c7c5 f1d3 g7g6 d3g6 f7g6 d1h5 g6h5 h2h4 a7a5,rnbqkbnr/1p1pp2p/8/p1p4p/7P/4P3/PPPP1PP1/RNB1K1NR w - -,
+Wing Defence Race,1. e3 c5 2. Bd3 a5 3. Bxh7 Rxh7 4. Qf3 Rxh2 5. Rxh2 Qc7,e2e3 c7c5 f1d3 a7a5 d3h7 h8h7 d1f3 h7h2 h1h2 d8c7,rnb1kbn1/1pqpppp1/8/p1p5/8/4PQ2/PPPP1PPR/RNB1K1N1 w - -,0-1
+Andrejić's Proof,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. d3 b3 5. cxb3 Nb8,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 d2d3 b4b3 c2b3 a6b8,rnbqkbnr/pp1ppppp/8/8/8/1P1PP3/P4PPP/RNBQK1NR w - -,1-0
+Andrejić's Proof,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. d3 b3 5. cxb3 Nc7,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 d2d3 b4b3 c2b3 a6c7,r1bqkbnr/ppnppppp/8/8/8/1P1PP3/P4PPP/RNBQK1NR w - -,1-0
+Andrejić's Proof,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. d3 b3 5. cxb3 Nb8,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 d2d3 b4b3 c2b3 a6b8,rnbqkbnr/pp1ppppp/8/8/8/1P1PP3/P4PPP/RNBQK1NR w - -,1-0
+Andrejić's Proof,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. d3 b3 5. cxb3 Nc7,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 d2d3 b4b3 c2b3 a6c7,r1bqkbnr/ppnppppp/8/8/8/1P1PP3/P4PPP/RNBQK1NR w - -,1-0
+Exchange Variation,1. e3 c5 2. Bb5 c4 3. Bxd7 Kxd7 4. b3 cxb3 5. cxb3 h5,e2e3 c7c5 f1b5 c5c4 b5d7 e8d7 b2b3 c4b3 c2b3 h7h5,rnbq1bnr/pp1kppp1/8/7p/8/1P2P3/P2P1PPP/RNBQK1NR w - -,1-0
+Recoyle Variation,1. e3 c5 2. Bb5 c4 3. Bxd7 Kxd7 4. b3 cxb3 5. cxb3 g5,e2e3 c7c5 f1b5 c5c4 b5d7 e8d7 b2b3 c4b3 c2b3 g7g5,rnbq1bnr/pp1kpp1p/8/6p1/8/1P2P3/P2P1PPP/RNBQK1NR w - -,1-0
+Rubus Variation,1. e3 c5 2. Bb5 c4 3. Bxd7 Kxd7 4. b3 cxb3 5. cxb3 Nh6,e2e3 c7c5 f1b5 c5c4 b5d7 e8d7 b2b3 c4b3 c2b3 g8h6,rnbq1b1r/pp1kpppp/7n/8/8/1P2P3/P2P1PPP/RNBQK1NR w - -,1-0
+Andrejić Defence,1. e3 b6 2. Qh5 c5 3. Qxh7 Rxh7 4. Bc4 Rxh2 5. Bxf7 Rxg2,e2e3 b7b6 d1h5 c7c5 h5h7 h8h7 f1c4 h7h2 c4f7 h2g2,rnbqkbn1/p2ppBp1/1p6/2p5/8/4P3/PPPP1Pr1/RNB1K1NR w - -,
+Fish Defence,1. e3 b6 2. a4 e6 3. Ra3 Bxa3 4. Nxa3 b5 5. Bxb5 Qe7,e2e3 b7b6 a2a4 e7e6 a1a3 f8a3 b1a3 b6b5 f1b5 d8e7,rnb1k1nr/p1ppqppp/4p3/1B6/P7/N3P3/1PPP1PPP/2BQK1NR w - -,1-0
+Watkins Finale,1. e3 b6 2. a4 e6 3. Ra3 Bxa3 4. Nxa3 b5 5. Bxb5 Qg5,e2e3 b7b6 a2a4 e7e6 a1a3 f8a3 b1a3 b6b5 f1b5 d8g5,rnb1k1nr/p1pp1ppp/4p3/1B4q1/P7/N3P3/1PPP1PPP/2BQK1NR w - -,1-0
+Fish Defence,1. e3 e6 2. a4 b6 3. Ra3 Bxa3 4. Nxa3 b5 5. Bxb5 Qe7,e2e3 e7e6 a2a4 b7b6 a1a3 f8a3 b1a3 b6b5 f1b5 d8e7,rnb1k1nr/p1ppqppp/4p3/1B6/P7/N3P3/1PPP1PPP/2BQK1NR w - -,1-0
+Watkins Finale,1. e3 e6 2. a4 b6 3. Ra3 Bxa3 4. Nxa3 b5 5. Bxb5 Qg5,e2e3 e7e6 a2a4 b7b6 a1a3 f8a3 b1a3 b6b5 f1b5 d8g5,rnb1k1nr/p1pp1ppp/4p3/1B4q1/P7/N3P3/1PPP1PPP/2BQK1NR w - -,1-0
+Fish Defence,1. a4 b6 2. e3 e6 3. Ra3 Bxa3 4. Nxa3 b5 5. Bxb5 Qe7,a2a4 b7b6 e2e3 e7e6 a1a3 f8a3 b1a3 b6b5 f1b5 d8e7,rnb1k1nr/p1ppqppp/4p3/1B6/P7/N3P3/1PPP1PPP/2BQK1NR w - -,1-0
+Watkins Finale,1. a4 b6 2. e3 e6 3. Ra3 Bxa3 4. Nxa3 b5 5. Bxb5 Qg5,a2a4 b7b6 e2e3 e7e6 a1a3 f8a3 b1a3 b6b5 f1b5 d8g5,rnb1k1nr/p1pp1ppp/4p3/1B4q1/P7/N3P3/1PPP1PPP/2BQK1NR w - -,1-0
+Fish Defence,1. a4 e6 2. e3 b6 3. Ra3 Bxa3 4. Nxa3 b5 5. Bxb5 Qe7,a2a4 e7e6 e2e3 b7b6 a1a3 f8a3 b1a3 b6b5 f1b5 d8e7,rnb1k1nr/p1ppqppp/4p3/1B6/P7/N3P3/1PPP1PPP/2BQK1NR w - -,1-0
+Watkins Finale,1. a4 e6 2. e3 b6 3. Ra3 Bxa3 4. Nxa3 b5 5. Bxb5 Qg5,a2a4 e7e6 e2e3 b7b6 a1a3 f8a3 b1a3 b6b5 f1b5 d8g5,rnb1k1nr/p1pp1ppp/4p3/1B4q1/P7/N3P3/1PPP1PPP/2BQK1NR w - -,1-0
+Fianchetto Suicide Defence,1. Nh3 g5 2. Nxg5 Bg7 3. Nxh7 Bxb2 4. Bxb2 Rxh7 5. Bf6 exf6 6. Rg1,g1h3 g7g5 h3g5 f8g7 g5h7 g7b2 c1b2 h8h7 b2f6 e7f6 h1g1,rnbqk1n1/pppp1p1r/5p2/8/8/8/P1PPPPPP/RN1QKBR1 b - -,0-1
+Nilatac Variation,1. Nh3 g5 2. Nxg5 Bg7 3. Nxh7 Bxb2 4. Bxb2 Rxh7 5. Bf6 exf6 6. Qc1,g1h3 g7g5 h3g5 f8g7 g5h7 g7b2 c1b2 h8h7 b2f6 e7f6 d1c1,rnbqk1n1/pppp1p1r/5p2/8/8/8/P1PPPPPP/RNQ1KB1R b - -,0-1
+Icelandic Variation,1. Nh3 g5 2. Nxg5 Bg7 3. Nxh7 Bxb2 4. Bxb2 Rxh7 5. Bf6 exf6 6. h3,g1h3 g7g5 h3g5 f8g7 g5h7 g7b2 c1b2 h8h7 b2f6 e7f6 h2h3,rnbqk1n1/pppp1p1r/5p2/8/8/7P/P1PPPPP1/RN1QKB1R b - -,
+Stayalive Variation,1. g3 c5 2. Nh3 g5 3. Nxg5 Bg7 4. Nxh7 Bxb2 5. Bxb2 Rxh7 6. Bd4,g2g3 c7c5 g1h3 g7g5 h3g5 f8g7 g5h7 g7b2 c1b2 h8h7 b2d4,rnbqk1n1/pp1ppp1r/8/2p5/3B4/6P1/P1PPPP1P/RN1QKB1R b - -,
+Stayalive Variation,1. Nh3 c5 2. g3 g5 3. Nxg5 Bg7 4. Nxh7 Bxb2 5. Bxb2 Rxh7 6. Bd4,g1h3 c7c5 g2g3 g7g5 h3g5 f8g7 g5h7 g7b2 c1b2 h8h7 b2d4,rnbqk1n1/pp1ppp1r/8/2p5/3B4/6P1/P1PPPP1P/RN1QKB1R b - -,
+Knight Variation,1. e3 b5 2. Bxb5 Bb7 3. Bxd7 Bxg2 4. Bxe8 Bxh1 5. Bxf7 Qxd2 6. Nxd2,e2e3 b7b5 f1b5 c8b7 b5d7 b7g2 d7e8 g2h1 e8f7 d8d2 b1d2,rn3bnr/p1p1pBpp/8/8/8/4P3/PPPN1P1P/R1BQK1Nb b - -,
+Bishop Variation,1. e3 b5 2. Bxb5 Bb7 3. Bxd7 Bxg2 4. Bxe8 Bxh1 5. Bxf7 Qxd2 6. Bxd2,e2e3 b7b5 f1b5 c8b7 b5d7 b7g2 d7e8 g2h1 e8f7 d8d2 c1d2,rn3bnr/p1p1pBpp/8/8/8/4P3/PPPB1P1P/RN1QK1Nb b - -,1-0
+King Variation,1. e3 b5 2. Bxb5 Bb7 3. Bxd7 Bxg2 4. Bxe8 Bxh1 5. Bxf7 Qxd2 6. Kxd2,e2e3 b7b5 f1b5 c8b7 b5d7 b7g2 d7e8 g2h1 e8f7 d8d2 e1d2,rn3bnr/p1p1pBpp/8/8/8/4P3/PPPK1P1P/RNBQ2Nb b - -,1-0
+Sandström Attack,1. e3 e6 2. Ba6 Nxa6 3. b4 Bxb4 4. Qg4 Bxd2 5. Qxg7 Bxe3 6. Bxe3,e2e3 e7e6 f1a6 b8a6 b2b4 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3,r1bqk1nr/pppp1pQp/n3p3/8/8/4B3/P1P2PPP/RN2K1NR b - -,
+Nilatac Gambit,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. d3 Qc7 5. Nc3 Qxc3 6. Ne2,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 d2d3 d8c7 b1c3 c7c3 g1e2,r1b1kbnr/pp1ppppp/n7/8/1p6/2qPP3/P1P1NPPP/R1BQK2R b - -,
+Nilatac Gambit,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. d3 Qc7 5. Nc3 Qxc3 6. Ne2,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 d2d3 d8c7 b1c3 c7c3 g1e2,r1b1kbnr/pp1ppppp/n7/8/1p6/2qPP3/P1P1NPPP/R1BQK2R b - -,
+Recoyle Bishop Variation,1. e3 c5 2. Bb5 c4 3. Bxd7 Kxd7 4. b3 cxb3 5. cxb3 g5 6. Ba3,e2e3 c7c5 f1b5 c5c4 b5d7 e8d7 b2b3 c4b3 c2b3 g7g5 c1a3,rnbq1bnr/pp1kpp1p/8/6p1/8/BP2P3/P2P1PPP/RN1QK1NR b - -,1-0
+Yabba's Proof,1. e3 g5 2. Ba6 Nxa6 3. Qh5 Bg7 4. Qxh7 Bxb2 5. Qxh8 Bxa1 6. Qxa1,e2e3 g7g5 f1a6 b8a6 d1h5 f8g7 h5h7 g7b2 h7h8 b2a1 h8a1,r1bqk1n1/pppppp2/n7/6p1/8/4P3/P1PP1PPP/QNB1K1NR b - -,1-0
+Modern Suicide Defence,1. e3 b5 2. Bxb5 Bb7 3. Bxd7 Bxg2 4. Bxe8 Bxh1 5. Bxf7 Qxd2 6. Kxd2 Bd5,e2e3 b7b5 f1b5 c8b7 b5d7 b7g2 d7e8 g2h1 e8f7 d8d2 e1d2 h1d5,rn3bnr/p1p1pBpp/8/3b4/8/4P3/PPPK1P1P/RNBQ2N1 w - -,1-0
+Old Suicide Defence,1. e3 b5 2. Bxb5 Bb7 3. Bxd7 Bxg2 4. Bxe8 Bxh1 5. Bxf7 Qxd2 6. Kxd2 Bf3,e2e3 b7b5 f1b5 c8b7 b5d7 b7g2 d7e8 g2h1 e8f7 d8d2 e1d2 h1f3,rn3bnr/p1p1pBpp/8/8/8/4Pb2/PPPK1P1P/RNBQ2N1 w - -,1-0
+Modern Suicide Defence,1. e3 b5 2. Bxb5 Bb7 3. Bxd7 Bxg2 4. Bxe8 Qxd2 5. Bxf7 Bxh1 6. Kxd2 Bd5,e2e3 b7b5 f1b5 c8b7 b5d7 b7g2 d7e8 d8d2 e8f7 g2h1 e1d2 h1d5,rn3bnr/p1p1pBpp/8/3b4/8/4P3/PPPK1P1P/RNBQ2N1 w - -,1-0
+Old Suicide Defence,1. e3 b5 2. Bxb5 Bb7 3. Bxd7 Bxg2 4. Bxe8 Qxd2 5. Bxf7 Bxh1 6. Kxd2 Bf3,e2e3 b7b5 f1b5 c8b7 b5d7 b7g2 d7e8 d8d2 e8f7 g2h1 e1d2 h1f3,rn3bnr/p1p1pBpp/8/8/8/4Pb2/PPPK1P1P/RNBQ2N1 w - -,1-0
+Sjeng Race,1. e3 e6 2. b4 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 Qa5,e2e3 e7e6 b2b4 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 d8a5,rnb1k1nr/pp1p1pQp/4p3/q1B5/8/8/P1P2PPP/RN2KBNR w - -,1-0
+Sjeng Race,1. b4 e6 2. e3 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 Qa5,b2b4 e7e6 e2e3 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 d8a5,rnb1k1nr/pp1p1pQp/4p3/q1B5/8/8/P1P2PPP/RN2KBNR w - -,1-0
+Turkish Defence,1. e3 b6 2. Ba6 Nxa6 3. Qe2 b5 4. Qxb5 Nb4 5. Qxd7 Nxa2 6. Rxa2 Qxd7,e2e3 b7b6 f1a6 b8a6 d1e2 b6b5 e2b5 a6b4 b5d7 b4a2 a1a2 d8d7,r1b1kbnr/p1pqpppp/8/8/8/4P3/RPPP1PPP/1NB1K1NR w - -,
+Old Dipilato Attack,1. e3 e6 2. b4 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Qxh8,e2e3 e7e6 b2b4 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 g7h8,rnbqk1nQ/p2p1p1p/1p2p3/2B5/8/8/P1P2PPP/RN2KBNR b - -,
+Old Dipilato Attack,1. b4 e6 2. e3 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Qxh8,b2b4 e7e6 e2e3 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 g7h8,rnbqk1nQ/p2p1p1p/1p2p3/2B5/8/8/P1P2PPP/RN2KBNR b - -,
+King Variation,1. e3 b5 2. Bxb5 e6 3. Bxd7 Bxd7 4. Na3 Bxa3 5. bxa3 Bc8 6. a4 Qxd2 7. Kxd2,e2e3 b7b5 f1b5 e7e6 b5d7 c8d7 b1a3 f8a3 b2a3 d7c8 a3a4 d8d2 e1d2,rnb1k1nr/p1p2ppp/4p3/8/P7/4P3/P1PK1PPP/R1BQ2NR b - -,1-0
+Bishop Variation,1. e3 b5 2. Bxb5 e6 3. Bxd7 Bxd7 4. Na3 Bxa3 5. bxa3 Bc8 6. a4 Qxd2 7. Bxd2,e2e3 b7b5 f1b5 e7e6 b5d7 c8d7 b1a3 f8a3 b2a3 d7c8 a3a4 d8d2 c1d2,rnb1k1nr/p1p2ppp/4p3/8/P7/4P3/P1PB1PPP/R2QK1NR b - -,1-0
+Nilatac Attack,1. e3 e6 2. b4 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Bxb6 Qxb6 8. Qxg8,e2e3 e7e6 b2b4 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 c5b6 d8b6 g7g8,rnb1k1Qr/p2p1p1p/1q2p3/8/8/8/P1P2PPP/RN2KBNR b - -,
+Tabiya Attack,1. e3 e6 2. b4 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Bxb6 Qxb6 8. Qxh7,e2e3 e7e6 b2b4 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 c5b6 d8b6 g7h7,rnb1k1nr/p2p1p1Q/1q2p3/8/8/8/P1P2PPP/RN2KBNR b - -,
+Watkins System,1. e3 e6 2. b4 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Bxb6 Qxb6 8. Qxf7,e2e3 e7e6 b2b4 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 c5b6 d8b6 g7f7,rnb1k1nr/p2p1Q1p/1q2p3/8/8/8/P1P2PPP/RN2KBNR b - -,1-0
+Watkins System,1. e3 e6 2. b4 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Qxf7 Kxf7 8. Bxb6,e2e3 e7e6 b2b4 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 g7f7 e8f7 c5b6,rnbq2nr/p2p1k1p/1B2p3/8/8/8/P1P2PPP/RN2KBNR b - -,1-0
+Nilatac Attack,1. b4 e6 2. e3 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Bxb6 Qxb6 8. Qxg8,b2b4 e7e6 e2e3 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 c5b6 d8b6 g7g8,rnb1k1Qr/p2p1p1p/1q2p3/8/8/8/P1P2PPP/RN2KBNR b - -,
+Tabiya Attack,1. b4 e6 2. e3 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Bxb6 Qxb6 8. Qxh7,b2b4 e7e6 e2e3 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 c5b6 d8b6 g7h7,rnb1k1nr/p2p1p1Q/1q2p3/8/8/8/P1P2PPP/RN2KBNR b - -,
+Watkins System,1. b4 e6 2. e3 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Bxb6 Qxb6 8. Qxf7,b2b4 e7e6 e2e3 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 c5b6 d8b6 g7f7,rnb1k1nr/p2p1Q1p/1q2p3/8/8/8/P1P2PPP/RN2KBNR b - -,1-0
+Watkins System,1. b4 e6 2. e3 Bxb4 3. Qg4 Bxd2 4. Qxg7 Bxe3 5. Bxe3 c5 6. Bxc5 b6 7. Qxf7 Kxf7 8. Bxb6,b2b4 e7e6 e2e3 f8b4 d1g4 b4d2 g4g7 d2e3 c1e3 c7c5 e3c5 b7b6 g7f7 e8f7 c5b6,rnbq2nr/p2p1k1p/1B2p3/8/8/8/P1P2PPP/RN2KBNR b - -,1-0
+Andrejić's Proof,1. e3 c5 2. Ba6 Nxa6 3. b4 cxb4 4. d3 b3 5. cxb3 Nc7 6. b4 Ne6 7. d4 Nxd4 8. Qxd4 Qc7,e2e3 c7c5 f1a6 b8a6 b2b4 c5b4 d2d3 b4b3 c2b3 a6c7 b3b4 c7e6 d3d4 e6d4 d1d4 d8c7,r1b1kbnr/ppqppppp/8/8/1P1Q4/4P3/P4PPP/RNB1K1NR w - -,1-0
+Andrejić's Proof,1. e3 c5 2. b4 cxb4 3. Ba6 Nxa6 4. d3 b3 5. cxb3 Nc7 6. b4 Ne6 7. d4 Nxd4 8. Qxd4 Qc7,e2e3 c7c5 b2b4 c5b4 f1a6 b8a6 d2d3 b4b3 c2b3 a6c7 b3b4 c7e6 d3d4 e6d4 d1d4 d8c7,r1b1kbnr/ppqppppp/8/8/1P1Q4/4P3/P4PPP/RNB1K1NR w - -,1-0
+Computer Defence,1. e3 b5 2. Bxb5 Bb7 3. Bxd7 Bxg2 4. Bxe8 Bxh1 5. Bxf7 Qxd2 6. Kxd2 Bf3 7. Bxg8 Rxg8 8. Qxf3 Nd7 9. Qxf8 Nxf8 10. e4 Rh8,e2e3 b7b5 f1b5 c8b7 b5d7 b7g2 d7e8 g2h1 e8f7 d8d2 e1d2 h1f3 f7g8 h8g8 d1f3 b8d7 f3f8 d7f8 e3e4 g8h8,r4n1r/p1p1p1pp/8/8/4P3/8/PPPK1P1P/RNB3N1 w - -,1-0

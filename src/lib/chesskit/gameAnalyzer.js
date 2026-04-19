@@ -156,8 +156,6 @@ const adaptHistoryEntry = (move, prevPosition, classifiedPosition, isLast) => {
   entry.winPercentLoss = winPercentLoss;
   entry.centipawnLoss = centipawnLoss;
   entry.bestMove = bestMove;
-  entry.tags = [];
-  entry.flags = {};
   if (isLast && classifiedPosition.terminal) {
     entry.terminal = classifiedPosition.terminal;
   }
