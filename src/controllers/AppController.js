@@ -31,6 +31,8 @@ const AppController = (function() {
   var analysisMode = true;
   var lastAnalysisHistory = null;
   var lastAnalysisCounts = null;
+  var activeReviewTab = 'stats';
+  var currentReviewCandidates = [];
   var feedbackCategory = 'feature';
   var authMode = 'signin';
   var DEFAULT_MOVE_DESC = 'Run a full game review to see brilliance, inaccuracies, and more for each move.';
@@ -800,6 +802,7 @@ const AppController = (function() {
     });
 
     document.getElementById('analyzeFullGame').addEventListener('click', analyzeFullGame);
+    setupReviewTabs();
 
     // Lines count
     document.querySelectorAll('.lines-btn').forEach(function(btn) {
@@ -1894,6 +1897,7 @@ const AppController = (function() {
     ChessBoard.setLastMove(null, null);
     updateActiveMoveHighlight();
     startAnalysis();
+    updateMoveQualityBanner();
   }
 
   function goPrev() {
@@ -2077,6 +2081,44 @@ const AppController = (function() {
     setTimeout(function() {
       analyzeFullGame();
     }, 120);
+  }
+
+  function setupReviewTabs() {
+    document.querySelectorAll('.gr-tab[data-review-tab]').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        switchReviewTab(this.getAttribute('data-review-tab') || 'stats');
+      });
+    });
+  }
+
+  function switchReviewTab(tab) {
+    activeReviewTab = tab === 'analyze' ? 'analyze' : 'stats';
+
+    document.querySelectorAll('.gr-tab[data-review-tab]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-review-tab') === activeReviewTab);
+    });
+
+    var statsPanel = document.getElementById('grStatsPanel');
+    var analyzePanel = document.getElementById('grAnalyzePanel');
+    if (statsPanel) statsPanel.style.display = activeReviewTab === 'stats' ? '' : 'none';
+    if (analyzePanel) analyzePanel.style.display = activeReviewTab === 'analyze' ? '' : 'none';
+
+    if (activeReviewTab === 'analyze') {
+      var selected = getSelectedReviewMove();
+      updateReviewAnalyzePanel(selected.moveInfo, selected.moveIndex);
+      if (window.EngineController && typeof EngineController.renderLiveCandidates === 'function') {
+        EngineController.renderLiveCandidates();
+      }
+    }
+  }
+
+  function getSelectedReviewMove() {
+    var moveIndex = currentMoveIndex - 1;
+    var moveInfo = null;
+    if (lastAnalysisHistory && moveIndex >= 0 && moveIndex < lastAnalysisHistory.length) {
+      moveInfo = lastAnalysisHistory[moveIndex];
+    }
+    return { moveInfo: moveInfo, moveIndex: moveIndex };
   }
 
   function restoreLatestGameForAnalysis() {
@@ -2410,6 +2452,8 @@ const AppController = (function() {
     lastAnalysisHistory = null;
     lastAnalysisCounts = null;
     lastCoachSummary = DEFAULT_COACH_TEXT;
+    currentReviewCandidates = [];
+    switchReviewTab('stats');
     var panel = document.getElementById('gameReviewPanel');
     if (panel) panel.classList.add('is-empty');
     setCoachMessage('Coach Ramp', DEFAULT_COACH_TEXT);
@@ -2429,17 +2473,17 @@ const AppController = (function() {
       var ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
+    updateReviewAnalyzePanel(null, -1);
     setReviewBusyState(false);
   }
 
   function updateMoveQualityBanner() {
-    var moveIndex = currentMoveIndex - 1;
-    var moveInfo = null;
-    if (lastAnalysisHistory && moveIndex >= 0 && moveIndex < lastAnalysisHistory.length) {
-      moveInfo = lastAnalysisHistory[moveIndex];
-    }
+    var selected = getSelectedReviewMove();
+    var moveIndex = selected.moveIndex;
+    var moveInfo = selected.moveInfo;
     setMoveQualityBanner(moveInfo, moveIndex);
     refreshEvalGraphHighlight(moveIndex);
+    updateReviewAnalyzePanel(moveInfo, moveIndex);
   }
 
   function refreshEvalGraphHighlight(highlightIndex) {
@@ -2687,6 +2731,168 @@ const AppController = (function() {
     } catch (e) {
       return bestMove.slice(0, 2) + '-' + bestMove.slice(2, 4);
     }
+  }
+
+  function escapeReviewHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function getFenBeforeReviewMove(moveIndex) {
+    if (typeof moveIndex === 'number' && moveIndex >= 0 && gamePositions && gamePositions[moveIndex]) {
+      return gamePositions[moveIndex].fen || '';
+    }
+    return chess ? chess.fen() : '';
+  }
+
+  function formatCandidateEval(candidate) {
+    if (!candidate) return '--';
+    if (typeof candidate.mate === 'number') {
+      if (candidate.mate === 0) return 'M0';
+      return candidate.mate > 0 ? 'M' + candidate.mate : '-M' + Math.abs(candidate.mate);
+    }
+    if (typeof candidate.cp === 'number') {
+      var pawn = candidate.cp / 100;
+      return (pawn >= 0 ? '+' : '') + pawn.toFixed(2);
+    }
+    return '--';
+  }
+
+  function getCandidateEvalClass(candidate) {
+    if (!candidate) return '';
+    if (typeof candidate.mate === 'number') return candidate.mate < 0 ? ' negative' : '';
+    if (typeof candidate.cp === 'number') return candidate.cp < 0 ? ' negative' : '';
+    return '';
+  }
+
+  function sanForUciMove(fen, uciMove) {
+    if (!uciMove || uciMove.length < 4) return uciMove || '';
+    try {
+      var tempChess = new Chess();
+      if (fen) tempChess.load(fen);
+      var move = tempChess.move({
+        from: uciMove.slice(0, 2),
+        to: uciMove.slice(2, 4),
+        promotion: uciMove[4] || 'q'
+      });
+      return move && move.san ? move.san : (uciMove.slice(0, 2) + '-' + uciMove.slice(2, 4));
+    } catch (e) {
+      return uciMove.slice(0, 2) + '-' + uciMove.slice(2, 4);
+    }
+  }
+
+  function formatCandidatePv(pv, fen) {
+    if (!pv || !pv.length) return '';
+
+    var moves = Array.isArray(pv) ? pv : String(pv).split(' ');
+    try {
+      var tempChess = new Chess();
+      if (fen) tempChess.load(fen);
+
+      var fenParts = String(fen || '').split(' ');
+      var moveNum = parseInt(fenParts[5], 10) || 1;
+      var isWhite = (fenParts[1] || 'w') === 'w';
+      var formatted = [];
+
+      for (var i = 0; i < Math.min(moves.length, 8); i++) {
+        var uciMove = moves[i];
+        if (!uciMove || uciMove.length < 4) break;
+
+        if (isWhite || i === 0) {
+          formatted.push(isWhite ? moveNum + '.' : moveNum + '...');
+          if (isWhite) moveNum++;
+        }
+
+        var move = tempChess.move({
+          from: uciMove.slice(0, 2),
+          to: uciMove.slice(2, 4),
+          promotion: uciMove[4] || 'q'
+        });
+        formatted.push(move && move.san ? move.san : uciMove);
+        isWhite = !isWhite;
+      }
+
+      return formatted.join(' ');
+    } catch (e) {
+      return moves.slice(0, 8).join(' ');
+    }
+  }
+
+  function describeReviewPosition(moveInfo, moveIndex) {
+    if (!moveInfo || typeof moveIndex !== 'number' || moveIndex < 0) {
+      return 'Select a move after running full analysis.';
+    }
+    var moveNum = moveInfo.moveNumber || Math.floor(moveIndex / 2) + 1;
+    var prefix = moveInfo.color === 'w' ? moveNum + '.' : moveNum + '...';
+    return 'Before ' + prefix + ' ' + (moveInfo.san || moveInfo.playedMove || 'the selected move');
+  }
+
+  function updateReviewAnalyzePanel(moveInfo, moveIndex) {
+    var labelEl = document.getElementById('grAnalysisPositionLabel');
+    var listEl = document.getElementById('grAnalysisCandidates');
+    if (!labelEl || !listEl) return;
+
+    currentReviewCandidates = [];
+    labelEl.textContent = describeReviewPosition(moveInfo, moveIndex);
+
+    if (!moveInfo) {
+      listEl.innerHTML = '<div class="gr-analysis-empty">Run full analysis, then select a move to see better choices.</div>';
+      return;
+    }
+
+    var candidates = Array.isArray(moveInfo.candidateMoves) ? moveInfo.candidateMoves : [];
+    if (!candidates.length) {
+      listEl.innerHTML = '<div class="gr-analysis-empty">No alternate engine moves were saved for this position.</div>';
+      return;
+    }
+
+    var fen = getFenBeforeReviewMove(moveIndex);
+    currentReviewCandidates = candidates.map(function(candidate) {
+      return Object.assign({}, candidate, {
+        fen: fen,
+        moveIndex: moveIndex
+      });
+    });
+
+    listEl.innerHTML = currentReviewCandidates.map(function(candidate, idx) {
+      var firstMove = sanForUciMove(fen, candidate.move || (candidate.pv && candidate.pv[0]));
+      var pvLine = formatCandidatePv(candidate.pv || [], fen);
+      var tags = '';
+      if (candidate.isBest) {
+        tags += '<span class="gr-candidate-tag is-best">Best</span>';
+      }
+      if (candidate.isPlayed) {
+        tags += '<span class="gr-candidate-tag is-played">Played</span>';
+      }
+      var depth = candidate.depth ? '<span class="gr-candidate-depth">d' + escapeReviewHtml(candidate.depth) + '</span>' : '';
+      var rowClass = 'gr-candidate-row' + (candidate.isBest ? ' is-best' : '') + (candidate.isPlayed ? ' is-played' : '');
+      return '<button type="button" class="' + rowClass + '" onclick="AppController.loadReviewCandidateLine(' + idx + ')">' +
+        '<span class="gr-candidate-rank">' + escapeReviewHtml(candidate.rank || idx + 1) + '</span>' +
+        '<span class="gr-candidate-main">' +
+          '<span class="gr-candidate-top">' +
+            '<span class="gr-candidate-move">' + escapeReviewHtml(firstMove) + '</span>' +
+            tags +
+          '</span>' +
+          '<span class="gr-candidate-line">' + escapeReviewHtml(pvLine || firstMove) + '</span>' +
+        '</span>' +
+        '<span class="gr-candidate-side">' +
+          '<span class="gr-candidate-eval' + getCandidateEvalClass(candidate) + '">' + escapeReviewHtml(formatCandidateEval(candidate)) + '</span>' +
+          depth +
+        '</span>' +
+      '</button>';
+    }).join('');
+  }
+
+  function loadReviewCandidateLine(index) {
+    var candidate = currentReviewCandidates && currentReviewCandidates[index];
+    if (!candidate || !candidate.pv || !candidate.pv.length) return;
+    var targetIndex = typeof candidate.moveIndex === 'number' ? candidate.moveIndex : Math.max(0, currentMoveIndex - 1);
+    goToMove(targetIndex);
+    loadEngineLine(candidate.pv.join(' '));
   }
 
   function updateGameRatings(counts, wAcc, bAcc) {
@@ -3101,6 +3307,7 @@ const AppController = (function() {
     init: init,
     goToMoveByIndex: goToMoveByIndex,
     loadEngineLine: loadEngineLine,
+    loadReviewCandidateLine: loadReviewCandidateLine,
     loadFetchedGame: loadFetchedGame,
     loadFetchedPGNGame: loadFetchedPGNGame,
     loadDbGame: loadDbGame,

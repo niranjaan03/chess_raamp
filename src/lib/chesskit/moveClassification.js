@@ -5,8 +5,19 @@ import {
   getPositionWinPercentage,
 } from './winPercentage.js';
 import { MoveClassification } from './enums.js';
-import { openings } from './data/openings.js';
+import OPENING_DATA from '../openingData.js';
+import OPENING_DATA_EXTRA from '../openingDataExtra.js';
 import { getIsPieceSacrifice, isSimplePieceRecapture } from './chess.js';
+
+const practiceOpeningsMap = new Map();
+for (const opening of [...OPENING_DATA, ...OPENING_DATA_EXTRA]) {
+  for (const variation of opening.variations) {
+    const piecePos = variation.epd.split(' ')[0];
+    if (!practiceOpeningsMap.has(piecePos)) {
+      practiceOpeningsMap.set(piecePos, variation.fullName);
+    }
+  }
+}
 
 export const getMovesClassification = (rawPositions, uciMoves, fens) => {
   const positionsWinPercentage = rawPositions.map(getPositionWinPercentage);
@@ -16,12 +27,12 @@ export const getMovesClassification = (rawPositions, uciMoves, fens) => {
     if (index === 0) return rawPosition;
 
     const currentFen = fens[index].split(' ')[0];
-    const opening = openings.find((opening) => opening.fen === currentFen);
-    if (opening) {
-      currentOpening = opening.name;
+    const openingName = practiceOpeningsMap.get(currentFen);
+    if (openingName) {
+      currentOpening = openingName;
       return {
         ...rawPosition,
-        opening: opening.name,
+        opening: openingName,
         moveClassification: MoveClassification.Opening,
       };
     }

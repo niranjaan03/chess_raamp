@@ -123,6 +123,38 @@ const cpFromLine = (line) => {
   return 0;
 };
 
+const uciFromHistoryMove = (move) => {
+  if (!move) return '';
+  const promo = move.promotion ? String(move.promotion).toLowerCase() : '';
+  return `${move.from}${move.to}${promo}`;
+};
+
+const candidateMovesFromPosition = (position, playedMove) => {
+  if (!position || !Array.isArray(position.lines)) return [];
+
+  const seen = new Set();
+  return position.lines
+    .filter((line) => line && Array.isArray(line.pv) && line.pv[0])
+    .filter((line) => {
+      const firstMove = line.pv[0];
+      if (seen.has(firstMove)) return false;
+      seen.add(firstMove);
+      return true;
+    })
+    .slice(0, 5)
+    .map((line, index) => ({
+      rank: index + 1,
+      move: line.pv[0],
+      pv: line.pv.slice(0, 8),
+      cp: typeof line.cp === 'number' ? line.cp : undefined,
+      mate: typeof line.mate === 'number' ? line.mate : undefined,
+      depth: line.depth || 0,
+      multiPv: line.multiPv || index + 1,
+      isBest: index === 0,
+      isPlayed: line.pv[0] === playedMove,
+    }));
+};
+
 // Adapt one chess kit classified position back into the per-move history
 // fields the existing UI consumes. `prevPosition` is the rawPositions entry
 // from before the move was played.
@@ -143,6 +175,7 @@ const adaptHistoryEntry = (move, prevPosition, classifiedPosition, isLast) => {
 
   const classification = classifiedPosition.moveClassification || MoveClassification.Excellent;
   const quality = UI_QUALITY_BY_CLASSIFICATION[classification] || 'good';
+  const playedMove = uciFromHistoryMove(move);
   const bestMove = prevPosition.bestMove || null;
 
   const entry = Object.assign({}, move);
@@ -155,7 +188,9 @@ const adaptHistoryEntry = (move, prevPosition, classifiedPosition, isLast) => {
   entry.winPercentAfter = moverWpAfter;
   entry.winPercentLoss = winPercentLoss;
   entry.centipawnLoss = centipawnLoss;
+  entry.playedMove = playedMove;
   entry.bestMove = bestMove;
+  entry.candidateMoves = candidateMovesFromPosition(prevPosition, playedMove);
   if (isLast && classifiedPosition.terminal) {
     entry.terminal = classifiedPosition.terminal;
   }

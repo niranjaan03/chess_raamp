@@ -14,7 +14,9 @@ import { analyzeGameWithChessKit } from '../lib/chesskit/gameAnalyzer.js';
 import { MoveClassification } from '../lib/chesskit/enums.js';
 
 const EngineController = (function() {
+  var REVIEW_MULTI_PV = 5;
   var currentLines = {};
+  var currentAnalysisFen = null;
   var isAnalyzing = false;
   var analysisTimer = null;
   var numLines = 3;
@@ -87,6 +89,7 @@ const EngineController = (function() {
     }
 
     currentLines = {};
+    currentAnalysisFen = fen || null;
     isAnalyzing = true;
     onBestMoveCallback = onBestMove;
     numLines = lines || 3;
@@ -164,7 +167,7 @@ const EngineController = (function() {
 
     if (bestMoveEl && data.line === 1 && data.pv) {
       var bestMove = data.pv.split(' ')[0];
-      bestMoveEl.innerHTML = 'Best: <span>' + formatMove(bestMove) + '</span>';
+      bestMoveEl.textContent = formatMove(bestMove);
     }
   }
 
@@ -215,6 +218,8 @@ const EngineController = (function() {
         <span class="line-depth-badge">d${line.depth}</span>
       </div>`;
     }).join('');
+
+    renderLiveCandidates();
   }
 
   function formatPV(pv, fen) {
@@ -279,6 +284,60 @@ const EngineController = (function() {
     AppController.loadEngineLine(pv);
   }
 
+  function renderLiveCandidates() {
+    var container = document.getElementById('grLiveCandidates');
+    if (!container) return;
+
+    var lines = [];
+    for (var i = 1; i <= numLines; i++) {
+      if (currentLines[i]) lines.push(currentLines[i]);
+    }
+
+    if (!lines.length) {
+      container.innerHTML = '<div class="gr-analysis-empty">Start analyzing a position to see engine candidates.</div>';
+      return;
+    }
+
+    var fen = currentAnalysisFen;
+    var qualityLabels = ['Best', 'Good', 'Interesting'];
+
+    container.innerHTML = lines.map(function(line, idx) {
+      var evalStr = line.eval;
+      var evalNum = parseFloat(evalStr);
+      var isMate = evalStr && evalStr.toString().indexOf('M') !== -1;
+      var evalDisplay = isMate ? evalStr : (evalNum > 0 ? '+' + evalStr : evalStr);
+      var evalClass = (!isMate && evalNum < 0) ? 'gr-live-card-eval negative' : 'gr-live-card-eval';
+
+      var firstUci = line.pv ? line.pv.split(' ')[0] : '';
+      var firstSan = firstUci ? (firstUci.slice(0, 2) + '-' + firstUci.slice(2, 4)) : '—';
+      try {
+        var chess = new Chess();
+        if (fen) chess.load(fen);
+        if (firstUci && firstUci.length >= 4) {
+          var m = chess.move({ from: firstUci.slice(0, 2), to: firstUci.slice(2, 4), promotion: firstUci[4] || 'q' });
+          if (m) firstSan = m.san;
+        }
+      } catch (e) {}
+
+      var pvFormatted = formatPV(line.pv, fen);
+      var tagLabel = qualityLabels[idx] || '';
+      var tagClass = idx === 0 ? 'gr-live-card-tag best' : idx === 1 ? 'gr-live-card-tag good' : 'gr-live-card-tag alt';
+      var tag = tagLabel ? '<span class="' + tagClass + '">' + tagLabel + '</span>' : '';
+
+      return '<button type="button" class="gr-live-card' + (idx === 0 ? ' is-best' : '') + '" data-pv="' + escapeAttr(line.pv || '') + '" onclick="EngineController.loadLine(this)">' +
+        '<span class="' + evalClass + '">' + evalDisplay + '</span>' +
+        '<div class="gr-live-card-body">' +
+          '<div class="gr-live-card-top">' +
+            '<span class="gr-live-card-move">' + firstSan + '</span>' +
+            tag +
+          '</div>' +
+          '<span class="gr-live-card-line">' + pvFormatted + '</span>' +
+        '</div>' +
+        '<span class="gr-live-card-depth">d' + (line.depth || '?') + '</span>' +
+      '</button>';
+    }).join('');
+  }
+
   function stop() {
     isAnalyzing = false;
     EngineManager.stop();
@@ -303,9 +362,9 @@ const EngineController = (function() {
     var profile = getReviewProfile(positions.length);
     var totalUnits = positions.length;
 
-    // Chess kit needs at least two engine lines per position so it can detect
-    // "Forced", "Splendid", and "Perfect" moves via the alternative line.
-    EngineManager.analyzeBatch(positions, profile.depth, 2, function(done) {
+    // Chess kit needs at least two lines for classification. Keeping five
+    // lets the review Analyze panel explain viable alternatives per move.
+    EngineManager.analyzeBatch(positions, profile.depth, REVIEW_MULTI_PV, function(done) {
       if (reviewToken !== gameAnalysisToken) return;
       if (typeof onProgress === 'function') onProgress(done, totalUnits);
     }, function(batchResults) {
@@ -342,6 +401,7 @@ const EngineController = (function() {
     analyzeFen: analyzeFen,
     analyzeGame: analyzeGame,
     updateLinesDisplay: updateLinesDisplay,
+    renderLiveCandidates: renderLiveCandidates,
     loadLine: loadLine,
     stop: stop,
     setNumLines: function(n) { numLines = n; },

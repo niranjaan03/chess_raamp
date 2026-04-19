@@ -580,18 +580,19 @@ function App() {
 
             <div className="analysis-panel">
               <div className="eval-section">
-                <div>
-                  <div className="opening-name" id="bestMoveDisplay">
-                    Best: --
+                <div className="eval-body">
+                  <div className="eval-meta">
+                    <span className="eval-meta-label">Best Move</span>
+                    <span className="eval-meta-move" id="bestMoveDisplay">—</span>
                   </div>
-                  <div className="opening-eco">
-                    Depth <span id="evalDepth">0</span> · Nodes <span id="evalNodes">0</span>
+                  <div className="eval-score" id="evalScore">+0.00</div>
+                  <div className="eval-bar">
+                    <div className="eval-fill eval-fill-white" id="evalFillWhite"></div>
+                    <div className="eval-fill eval-fill-black" id="evalFillBlack"></div>
                   </div>
                 </div>
-                <div className="eval-score" id="evalScore">+0.00</div>
-                <div className="eval-bar">
-                  <div className="eval-fill eval-fill-white" id="evalFillWhite"></div>
-                  <div className="eval-fill eval-fill-black" id="evalFillBlack"></div>
+                <div className="eval-footer">
+                  Depth <span id="evalDepth">0</span> · Nodes <span id="evalNodes">0</span>
                 </div>
               </div>
 
@@ -618,92 +619,130 @@ function App() {
               <div className="game-review-panel is-empty" id="gameReviewPanel">
                 <div className="gr-header">
                   <span className="gr-title">&#9733; Game Review</span>
-                </div>
-
-                <div className="gr-coach-bar" id="grCoachTip">
-                  <div className="gr-coach-avatar" aria-hidden="true">
-                    <div className="gr-coach-face">
-                      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'100%',height:'100%'}}>
-                        <circle cx="32" cy="32" r="30" fill="#1a1a2e"/>
-                        <circle cx="32" cy="36" r="18" fill="#e8c170"/>
-                        <ellipse cx="32" cy="42" rx="10" ry="7" fill="#d4a555"/>
-                        <rect x="13" y="28" rx="3" width="38" height="8" fill="#111"/>
-                        <rect x="15" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
-                        <rect x="35" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
-                        <line x1="29" y1="32" x2="35" y2="32" stroke="#555" strokeWidth="1.5"/>
-                        <path d="M26 44 Q32 50 38 44" stroke="#1a1a2e" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-                        <path d="M10 24 Q32 10 54 24 L52 28 Q32 16 12 28 Z" fill="#2d2d5e"/>
-                        <circle cx="48" cy="26" r="2" fill="#f7c948"/>
-                      </svg>
-                    </div>
-                    <span className="gr-coach-badge">Coach</span>
-                  </div>
-                  <div className="gr-coach-copy">
-                    <div className="gr-coach-name" id="grCoachTitle">Coach Ramp</div>
-                    <div className="gr-coach-text" id="grCoachText">
-                      Run a full analysis to unlock personalized move-by-move coaching.
-                    </div>
+                  <div className="gr-tabs" role="tablist" aria-label="Game review views">
+                    <button type="button" className="gr-tab active" id="grStatsTab" data-review-tab="stats">
+                      Stats
+                    </button>
+                    <button type="button" className="gr-tab" id="grAnalyzeTab" data-review-tab="analyze">
+                      Analyze
+                    </button>
                   </div>
                 </div>
 
-                <div className="gr-graph-wrap">
-                  <canvas id="evalGraph" width="400" height="120"></canvas>
-                </div>
-
-                <div className="gr-section-title">Players</div>
-                <div className="gr-players-row">
-                  <div className="gr-player-card" id="grWhiteCard">
-                    <div className="gr-player-avatar">♙</div>
-                    <div className="gr-player-meta">
-                      <span className="gr-player-role">White</span>
-                      <span className="gr-player-name" id="grWhiteName">White</span>
-                      <span className="gr-player-rating" id="grWhiteElo">—</span>
+                <div className="gr-tab-panel active" id="grStatsPanel">
+                  <div className="gr-coach-bar" id="grCoachTip">
+                    <div className="gr-coach-avatar" aria-hidden="true">
+                      <div className="gr-coach-face">
+                        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'100%',height:'100%'}}>
+                          <circle cx="32" cy="32" r="30" fill="#1a1a2e"/>
+                          <circle cx="32" cy="36" r="18" fill="#e8c170"/>
+                          <ellipse cx="32" cy="42" rx="10" ry="7" fill="#d4a555"/>
+                          <rect x="13" y="28" rx="3" width="38" height="8" fill="#111"/>
+                          <rect x="15" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
+                          <rect x="35" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
+                          <line x1="29" y1="32" x2="35" y2="32" stroke="#555" strokeWidth="1.5"/>
+                          <path d="M26 44 Q32 50 38 44" stroke="#1a1a2e" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+                          <path d="M10 24 Q32 10 54 24 L52 28 Q32 16 12 28 Z" fill="#2d2d5e"/>
+                          <circle cx="48" cy="26" r="2" fill="#f7c948"/>
+                        </svg>
+                      </div>
+                      <span className="gr-coach-badge">Coach</span>
                     </div>
-                    <div className="gr-player-accuracy">
-                      <span className="gr-acc-label">Accuracy</span>
-                      <span className="gr-acc-value" id="grWhiteAcc">--</span>
-                    </div>
-                  </div>
-                  <div className="gr-player-card" id="grBlackCard">
-                    <div className="gr-player-avatar">♟</div>
-                    <div className="gr-player-meta">
-                      <span className="gr-player-role">Black</span>
-                      <span className="gr-player-name" id="grBlackName">Black</span>
-                      <span className="gr-player-rating" id="grBlackElo">—</span>
-                    </div>
-                    <div className="gr-player-accuracy">
-                      <span className="gr-acc-label">Accuracy</span>
-                      <span className="gr-acc-value" id="grBlackAcc">--</span>
+                    <div className="gr-coach-copy">
+                      <div className="gr-coach-name" id="grCoachTitle">Coach Ramp</div>
+                      <div className="gr-coach-text" id="grCoachText">
+                        Run a full analysis to unlock personalized move-by-move coaching.
+                      </div>
                     </div>
                   </div>
+
+                  <div className="gr-graph-wrap">
+                    <canvas id="evalGraph" width="400" height="120"></canvas>
+                  </div>
+
+                  <div className="gr-section-title">Players</div>
+                  <div className="gr-players-row">
+                    <div className="gr-player-card" id="grWhiteCard">
+                      <div className="gr-player-card-top">
+                        <div className="gr-player-avatar">♙</div>
+                        <div className="gr-player-meta">
+                          <span className="gr-player-role">White</span>
+                          <span className="gr-player-name" id="grWhiteName">White</span>
+                          <span className="gr-player-rating" id="grWhiteElo">—</span>
+                        </div>
+                      </div>
+                      <div className="gr-player-accuracy">
+                        <span className="gr-acc-label">Accuracy</span>
+                        <span className="gr-acc-value" id="grWhiteAcc">--</span>
+                      </div>
+                    </div>
+                    <div className="gr-player-card" id="grBlackCard">
+                      <div className="gr-player-card-top">
+                        <div className="gr-player-avatar">♟</div>
+                        <div className="gr-player-meta">
+                          <span className="gr-player-role">Black</span>
+                          <span className="gr-player-name" id="grBlackName">Black</span>
+                          <span className="gr-player-rating" id="grBlackElo">—</span>
+                        </div>
+                      </div>
+                      <div className="gr-player-accuracy">
+                        <span className="gr-acc-label">Accuracy</span>
+                        <span className="gr-acc-value" id="grBlackAcc">--</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="gr-divider"></div>
+
+                  <div className="gr-classify-table" id="grClassifyTable"></div>
+
+                  <div className="gr-divider"></div>
+
+                  <div className="gr-section-row">
+                    <div className="gr-label">Game Rating</div>
+                    <div className="gr-val gr-rating-box" id="grWhiteGameRating">?</div>
+                    <div className="gr-val gr-rating-box" id="grBlackGameRating">?</div>
+                  </div>
+
+                  <div className="gr-section-row">
+                    <div className="gr-label">Opening</div>
+                    <div className="gr-val" id="grPhaseOpW"><span className="gr-phase-icon">--</span></div>
+                    <div className="gr-val" id="grPhaseOpB"><span className="gr-phase-icon">--</span></div>
+                  </div>
+                  <div className="gr-section-row">
+                    <div className="gr-label">Middlegame</div>
+                    <div className="gr-val" id="grPhaseMidW"><span className="gr-phase-icon">--</span></div>
+                    <div className="gr-val" id="grPhaseMidB"><span className="gr-phase-icon">--</span></div>
+                  </div>
+                  <div className="gr-section-row">
+                    <div className="gr-label">Endgame</div>
+                    <div className="gr-val" id="grPhaseEndW"><span className="gr-phase-icon">--</span></div>
+                    <div className="gr-val" id="grPhaseEndB"><span className="gr-phase-icon">--</span></div>
+                  </div>
                 </div>
 
-                <div className="gr-divider"></div>
-
-                <div className="gr-classify-table" id="grClassifyTable"></div>
-
-                <div className="gr-divider"></div>
-
-                <div className="gr-section-row">
-                  <div className="gr-label">Game Rating</div>
-                  <div className="gr-val gr-rating-box" id="grWhiteGameRating">?</div>
-                  <div className="gr-val gr-rating-box" id="grBlackGameRating">?</div>
-                </div>
-
-                <div className="gr-section-row">
-                  <div className="gr-label">Opening</div>
-                  <div className="gr-val" id="grPhaseOpW"><span className="gr-phase-icon">--</span></div>
-                  <div className="gr-val" id="grPhaseOpB"><span className="gr-phase-icon">--</span></div>
-                </div>
-                <div className="gr-section-row">
-                  <div className="gr-label">Middlegame</div>
-                  <div className="gr-val" id="grPhaseMidW"><span className="gr-phase-icon">--</span></div>
-                  <div className="gr-val" id="grPhaseMidB"><span className="gr-phase-icon">--</span></div>
-                </div>
-                <div className="gr-section-row">
-                  <div className="gr-label">Endgame</div>
-                  <div className="gr-val" id="grPhaseEndW"><span className="gr-phase-icon">--</span></div>
-                  <div className="gr-val" id="grPhaseEndB"><span className="gr-phase-icon">--</span></div>
+                <div className="gr-tab-panel gr-analyze-panel" id="grAnalyzePanel" style={{ display: 'none' }}>
+                  <div className="gr-live-section">
+                    <div className="gr-live-header">
+                      <span className="gr-section-title">Live Engine Analysis</span>
+                      <span className="gr-live-badge">Live</span>
+                    </div>
+                    <div className="gr-live-candidates" id="grLiveCandidates">
+                      <div className="gr-analysis-empty">Start analyzing a position to see engine candidates.</div>
+                    </div>
+                  </div>
+                  <div className="gr-divider"></div>
+                  <div className="gr-analysis-head">
+                    <div>
+                      <div className="gr-section-title">Review Candidates</div>
+                      <div className="gr-analysis-position" id="grAnalysisPositionLabel">
+                        Select a move after running full analysis.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="gr-analysis-list" id="grAnalysisCandidates">
+                    <div className="gr-analysis-empty">Run full analysis to see better moves in this position.</div>
+                  </div>
                 </div>
               </div>
 
