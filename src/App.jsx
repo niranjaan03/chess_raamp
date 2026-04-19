@@ -3,6 +3,7 @@ import AppController, { HomeController } from './controllers/AppController';
 import EngineController from './controllers/EngineController';
 import ChessBoard from './controllers/ChessBoard';
 import PuzzleController from './controllers/PuzzleController';
+import PlayerAnalyzeController from './controllers/PlayerAnalyzeController';
 
 function showBootError(error) {
   if (typeof document === 'undefined') return;
@@ -52,9 +53,11 @@ function App() {
         window.EngineController = EngineController;
         window.ChessBoard = ChessBoard;
         window.PuzzleController = PuzzleController;
+        window.PlayerAnalyzeController = PlayerAnalyzeController;
       }
 
       AppController.init();
+      PlayerAnalyzeController.init();
     } catch (error) {
       console.error('App boot failed', error);
       showBootError(error);
@@ -156,6 +159,10 @@ function App() {
                   </button>
                 </div>
               </div>
+              <a href="#" className="nav-link" data-tab="player-analyze">
+                <span className="nav-item-icon">&#128200;</span>
+                <span className="nav-item-label">Player Analyze</span>
+              </a>
               <a href="#" className="nav-link" data-tab="import">
                 <span className="nav-item-icon">&#128229;</span>
                 <span className="nav-item-label">Import</span>
@@ -2056,6 +2063,126 @@ function App() {
           </div>
         </div>
       </div>
+
+        {/* ── Player Analyze Tab ── */}
+        <div className="tab-content" id="tab-player-analyze">
+          <div className="pa-layout">
+
+            {/* Hero search */}
+            <div className="pa-hero">
+              <h1 className="pa-hero-title">Player Analyze</h1>
+              <p className="pa-hero-sub">Full chess analytics dashboard — mirrors ChessAnalytics.py with 20+ charts</p>
+              <div className="pa-search-row">
+                <input type="text" id="paUsernameInput" className="pa-search-input"
+                  placeholder="Enter Chess.com username..." autoComplete="off" />
+                <button type="button" id="paAnalyzeBtn" className="pa-search-btn">Analyze &#9889;</button>
+              </div>
+            </div>
+
+            {/* Loading */}
+            <div id="paLoading" className="pa-loading" style={{ display: 'none' }}>
+              <div className="pa-loading-knight">&#9822;</div>
+              <p>Loading player data...</p>
+              <p className="pa-loading-sub">Fetching last 6 months of games from Chess.com API</p>
+            </div>
+
+            {/* Error */}
+            <div id="paError" className="pa-error-box" style={{ display: 'none' }}>
+              <span className="pa-error-icon">&#9888;</span>
+              <span id="paErrorMsg">Player not found</span>
+            </div>
+
+            {/* Content */}
+            <div id="paContent" style={{ display: 'none' }}>
+
+              {/* Profile Header */}
+              <div id="paProfileHeader"></div>
+
+              {/* Key Metrics Row */}
+              <div id="paKeyMetrics" className="pa-metrics-row"></div>
+
+              {/* Controls */}
+              <div className="pa-controls-row">
+                <div className="pa-tab-group">
+                  <button className="pa-tc-btn active" data-tc="rapid">Rapid</button>
+                  <button className="pa-tc-btn" data-tc="blitz">Blitz</button>
+                  <button className="pa-tc-btn" data-tc="bullet">Bullet</button>
+                  <button className="pa-tc-btn" data-tc="all">All</button>
+                </div>
+                <div className="pa-tab-group">
+                  <button className="pa-period-btn active" data-period="30">30 days</button>
+                  <button className="pa-period-btn" data-period="60">60 days</button>
+                  <button className="pa-period-btn" data-period="90">90 days</button>
+                  <button className="pa-period-btn" data-period="365">12 months</button>
+                </div>
+              </div>
+
+              {/* Summary bar */}
+              <div id="paSummaryBar" className="pa-summary-bar"></div>
+
+              {/* ── PERFORMANCE VITALS ── */}
+              <div className="pa-section-hdr">
+                <div className="pa-sec-icon">&#128200;</div>
+                <div><h2 className="pa-sec-title">Performance Vitals</h2><p className="pa-sec-sub">Your momentum at a glance</p></div>
+              </div>
+              <div className="pa-vitals-grid">
+                <div id="paWLDCard" className="pa-card"></div>
+                <div id="paRatingCard" className="pa-card"></div>
+              </div>
+              <div id="paByDayCard" className="pa-card pa-mt"></div>
+              <div id="paStreaksCard" className="pa-card pa-mt"></div>
+
+              {/* ── PERFORMANCE BREAKDOWN ── */}
+              <div className="pa-section-hdr">
+                <div className="pa-sec-icon">&#128202;</div>
+                <div><h2 className="pa-sec-title">Performance Breakdown</h2><p className="pa-sec-sub">Win rates across time controls, days &amp; months</p></div>
+              </div>
+              <div className="pa-two-col">
+                <div id="paByTCCard" className="pa-card"></div>
+                <div id="paByDOWCard" className="pa-card"></div>
+              </div>
+              <div id="paMonthlyCard" className="pa-card pa-mt"></div>
+
+              {/* ── RATING ANALYSIS ── */}
+              <div className="pa-section-hdr">
+                <div className="pa-sec-icon">&#11088;</div>
+                <div><h2 className="pa-sec-title">Rating Analysis</h2><p className="pa-sec-sub">Your rating journey with moving averages &amp; opponent breakdown</p></div>
+              </div>
+              <div id="paRatingProgCard" className="pa-card"></div>
+              <div className="pa-two-col pa-mt">
+                <div id="paRatingDiffCard" className="pa-card"></div>
+                <div id="paOppStrengthCard" className="pa-card"></div>
+              </div>
+
+              {/* ── GAME PATTERNS ── */}
+              <div className="pa-section-hdr">
+                <div className="pa-sec-icon">&#127919;</div>
+                <div><h2 className="pa-sec-title">Game Patterns</h2><p className="pa-sec-sub">Result breakdowns &amp; win streak analysis</p></div>
+              </div>
+              <div className="pa-two-col">
+                <div id="paResultBreakdown" className="pa-card"></div>
+                <div id="paStreakDist" className="pa-card"></div>
+              </div>
+
+              {/* ── PRO COACHING ── */}
+              <div className="pa-section-hdr">
+                <div className="pa-sec-icon">&#129504;</div>
+                <div><h2 className="pa-sec-title">Pro Coaching Modules</h2><p className="pa-sec-sub">What a real coach would tell you</p></div>
+              </div>
+              <div className="pa-two-col">
+                <div id="paHeadToHead" className="pa-card"></div>
+                <div id="paRadarCard" className="pa-card"></div>
+              </div>
+
+              {/* ── OPENING REPERTOIRE ── */}
+              <div id="paOpenings" className="pa-card pa-mt"></div>
+
+              {/* ── ANATOMY OF A LOSS ── */}
+              <div id="paLossAnalysis" className="pa-card pa-mt"></div>
+
+            </div>
+          </div>
+        </div>
 
       <div className="modal-overlay feedback-modal-overlay" id="feedbackModal" style={{ display: 'none' }}>
         <div className="modal feedback-modal">
