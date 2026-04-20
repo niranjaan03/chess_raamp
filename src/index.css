@@ -1589,7 +1589,7 @@ body {
 .gr-classify-table { margin: 4px 0; }
 .gr-classify-row {
   display: grid;
-  grid-template-columns: 1fr 40px 36px 40px;
+  grid-template-columns: 1fr 60px 54px 60px;
   align-items: center;
   padding: 5px 0;
   border-bottom: 1px solid rgba(255,255,255,0.03);
@@ -1597,20 +1597,20 @@ body {
 .gr-classify-row:last-child { border-bottom: none; }
 .gr-cl-label {
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: 1.2rem;
   color: var(--text-secondary);
   font-weight: 600;
 }
 .gr-cl-wval, .gr-cl-bval {
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 1.275rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 .gr-cl-icon {
   text-align: center;
-  font-size: 1rem;
+  font-size: 1.5rem;
 }
 
 /* Quality Icons */
@@ -1618,22 +1618,22 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  font-size: 0.7rem;
+  font-size: 1.05rem;
   font-weight: 700;
   font-family: var(--font-mono);
 }
 .qi-brilliant { background: rgba(27,172,166,0.2); color: #1baca6; }
 .qi-great { background: rgba(91,138,200,0.2); color: #6b9ed6; }
-.qi-book { background: rgba(200,160,63,0.2); color: #c8a03f; font-size: 0.85rem; }
-.qi-best { background: rgba(106,191,64,0.2); color: #6abf40; font-size: 0.85rem; }
-.qi-excellent { background: rgba(106,191,64,0.15); color: #6abf40; font-size: 0.85rem; }
-.qi-good { background: rgba(139,175,110,0.2); color: #8baf6e; font-size: 0.8rem; }
+.qi-book { background: rgba(200,160,63,0.2); color: #c8a03f; font-size: 1.275rem; }
+.qi-best { background: rgba(106,191,64,0.2); color: #6abf40; font-size: 1.275rem; }
+.qi-excellent { background: rgba(106,191,64,0.15); color: #6abf40; font-size: 1.275rem; }
+.qi-good { background: rgba(139,175,110,0.2); color: #8baf6e; font-size: 1.2rem; }
 .qi-inaccuracy { background: rgba(232,189,88,0.2); color: #e8bd58; }
 .qi-mistake { background: rgba(212,139,42,0.2); color: #d48b2a; }
-.qi-miss { background: rgba(239,83,80,0.2); color: #ef5350; font-size: 0.8rem; }
+.qi-miss { background: rgba(239,83,80,0.2); color: #ef5350; font-size: 1.2rem; }
 .qi-blunder { background: rgba(201,48,48,0.2); color: #c93030; }
 
 /* Phase Icons */
@@ -2470,6 +2470,24 @@ body {
 /* Saved Profiles List */
 .saved-profiles-list { display: flex; flex-direction: column; gap: 8px; }
 .no-profiles-msg { font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-align: center; padding: 16px 8px; }
+.dashboard-empty-state {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  background: rgba(255,255,255,0.025);
+}
+.dashboard-empty-title {
+  font-family: var(--font-display);
+  font-size: 0.84rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.dashboard-empty-copy {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
 
 .saved-profile-item {
   display: flex;
@@ -2644,6 +2662,49 @@ body {
   gap: 4px;
   max-height: 320px;
   overflow-y: auto;
+}
+.platform-games-list .fetch-game-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.platform-games-list .fetch-game-result {
+  float: none;
+  flex-shrink: 0;
+}
+.account-panel-state {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: rgba(255,255,255,0.025);
+}
+.account-panel-state-title {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+.account-panel-state-copy {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.account-panel-state.is-ready {
+  border-style: solid;
+  border-color: rgba(212,175,55,0.28);
+  background: rgba(212,175,55,0.06);
+}
+.account-panel-state.is-loading {
+  border-style: solid;
+  border-color: rgba(77,182,172,0.34);
+  background: rgba(77,182,172,0.06);
+}
+.account-panel-state.is-error {
+  border-style: solid;
+  border-color: rgba(239,83,80,0.36);
+  background: rgba(239,83,80,0.07);
 }
 .platform-games-list::-webkit-scrollbar { width: 3px; }
 .platform-games-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }

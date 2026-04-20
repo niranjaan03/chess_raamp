@@ -84,7 +84,7 @@ export default function ClassificationRow({ classification }: Props) {
         width={"3rem"}
         style={{ cursor: whiteNb ? "pointer" : "default" }}
         onClick={() => handleClick(Color.White)}
-        fontSize="0.9rem"
+        fontSize="1.8rem"
       >
         {whiteNb}
       </Grid>
@@ -100,15 +100,15 @@ export default function ClassificationRow({ classification }: Props) {
         <Image
           src={`/icons/${classification}.png`}
           alt="move-icon"
-          width={18}
-          height={18}
+          width={36}
+          height={36}
           style={{
-            maxWidth: "3.5vw",
-            maxHeight: "3.5vw",
+            maxWidth: "7vw",
+            maxHeight: "7vw",
           }}
         />
 
-        <Typography align="center" fontSize="0.9rem">
+        <Typography align="center" fontSize="1.8rem">
           {capitalize(classification)}
         </Typography>
       </Grid>
@@ -120,7 +120,7 @@ export default function ClassificationRow({ classification }: Props) {
         width={"3rem"}
         style={{ cursor: blackNb ? "pointer" : "default" }}
         onClick={() => handleClick(Color.Black)}
-        fontSize="0.9rem"
+        fontSize="1.8rem"
       >
         {blackNb}
       </Grid>

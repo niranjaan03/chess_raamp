@@ -27,6 +27,28 @@ const _state = {
 };
 let uiInitialized = false;
 let controlsWired = false;
+let _currentAbort = null;
+
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_KEY_PREFIX = 'pa_v1_';
+
+const _renderCache = { key: null, filtered: null, tcOnly: null, allPeriod: null };
+
+function getCachedAnalysis(username) {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY_PREFIX + username);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (Date.now() - cached.timestamp > CACHE_TTL) return null;
+    return cached;
+  } catch { return null; }
+}
+
+function setCachedAnalysis(username, data) {
+  try {
+    sessionStorage.setItem(CACHE_KEY_PREFIX + username, JSON.stringify({ timestamp: Date.now(), ...data }));
+  } catch { /* storage full */ }
+}
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 
@@ -36,8 +58,8 @@ function getChessComProxyUrl(url) {
   return CHESS_PROXY + '/' + String(url).slice(prefix.length);
 }
 
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+async function fetchJson(url, signal) {
+  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal });
   if (res.status === 404) {
     const err = new Error('Player not found');
     err.status = 404;
@@ -51,16 +73,16 @@ async function fetchJson(url) {
   return res.json();
 }
 
-async function apiGet(url) {
+async function apiGet(url, signal) {
   const proxyUrl = getChessComProxyUrl(url);
   if (proxyUrl) {
     try {
-      return await fetchJson(proxyUrl);
+      return await fetchJson(proxyUrl, signal);
     } catch (err) {
-      if (err && err.status === 404) throw err;
+      if (err && (err.status === 404 || err.name === 'AbortError')) throw err;
     }
   }
-  return fetchJson(url);
+  return fetchJson(url, signal);
 }
 
 // ─── PROCESS RAW GAME ────────────────────────────────────────────────────────
@@ -218,14 +240,17 @@ function aggHeadToHead(games) {
   const m = {};
   games.forEach(g => {
     if (!g.oppUsername) return;
-    if (!m[g.oppUsername]) m[g.oppUsername] = { username: g.oppUsername, games:0, wins:0, losses:0, draws:0, oppRating:0 };
+    if (!m[g.oppUsername]) m[g.oppUsername] = { username: g.oppUsername, games:0, wins:0, losses:0, draws:0, oppRatingSum:0 };
     m[g.oppUsername].games++;
     if (g.won) m[g.oppUsername].wins++;
     else if (g.lost) m[g.oppUsername].losses++;
     else m[g.oppUsername].draws++;
-    m[g.oppUsername].oppRating = g.oppRating;
+    m[g.oppUsername].oppRatingSum += g.oppRating || 0;
   });
-  return Object.values(m).sort((a,b)=>b.games-a.games).slice(0,8);
+  return Object.values(m).map(r => ({
+    username: r.username, games: r.games, wins: r.wins, losses: r.losses, draws: r.draws,
+    oppRating: r.games ? Math.round(r.oppRatingSum / r.games) : 0,
+  })).sort((a,b)=>b.games-a.games).slice(0,8);
 }
 
 function aggStreaks(games) {
@@ -296,10 +321,10 @@ function aggRadar(games) {
   const weeks = periods ? periods/604800000 : 1;
   const activity = Math.min(100, (games.length/Math.max(weeks,1))*10);
 
-  // 5. Opening Diversity
+  // 5. Opening Diversity — absolute unique opening count, scaled: ~15 distinct openings = 100
   const withOpening = games.filter(g=>g.opening);
   const uniqueOp = new Set(withOpening.map(g=>g.opening)).size;
-  const diversity = withOpening.length ? Math.min(100, uniqueOp/withOpening.length*300) : 0;
+  const diversity = Math.min(100, Math.round(uniqueOp / 15 * 100));
 
   return [
     { label: 'Win Rate', value: Math.round(winRate) },
@@ -378,25 +403,30 @@ function smoothPath(pts, t=0.35) {
 }
 
 // Simple vertical bar chart → returns SVG string
+// showPctGrid=false omits the 0/25/50/75/100% grid lines (use for count-based charts)
+// valueFormat overrides the top-of-bar label; default shows "N%" for pct charts, "N" for count charts
 function barChartSVG(data, opts={}) {
-  const { W=400, H=160, color='#4caf7d', PL=10, PB=24, showLabels=true } = opts;
+  const { W=400, H=160, color='#4caf7d', PL=10, PB=24, showLabels=true, showPctGrid=true, valueFormat } = opts;
   const PR=10, PT=8;
   const cW=W-PL-PR, cH=H-PT-PB;
   const max=Math.max(...data.map(d=>d.value),1);
   const gap=cW/data.length;
   const bw=Math.max(4,Math.min(30,gap*0.6));
+  const fmtVal = valueFormat || (showPctGrid ? v => v>0?Math.round(v)+'%':'' : v => v>0?String(Math.round(v)):'');
   const bars=data.map((d,i)=>{
     const x=PL+i*gap+gap/2;
     const h=Math.max(0,(d.value/max)*cH);
     const c=d.color||color;
+    const valStr=fmtVal(d.value);
     const label=showLabels?`<text x="${x.toFixed(1)}" y="${H-3}" text-anchor="middle" fill="#9e8350" font-size="9">${escapeHtml(d.label)}</text>`:'';
     return `<rect x="${(x-bw/2).toFixed(1)}" y="${(PT+cH-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${c}" rx="2.5"/>
-      ${d.value>0?`<text x="${x.toFixed(1)}" y="${(PT+cH-h-3).toFixed(1)}" text-anchor="middle" fill="#f6e7bf" font-size="8.5">${Math.round(d.value)}%</text>`:''}
+      ${valStr?`<text x="${x.toFixed(1)}" y="${(PT+cH-h-3).toFixed(1)}" text-anchor="middle" fill="#f6e7bf" font-size="8.5">${valStr}</text>`:''}
       ${label}`;
   }).join('');
+  const grid=showPctGrid?[0,25,50,75,100].map(v=>`<line x1="${PL}" y1="${(PT+cH*(1-v/100)).toFixed(1)}" x2="${W-PR}" y2="${(PT+cH*(1-v/100)).toFixed(1)}" stroke="#1e1e1e" stroke-dasharray="3,4"/><text x="${PL-2}" y="${(PT+cH*(1-v/100)+3).toFixed(1)}" text-anchor="end" fill="#555" font-size="8">${v}%</text>`).join(''):'';
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
     <line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="#2a2a2a"/>
-    ${[0,25,50,75,100].map(v=>`<line x1="${PL}" y1="${(PT+cH*(1-v/100)).toFixed(1)}" x2="${W-PR}" y2="${(PT+cH*(1-v/100)).toFixed(1)}" stroke="#1e1e1e" stroke-dasharray="3,4"/><text x="${PL-2}" y="${(PT+cH*(1-v/100)+3).toFixed(1)}" text-anchor="end" fill="#555" font-size="8">${v}%</text>`).join('')}
+    ${grid}
     ${bars}
   </svg>`;
 }
@@ -492,6 +522,7 @@ function donutSVG(slices, sz=140) {
 
 function qs(id) { return document.getElementById(id); }
 function el(id) { return qs(id) || { innerHTML:'', style:{} }; }
+function renderInto(id, fn) { const e = qs(id); if (e) fn(e); }
 
 function showState(s) {
   ['paLoading','paError','paContent'].forEach(id=>{ const e=qs(id); if(e) e.style.display='none'; });
@@ -506,14 +537,14 @@ function safeImageUrl(value) {
     const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
     const url = new URL(String(value || ''), base);
     if (url.protocol === 'http:' || url.protocol === 'https:') return escapeAttr(url.href);
-  } catch (e) {}
+  } catch { /* invalid URL – return empty */ }
   return '';
 }
 
 // ─── RENDER: PROFILE ─────────────────────────────────────────────────────────
 
 function renderProfile(profile, stats) {
-  const e=qs('paProfileHeader'); if(!e) return;
+  renderInto('paProfileHeader', e => {
   const badge=(lbl,so,icon)=>{
     if(!so) return '';
     const cur=so.last?.rating??'–', peak=so.best?.rating??so.last?.rating??'–';
@@ -546,60 +577,61 @@ function renderProfile(profile, stats) {
       ${badge('Daily',stats.chess_daily,'&#128197;')}
     </div>
   </div>`;
+  });
 }
 
 // ─── RENDER: KEY METRICS ─────────────────────────────────────────────────────
 
 function renderKeyMetrics(games, stats) {
-  const e=qs('paKeyMetrics'); if(!e) return;
-  const m=aggKeyMetrics(games,stats);
-  if(!m){e.innerHTML='';return;}
-  const rc=m.ratingChange;
-  const rcColor=rc>0?'#4caf7d':rc<0?'#ef5350':'#888';
-  const rcSign=rc>0?'+':'';
-  const card=(icon,val,lbl,sub='',subColor='')=>`<div class="pa-metric-card">
-    <div class="pa-metric-icon">${icon}</div>
-    <div class="pa-metric-val">${val}</div>
-    <div class="pa-metric-lbl">${lbl}</div>
-    ${sub?`<div class="pa-metric-sub" style="color:${subColor}">${sub}</div>`:''}
-  </div>`;
-  e.innerHTML=`
-    ${card('&#9823;',m.totalGames.toLocaleString(),'Total Games',`in period`,'#9e8350')}
-    ${card('&#9989;',m.winRate+'%','Win Rate',m.winRate>=50?'Above 50%':'Below 50%',m.winRate>=50?'#4caf7d':'#ef5350')}
-    ${card('&#9733;',m.avgRating,'Avg Rating','')}
-    ${card('&#127942;',m.bestStreak,'Best Win Streak','consecutive wins','#d4af37')}
-    ${card('&#128200;',`${rcSign}${rc}`,'Rating Change',rc!==0?`${rcSign}${Math.round(Math.abs(rc)/Math.max(m.avgRating,1)*100)}%`:'',rcColor)}
-    ${card('&#128280;',m.currentRating,'Current Rating','end of period','')}
-  `;
+  renderInto('paKeyMetrics', e => {
+    const m=aggKeyMetrics(games,stats);
+    if(!m){e.innerHTML='';return;}
+    const rc=m.ratingChange;
+    const rcColor=rc>0?'#4caf7d':rc<0?'#ef5350':'#888';
+    const rcSign=rc>0?'+':'';
+    const card=(icon,val,lbl,sub='',subColor='')=>`<div class="pa-metric-card">
+      <div class="pa-metric-icon">${icon}</div>
+      <div class="pa-metric-val">${val}</div>
+      <div class="pa-metric-lbl">${lbl}</div>
+      ${sub?`<div class="pa-metric-sub" style="color:${subColor}">${sub}</div>`:''}
+    </div>`;
+    e.innerHTML=`
+      ${card('&#9823;',m.totalGames.toLocaleString(),'Total Games','in period','#9e8350')}
+      ${card('&#9989;',m.winRate+'%','Win Rate',m.winRate>=50?'Above 50%':'Below 50%',m.winRate>=50?'#4caf7d':'#ef5350')}
+      ${card('&#9733;',m.avgRating,'Avg Rating','')}
+      ${card('&#127942;',m.bestStreak,'Best Win Streak','consecutive wins','#d4af37')}
+      ${card('&#128200;',`${rcSign}${rc}`,'Rating Change',rc!==0?`${rcSign}${Math.round(Math.abs(rc)/Math.max(m.avgRating,1)*100)}%`:'',rcColor)}
+      ${card('&#128280;',m.currentRating,'Current Rating','end of period','')}
+    `;
+  });
 }
 
 // ─── RENDER: SUMMARY BAR ─────────────────────────────────────────────────────
 
 function renderSummaryBar(games) {
-  const e=qs('paSummaryBar'); if(!e) return;
-  if(!games.length){e.innerHTML='';return;}
-  const {wins,total,winPct}=aggWLD(games);
-  const sorted=[...games].sort((a,b)=>b.endTime-a.endTime);
-  let streak=0; const sType=sorted[0]?.won?'win':sorted[0]?.drew?'draw':'loss';
-  for(const g of sorted){const t=g.won?'win':g.drew?'draw':'loss';if(t===sType)streak++;else break;}
-  const sc=sType==='win'?'#4caf7d':sType==='loss'?'#ef5350':'#888';
-  const sl=sType==='win'?'WIN':sType==='loss'?'LOSS':'DRAW';
-  e.innerHTML=`<span class="pa-sum-item">WIN RATE: <strong>${Math.round(winPct)}%</strong></span>
-    <span class="pa-sum-sep">&#9679;</span>
-    <span class="pa-sum-item">STREAK: <strong style="color:${sc}">${streak} ${sl}</strong></span>
-    <span class="pa-sum-sep">&#9679;</span>
-    <span class="pa-sum-item">GAMES: <strong>${total}</strong></span>`;
+  renderInto('paSummaryBar', e => {
+    if(!games.length){e.innerHTML='';return;}
+    const {total,winPct}=aggWLD(games);
+    const {current:streak,currentType:sType}=aggStreaks(games);
+    const sc=sType==='win'?'#4caf7d':sType==='loss'?'#ef5350':'#888';
+    const sl=sType==='win'?'WIN':sType==='loss'?'LOSS':'DRAW';
+    e.innerHTML=`<span class="pa-sum-item">WIN RATE: <strong>${Math.round(winPct)}%</strong></span>
+      <span class="pa-sum-sep">&#9679;</span>
+      <span class="pa-sum-item">STREAK: <strong style="color:${sc}">${streak} ${sl}</strong></span>
+      <span class="pa-sum-sep">&#9679;</span>
+      <span class="pa-sum-item">GAMES: <strong>${total}</strong></span>`;
+  });
 }
 
 // ─── RENDER: WIN/LOSS/DRAW ────────────────────────────────────────────────────
 
 function renderWLD(games) {
-  const e=qs('paWLDCard'); if(!e) return;
-  const {wins,losses,draws,total,winPct}=aggWLD(games);
-  if(!total){e.innerHTML='<p class="pa-no-data">No games in period</p>';return;}
-  const wF=wins/total,lF=losses/total,dF=draws/total;
-  const slices=[{frac:wF,color:'#4caf7d'},{frac:lF,color:'#ef5350'},{frac:dF,color:'#444'}];
-  e.innerHTML=`<div class="pa-card-title">WIN / LOSS / DRAW <span class="pa-card-sub">${total} games in period</span></div>
+  renderInto('paWLDCard', e => {
+    const {wins,losses,draws,total,winPct}=aggWLD(games);
+    if(!total){e.innerHTML='<p class="pa-no-data">No games in period</p>';return;}
+    const wF=wins/total,lF=losses/total,dF=draws/total;
+    const slices=[{frac:wF,color:'#4caf7d'},{frac:lF,color:'#ef5350'},{frac:dF,color:'#444'}];
+    e.innerHTML=`<div class="pa-card-title">WIN / LOSS / DRAW <span class="pa-card-sub">${total} games in period</span></div>
   <div class="pa-wld-inner">
     <div class="pa-donut-wrap" style="position:relative">
       ${donutSVG(slices,161)}
@@ -614,295 +646,275 @@ function renderWLD(games) {
       <div class="pa-wld-row"><span class="pa-dot" style="background:#444"></span><span class="pa-wld-num">${draws}D</span><span class="pa-wld-pct">${Math.round(dF*100)}%</span></div>
     </div>
   </div>`;
+  });
 }
 
 // ─── RENDER: RATING HISTORY ──────────────────────────────────────────────────
 
 function renderRatingHistory(games) {
-  const e=qs('paRatingCard'); if(!e) return;
-  const sorted=[...games].filter(g=>g.rating>0).sort((a,b)=>a.endTime-b.endTime);
-  if(sorted.length<3){e.innerHTML='<p class="pa-no-data">Not enough data for rating history</p>';return;}
-  const step=Math.max(1,Math.floor(sorted.length/150));
-  const pts=sorted.filter((_,i)=>i%step===0||i===sorted.length-1);
-  const data=pts.map(g=>({x:g.endTime,y:g.rating}));
-  const cur=sorted[sorted.length-1].rating, first=sorted[0].rating;
-  const diff=cur-first, sign=diff>=0?'+':'', dc=diff>=0?'#4caf7d':'#ef5350';
-  e.innerHTML=`<div class="pa-card-title">RATING HISTORY <span style="float:right;color:#9e8350;font-size:10px">${first}→${cur} Elo</span></div>
-    ${lineChartSVG(data,{color:'#a78bfa',gradId:'rg1'})}
-    <div class="pa-chart-footer">
-      <span class="pa-chart-big" style="color:#a78bfa">${cur}</span>
-      <span style="color:${dc};font-size:13px;margin-left:8px">(${sign}${diff} pts)</span>
-      <span class="pa-chart-label"> over the period</span>
-    </div>`;
+  renderInto('paRatingCard', e => {
+    const sorted=[...games].filter(g=>g.rating>0).sort((a,b)=>a.endTime-b.endTime);
+    if(sorted.length<3){e.innerHTML='<p class="pa-no-data">Not enough data for rating history</p>';return;}
+    const step=Math.max(1,Math.floor(sorted.length/150));
+    const pts=sorted.filter((_,i)=>i%step===0||i===sorted.length-1);
+    const data=pts.map(g=>({x:g.endTime,y:g.rating}));
+    const cur=sorted[sorted.length-1].rating, first=sorted[0].rating;
+    const diff=cur-first, sign=diff>=0?'+':'', dc=diff>=0?'#4caf7d':'#ef5350';
+    e.innerHTML=`<div class="pa-card-title">RATING HISTORY <span style="float:right;color:#9e8350;font-size:10px">${first}\u2192${cur} Elo</span></div>
+      ${lineChartSVG(data,{color:'#a78bfa',gradId:'rg1'})}
+      <div class="pa-chart-footer">
+        <span class="pa-chart-big" style="color:#a78bfa">${cur}</span>
+        <span style="color:${dc};font-size:13px;margin-left:8px">(${sign}${diff} pts)</span>
+        <span class="pa-chart-label"> over the period</span>
+      </div>`;
+  });
 }
 
 // ─── RENDER: WINS BY DAY ─────────────────────────────────────────────────────
 
 function renderWinsByDay(games) {
-  const e=qs('paByDayCard'); if(!e) return;
-  const dayMap={};
-  games.forEach(g=>{
-    const d=new Date(g.endTime);
-    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    if(!dayMap[k]) dayMap[k]={wins:0,losses:0,draws:0,d};
-    if(g.won)dayMap[k].wins++;else if(g.lost)dayMap[k].losses++;else dayMap[k].draws++;
+  renderInto('paByDayCard', e => {
+    const dayMap={};
+    games.forEach(g=>{
+      const d=new Date(g.endTime);
+      const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if(!dayMap[k]) dayMap[k]={wins:0,losses:0,draws:0,d};
+      if(g.won)dayMap[k].wins++;else if(g.lost)dayMap[k].losses++;else dayMap[k].draws++;
+    });
+    const days=Object.keys(dayMap).sort();
+    if(!days.length){e.innerHTML='<p class="pa-no-data">No daily data</p>';return;}
+    const maxG=Math.max(...days.map(dk=>dayMap[dk].wins+dayMap[dk].losses+dayMap[dk].draws));
+    const W=580,H=140,PL=16,PR=10,PT=8,PB=32;
+    const cW=W-PL-PR,cH=H-PT-PB,gapW=cW/days.length;
+    const bw=Math.max(2,Math.min(10,gapW*0.38));
+    const bars=days.map((dk,i)=>{
+      const {wins,losses}=dayMap[dk];
+      const x=PL+i*gapW+gapW/2;
+      const wh=maxG?(wins/maxG)*cH:0, lh=maxG?(losses/maxG)*cH:0;
+      return `<rect x="${(x-bw-1).toFixed(1)}" y="${(PT+cH-wh).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(wh,0).toFixed(1)}" fill="#4caf7d" rx="1.5"/>
+        <rect x="${(x+1).toFixed(1)}" y="${(PT+cH-lh).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(lh,0).toFixed(1)}" fill="#ef5350" rx="1.5"/>`;
+    }).join('');
+    const evN=Math.max(1,Math.ceil(days.length/9));
+    const xLbls=days.filter((_,i)=>i%evN===0).map(dk=>{
+      const i=days.indexOf(dk),x=PL+i*gapW+gapW/2;
+      const dt=dayMap[dk].d;
+      return `<text x="${x.toFixed(1)}" y="${H-4}" text-anchor="middle" fill="#9e8350" font-size="8.5">${dt.toLocaleString('default',{month:'short'})} ${dt.getDate()}</text>`;
+    }).join('');
+    e.innerHTML=`<div class="pa-card-title">WINS / LOSSES BY DAY</div>
+      <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
+        <line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="#2a2a2a"/>
+        ${bars}${xLbls}
+      </svg>
+      <div class="pa-legend-row">
+        <span class="pa-leg-item"><span class="pa-dot" style="background:#4caf7d"></span>Wins</span>
+        <span class="pa-leg-item"><span class="pa-dot" style="background:#ef5350"></span>Losses</span>
+      </div>`;
   });
-  const days=Object.keys(dayMap).sort();
-  if(!days.length){e.innerHTML='<p class="pa-no-data">No daily data</p>';return;}
-  const maxG=Math.max(...days.map(dk=>dayMap[dk].wins+dayMap[dk].losses+dayMap[dk].draws));
-  const W=580,H=140,PL=16,PR=10,PT=8,PB=32;
-  const cW=W-PL-PR,cH=H-PT-PB,gapW=cW/days.length;
-  const bw=Math.max(2,Math.min(10,gapW*0.38));
-  const bars=days.map((dk,i)=>{
-    const {wins,losses}=dayMap[dk];
-    const x=PL+i*gapW+gapW/2;
-    const wh=maxG?(wins/maxG)*cH:0, lh=maxG?(losses/maxG)*cH:0;
-    return `<rect x="${(x-bw-1).toFixed(1)}" y="${(PT+cH-wh).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(wh,0).toFixed(1)}" fill="#4caf7d" rx="1.5"/>
-      <rect x="${(x+1).toFixed(1)}" y="${(PT+cH-lh).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(lh,0).toFixed(1)}" fill="#ef5350" rx="1.5"/>`;
-  }).join('');
-  const evN=Math.max(1,Math.ceil(days.length/9));
-  const xLbls=days.filter((_,i)=>i%evN===0).map(dk=>{
-    const i=days.indexOf(dk),x=PL+i*gapW+gapW/2;
-    const dt=dayMap[dk].d;
-    return `<text x="${x.toFixed(1)}" y="${H-4}" text-anchor="middle" fill="#9e8350" font-size="8.5">${dt.toLocaleString('default',{month:'short'})} ${dt.getDate()}</text>`;
-  }).join('');
-  e.innerHTML=`<div class="pa-card-title">WINS / LOSSES BY DAY</div>
-    <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
-      <line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="#2a2a2a"/>
-      ${bars}${xLbls}
-    </svg>
-    <div class="pa-legend-row">
-      <span class="pa-leg-item"><span class="pa-dot" style="background:#4caf7d"></span>Wins</span>
-      <span class="pa-leg-item"><span class="pa-dot" style="background:#ef5350"></span>Losses</span>
-    </div>`;
 }
 
 // ─── RENDER: STREAKS ─────────────────────────────────────────────────────────
 
 function renderStreaks(games) {
-  const e=qs('paStreaksCard'); if(!e) return;
-  if(!games.length){e.innerHTML='<p class="pa-no-data">No streak data in period</p>';return;}
-  const {current,currentType,best,minRating,maxRating}=aggStreaks(games);
-  const sColor=currentType==='win'?'#4caf7d':currentType==='loss'?'#ef5350':'#888';
-  const sLbl=currentType==='win'?'Wins':currentType==='loss'?'Losses':'Draws';
-  e.innerHTML=`<div class="pa-streaks-inner">
-    <div class="pa-streak-box">
-      <div class="pa-streak-icon" style="background:${currentType==='win'?'rgba(76,175,125,.15)':'rgba(239,83,80,.15)'}">&#9889;</div>
-      <div><div class="pa-streak-num" style="color:${sColor}">${current}</div><div class="pa-streak-lbl">${sLbl}<br>Current Streak</div></div>
-    </div>
-    <div class="pa-streak-stats">
-      <div class="pa-streak-row"><span>&#127942; Best Win Streak</span><strong>${best}</strong></div>
-      <div class="pa-streak-row"><span>Elo range in period:</span><strong>${minRating}–${maxRating} (${maxRating-minRating} pts)</strong></div>
-    </div>
-  </div>`;
+  renderInto('paStreaksCard', e => {
+    if(!games.length){e.innerHTML='<p class="pa-no-data">No streak data in period</p>';return;}
+    const {current,currentType,best,minRating,maxRating}=aggStreaks(games);
+    const sColor=currentType==='win'?'#4caf7d':currentType==='loss'?'#ef5350':'#888';
+    const sLbl=currentType==='win'?'Wins':currentType==='loss'?'Losses':'Draws';
+    e.innerHTML=`<div class="pa-streaks-inner">
+      <div class="pa-streak-box">
+        <div class="pa-streak-icon" style="background:${currentType==='win'?'rgba(76,175,125,.15)':'rgba(239,83,80,.15)'}">&#9889;</div>
+        <div><div class="pa-streak-num" style="color:${sColor}">${current}</div><div class="pa-streak-lbl">${sLbl}<br>Current Streak</div></div>
+      </div>
+      <div class="pa-streak-stats">
+        <div class="pa-streak-row"><span>&#127942; Best Win Streak</span><strong>${best}</strong></div>
+        <div class="pa-streak-row"><span>Elo range in period:</span><strong>${minRating}\u2013${maxRating} (${maxRating-minRating} pts)</strong></div>
+      </div>
+    </div>`;
+  });
 }
 
 // ─── RENDER: WIN RATE BY TIME CONTROL ────────────────────────────────────────
 
 function renderByTC(allGames) {
-  const e=qs('paByTCCard'); if(!e) return;
-  const data=aggByTC(allGames);
-  if(!data.length){e.innerHTML='<p class="pa-no-data">No time control data</p>';return;}
-  const tcColors={'rapid':'#4caf7d','blitz':'#d4af37','bullet':'#ef5350','daily':'#a78bfa'};
-  const barData=data.map(d=>({label:`${d.tc.charAt(0).toUpperCase()+d.tc.slice(1)}\n${d.games}g`,value:d.winRate,color:tcColors[d.tc]||'#4caf7d'}));
-  e.innerHTML=`<div class="pa-card-title">WIN RATE BY TIME CONTROL</div>
-    ${barChartSVG(barData,{W:320,H:160,PL:28})}
-    <div class="pa-tc-legend">
-      ${data.map(d=>`<div class="pa-tc-row">
-        <span class="pa-dot" style="background:${tcColors[d.tc]||'#4caf7d'}"></span>
-        <span>${d.tc.charAt(0).toUpperCase()+d.tc.slice(1)}</span>
-        <span class="pa-tc-games">${d.games} games</span>
-        <span style="color:${winColor(d.winRate)};font-weight:700">${Math.round(d.winRate)}%</span>
-      </div>`).join('')}
-    </div>`;
+  renderInto('paByTCCard', e => {
+    const data=aggByTC(allGames);
+    if(!data.length){e.innerHTML='<p class="pa-no-data">No time control data</p>';return;}
+    const tcColors={'rapid':'#4caf7d','blitz':'#d4af37','bullet':'#ef5350','daily':'#a78bfa'};
+    const barData=data.map(d=>({label:`${d.tc.charAt(0).toUpperCase()+d.tc.slice(1)}\n${d.games}g`,value:d.winRate,color:tcColors[d.tc]||'#4caf7d'}));
+    e.innerHTML=`<div class="pa-card-title">WIN RATE BY TIME CONTROL</div>
+      ${barChartSVG(barData,{W:320,H:160,PL:28})}
+      <div class="pa-tc-legend">
+        ${data.map(d=>`<div class="pa-tc-row">
+          <span class="pa-dot" style="background:${tcColors[d.tc]||'#4caf7d'}"></span>
+          <span>${d.tc.charAt(0).toUpperCase()+d.tc.slice(1)}</span>
+          <span class="pa-tc-games">${d.games} games</span>
+          <span style="color:${winColor(d.winRate)};font-weight:700">${Math.round(d.winRate)}%</span>
+        </div>`).join('')}
+      </div>`;
+  });
 }
 
 // ─── RENDER: GAME FREQUENCY BY DAY OF WEEK ───────────────────────────────────
 
 function renderByDOW(games) {
-  const e=qs('paByDOWCard'); if(!e) return;
-  const data=aggByDOW(games);
-  const maxG=Math.max(...data.map(d=>d.games),1);
-  const W=320,H=160,PL=28,PB=24,PR=10,PT=8;
-  const cW=W-PL-PR,cH=H-PT-PB;
-  const gap=cW/7,bw=Math.min(24,gap*0.55);
-  const bars=data.map((d,i)=>{
-    const x=PL+i*gap+gap/2;
-    const gH=maxG?(d.games/maxG)*cH:0;
-    return `<rect x="${(x-bw/2).toFixed(1)}" y="${(PT+cH-gH).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(gH,0).toFixed(1)}" fill="#d4af37" rx="2"/>
-      <text x="${x.toFixed(1)}" y="${H-3}" text-anchor="middle" fill="#9e8350" font-size="9">${d.day}</text>
-      ${d.games>0?`<text x="${x.toFixed(1)}" y="${(PT+cH-gH-3).toFixed(1)}" text-anchor="middle" fill="#f6e7bf" font-size="7.5">${d.games}</text>`:''}`;
-  }).join('');
-  e.innerHTML=`<div class="pa-card-title">GAMES BY DAY OF WEEK</div>
-    <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
-      <line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="#2a2a2a"/>
-      ${bars}
-    </svg>
-    <div style="font-size:11px;color:#9e8350;margin-top:6px">Most active: <strong style="color:#d4af37">${data.reduce((a,b)=>b.games>a.games?b:a).day}</strong></div>`;
+  renderInto('paByDOWCard', e => {
+    const data=aggByDOW(games);
+    const barData=data.map(d=>({label:d.day,value:d.games,color:'#d4af37'}));
+    e.innerHTML=`<div class="pa-card-title">GAMES BY DAY OF WEEK</div>
+      ${barChartSVG(barData,{W:320,H:160,PL:28,PB:24,showPctGrid:false})}
+      <div style="font-size:11px;color:#9e8350;margin-top:6px">Most active: <strong style="color:#d4af37">${data.reduce((a,b)=>b.games>a.games?b:a).day}</strong></div>`;
+  });
 }
 
 // ─── RENDER: MONTHLY TREND ───────────────────────────────────────────────────
 
 function renderMonthlyTrend(games) {
-  const e=qs('paMonthlyCard'); if(!e) return;
-  const monthly=aggMonthly(games);
-  if(monthly.length<2){e.innerHTML='<p class="pa-no-data">Need more data for monthly trends</p>';return;}
-  const pts=monthly.map((m,i)=>({x:i,y:m.winRate}));
-
-  // Linear trend
-  const n=pts.length, sumX=pts.reduce((s,_,i)=>s+i,0), sumY=pts.reduce((s,p)=>s+p.y,0);
-  const sumXY=pts.reduce((s,p,i)=>s+i*p.y,0), sumX2=pts.reduce((s,_,i)=>s+i*i,0);
-  const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX**2)||0;
-  const intercept=(sumY-slope*sumX)/n;
-  const trendPts=[{x:0,y:intercept},{x:n-1,y:slope*(n-1)+intercept}];
-  const slopeDir=slope>0.5?'&#8599; Improving':slope<-0.5?'&#8600; Declining':'&#8594; Stable';
-  const slopeColor=slope>0.5?'#4caf7d':slope<-0.5?'#ef5350':'#d4af37';
-
-  const W=580, extra=[{pts:trendPts, color:'rgba(212,175,55,.6)', width:1.5, dash:'6,4'}];
-  e.innerHTML=`<div class="pa-card-title">MONTHLY WIN RATE TREND
-    <span style="float:right;color:${slopeColor};font-size:11px">${slopeDir}</span>
-  </div>
-    ${lineChartSVG(pts,{W,color:'#4caf7d',gradId:'mg1',yMin:0,yMax:100,extra,PL:36})}
-    <div class="pa-monthly-labels">
-      ${monthly.map(m=>`<span class="pa-month-lbl">${m.month.slice(5)}</span>`).join('')}
+  renderInto('paMonthlyCard', e => {
+    const monthly=aggMonthly(games);
+    if(monthly.length<2){e.innerHTML='<p class="pa-no-data">Need more data for monthly trends</p>';return;}
+    const pts=monthly.map((m,i)=>({x:i,y:m.winRate}));
+    const n=pts.length, sumX=pts.reduce((s,_,i)=>s+i,0), sumY=pts.reduce((s,p)=>s+p.y,0);
+    const sumXY=pts.reduce((s,p,i)=>s+i*p.y,0), sumX2=pts.reduce((s,_,i)=>s+i*i,0);
+    const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX**2)||0;
+    const intercept=(sumY-slope*sumX)/n;
+    const trendPts=[{x:0,y:intercept},{x:n-1,y:slope*(n-1)+intercept}];
+    const slopeDir=slope>0.5?'&#8599; Improving':slope<-0.5?'&#8600; Declining':'&#8594; Stable';
+    const slopeColor=slope>0.5?'#4caf7d':slope<-0.5?'#ef5350':'#d4af37';
+    const W=580, extra=[{pts:trendPts,color:'rgba(212,175,55,.6)',width:1.5,dash:'6,4'}];
+    e.innerHTML=`<div class="pa-card-title">MONTHLY WIN RATE TREND
+      <span style="float:right;color:${slopeColor};font-size:11px">${slopeDir}</span>
     </div>
-    <div style="font-size:11px;color:#9e8350;margin-top:4px">
-      ${monthly.map(m=>`<span style="color:${winColor(m.winRate)}">${Math.round(m.winRate)}%</span>`).join(' → ')}
-    </div>`;
+      ${lineChartSVG(pts,{W,color:'#4caf7d',gradId:'mg1',yMin:0,yMax:100,extra,PL:36})}
+      <div class="pa-monthly-labels">
+        ${monthly.map(m=>`<span class="pa-month-lbl">${m.month.slice(5)}</span>`).join('')}
+      </div>
+      <div style="font-size:11px;color:#9e8350;margin-top:4px">
+        ${monthly.map(m=>`<span style="color:${winColor(m.winRate)}">${Math.round(m.winRate)}%</span>`).join(' \u2192 ')}
+      </div>`;
+  });
 }
 
 // ─── RENDER: RATING PROGRESSION ──────────────────────────────────────────────
 
 function renderRatingProg(games) {
-  const e=qs('paRatingProgCard'); if(!e) return;
-  const prog=aggRatingProgression(games);
-  if(prog.length<3){e.innerHTML='<p class="pa-no-data">Not enough data for rating progression</p>';return;}
-  const pts=prog.map((p,i)=>({x:i,y:p.rating}));
-  const ma5Pts=prog.map((p,i)=>({x:i,y:p.ma5}));
-  const ma10Pts=prog.map((p,i)=>({x:i,y:p.ma10}));
-  const extra=[
-    {pts:ma5Pts,color:'#d4af37',width:1.5},
-    {pts:ma10Pts,color:'#ef5350',width:1.5},
-  ];
-  e.innerHTML=`<div class="pa-card-title">RATING PROGRESSION WITH MOVING AVERAGES</div>
-    ${lineChartSVG(pts,{W:580,H:200,color:'rgba(167,139,250,0.4)',gradId:'rp1',showArea:false,extra,PL:46})}
-    <div class="pa-legend-row" style="margin-top:8px">
-      <span class="pa-leg-item"><span class="pa-dot" style="background:rgba(167,139,250,0.7)"></span>Rating</span>
-      <span class="pa-leg-item"><span class="pa-dot" style="background:#d4af37"></span>5-game MA</span>
-      <span class="pa-leg-item"><span class="pa-dot" style="background:#ef5350"></span>10-game MA</span>
-    </div>`;
+  renderInto('paRatingProgCard', e => {
+    const prog=aggRatingProgression(games);
+    if(prog.length<3){e.innerHTML='<p class="pa-no-data">Not enough data for rating progression</p>';return;}
+    const pts=prog.map((p,i)=>({x:i,y:p.rating}));
+    const extra=[
+      {pts:prog.map((p,i)=>({x:i,y:p.ma5})),color:'#d4af37',width:1.5},
+      {pts:prog.map((p,i)=>({x:i,y:p.ma10})),color:'#ef5350',width:1.5},
+    ];
+    e.innerHTML=`<div class="pa-card-title">RATING PROGRESSION WITH MOVING AVERAGES</div>
+      ${lineChartSVG(pts,{W:580,H:200,color:'rgba(167,139,250,0.4)',gradId:'rp1',showArea:false,extra,PL:46})}
+      <div class="pa-legend-row" style="margin-top:8px">
+        <span class="pa-leg-item"><span class="pa-dot" style="background:rgba(167,139,250,0.7)"></span>Rating</span>
+        <span class="pa-leg-item"><span class="pa-dot" style="background:#d4af37"></span>5-game MA</span>
+        <span class="pa-leg-item"><span class="pa-dot" style="background:#ef5350"></span>10-game MA</span>
+      </div>`;
+  });
 }
 
 // ─── RENDER: RATING DIFF ANALYSIS ────────────────────────────────────────────
 
 function renderRatingDiff(games) {
-  const e=qs('paRatingDiffCard'); if(!e) return;
-  const data=aggRatingDiff(games);
-  if(!data.length){e.innerHTML='<p class="pa-no-data">No rating diff data</p>';return;}
-  const barData=data.map(d=>({
-    label:d.label,value:d.winRate,
-    color:d.winRate>=50?'#4caf7d':'#ef5350',
-  }));
-  e.innerHTML=`<div class="pa-card-title">WIN RATE VS RATING DIFFERENCE
-    <span class="pa-card-sub">(your rating − opponent)</span>
-  </div>
-    ${barChartSVG(barData,{W:340,H:165,PL:12})}
-    <div style="font-size:10px;color:#9e8350;margin-top:4px">Green = you win more, Red = you lose more</div>`;
+  renderInto('paRatingDiffCard', e => {
+    const data=aggRatingDiff(games);
+    if(!data.length){e.innerHTML='<p class="pa-no-data">No rating diff data</p>';return;}
+    const barData=data.map(d=>({label:d.label,value:d.winRate,color:d.winRate>=50?'#4caf7d':'#ef5350'}));
+    e.innerHTML=`<div class="pa-card-title">WIN RATE VS RATING DIFFERENCE
+      <span class="pa-card-sub">(your rating \u2212 opponent)</span>
+    </div>
+      ${barChartSVG(barData,{W:340,H:165,PL:12})}
+      <div style="font-size:10px;color:#9e8350;margin-top:4px">Green = you win more, Red = you lose more</div>`;
+  });
 }
 
 // ─── RENDER: OPPONENT STRENGTH ────────────────────────────────────────────────
 
 function renderOppStrength(games) {
-  const e=qs('paOppStrengthCard'); if(!e) return;
-  const data=aggOppStrength(games);
-  if(!data.length){e.innerHTML='<p class="pa-no-data">No opponent data</p>';return;}
-  e.innerHTML=`<div class="pa-card-title">PERFORMANCE VS OPPONENT STRENGTH</div>
-    ${horizBarSVG(data.map(d=>({label:d.label,value:d.winRate,suffix:'%',color:winColor(d.winRate),games:d.games})),{W:360,labelW:110})}
-    <div style="font-size:10px;color:#9e8350;margin-top:6px">Win rate against each opponent rating bracket</div>`;
+  renderInto('paOppStrengthCard', e => {
+    const data=aggOppStrength(games);
+    if(!data.length){e.innerHTML='<p class="pa-no-data">No opponent data</p>';return;}
+    e.innerHTML=`<div class="pa-card-title">PERFORMANCE VS OPPONENT STRENGTH</div>
+      ${horizBarSVG(data.map(d=>({label:d.label,value:d.winRate,suffix:'%',color:winColor(d.winRate),games:d.games})),{W:360,labelW:110})}
+      <div style="font-size:10px;color:#9e8350;margin-top:6px">Win rate against each opponent rating bracket</div>`;
+  });
 }
 
 // ─── RENDER: RESULT BREAKDOWN ────────────────────────────────────────────────
 
 function renderResultBreakdown(games) {
-  const e=qs('paResultBreakdown'); if(!e) return;
-  const data=aggResultBreakdown(games);
-  if(!data.length){e.innerHTML='<p class="pa-no-data">No data</p>';return;}
-  const resultColors={Win:'#4caf7d',Agreed:'#4caf7d',Checkmated:'#ef5350',Resigned:'#ef5350',Timeout:'#ef9350',Abandoned:'#888',Stalemate:'#d4af37',Repetition:'#d4af37',Insufficient:'#d4af37'};
-  e.innerHTML=`<div class="pa-card-title">DETAILED RESULT BREAKDOWN</div>
-    ${horizBarSVG(data.map(d=>({label:d.label,value:d.pct,suffix:'%',color:resultColors[d.label]||'#9e8350'})),{W:320,labelW:100,rowH:28})}`;
+  renderInto('paResultBreakdown', e => {
+    const data=aggResultBreakdown(games);
+    if(!data.length){e.innerHTML='<p class="pa-no-data">No data</p>';return;}
+    const resultColors={Win:'#4caf7d',Agreed:'#4caf7d',Checkmated:'#ef5350',Resigned:'#ef5350',Timeout:'#ef9350',Abandoned:'#888',Stalemate:'#d4af37',Repetition:'#d4af37',Insufficient:'#d4af37'};
+    e.innerHTML=`<div class="pa-card-title">DETAILED RESULT BREAKDOWN</div>
+      ${horizBarSVG(data.map(d=>({label:d.label,value:d.pct,suffix:'%',color:resultColors[d.label]||'#9e8350'})),{W:320,labelW:100,rowH:28})}`;
+  });
 }
 
 // ─── RENDER: WIN STREAK DISTRIBUTION ─────────────────────────────────────────
 
 function renderStreakDist(games) {
-  const e=qs('paStreakDist'); if(!e) return;
-  const {distribution}=aggStreaks(games);
-  const entries=Object.entries(distribution).sort((a,b)=>Number(a[0])-Number(b[0]));
-  if(!entries.length){e.innerHTML='<p class="pa-no-data">No streak data</p>';return;}
-  const max=Math.max(...entries.map(([,v])=>v),1);
-  const W=320,H=155,PL=16,PB=24,PR=10,PT=8;
-  const cW=W-PL-PR,cH=H-PT-PB,gap=cW/entries.length;
-  const bw=Math.min(28,gap*0.65);
-  const bars=entries.map(([k,v],i)=>{
-    const x=PL+i*gap+gap/2, h=(v/max)*cH;
-    return `<rect x="${(x-bw/2).toFixed(1)}" y="${(PT+cH-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="#d4af37" rx="2"/>
-      <text x="${x.toFixed(1)}" y="${H-3}" text-anchor="middle" fill="#9e8350" font-size="9">${k==='10'?'10+':k}</text>
-      <text x="${x.toFixed(1)}" y="${(PT+cH-h-3).toFixed(1)}" text-anchor="middle" fill="#f6e7bf" font-size="8.5">${v}</text>`;
-  }).join('');
-  e.innerHTML=`<div class="pa-card-title">WIN STREAK DISTRIBUTION</div>
-    <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
-      <line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="#2a2a2a"/>
-      ${bars}
-    </svg>
-    <div style="font-size:10px;color:#9e8350;margin-top:4px;text-align:center">X-axis: win streak length (10 = 10+ in a row)</div>`;
+  renderInto('paStreakDist', e => {
+    const {distribution}=aggStreaks(games);
+    const entries=Object.entries(distribution).sort((a,b)=>Number(a[0])-Number(b[0]));
+    if(!entries.length){e.innerHTML='<p class="pa-no-data">No streak data</p>';return;}
+    const barData=entries.map(([k,v])=>({label:k==='10'?'10+':k,value:v,color:'#d4af37'}));
+    e.innerHTML=`<div class="pa-card-title">WIN STREAK DISTRIBUTION</div>
+      ${barChartSVG(barData,{W:320,H:155,PL:16,PB:24,showPctGrid:false})}
+      <div style="font-size:10px;color:#9e8350;margin-top:4px;text-align:center">X-axis: win streak length (10 = 10+ in a row)</div>`;
+  });
 }
 
 // ─── RENDER: HEAD TO HEAD ─────────────────────────────────────────────────────
 
 function renderHeadToHead(games) {
-  const e=qs('paHeadToHead'); if(!e) return;
-  const data=aggHeadToHead(games);
-  if(!data.length){e.innerHTML='<p class="pa-no-data">Not enough opponent data</p>';return;}
-  const rows=data.map(d=>{
-    const pct=Math.round(d.wins/d.games*100);
-    const c=winColor(pct);
-    return `<div class="pa-h2h-row">
-      <div class="pa-h2h-name">${escapeHtml(d.username)}</div>
-      <div class="pa-h2h-record"><span style="color:#4caf7d">${d.wins}W</span> <span style="color:#555">${d.draws}D</span> <span style="color:#ef5350">${d.losses}L</span></div>
-      <div class="pa-h2h-games">${d.games} games</div>
-      <div class="pa-h2h-pct" style="color:${c}">${pct}%</div>
-    </div>`;
-  }).join('');
-  e.innerHTML=`<div class="pa-card-title">HEAD-TO-HEAD RECORDS <span class="pa-card-sub">top opponents</span></div>
-    <div class="pa-h2h-header">
-      <span>Opponent</span><span>Record</span><span>Games</span><span>Win %</span>
-    </div>
-    ${rows}`;
+  renderInto('paHeadToHead', e => {
+    const data=aggHeadToHead(games);
+    if(!data.length){e.innerHTML='<p class="pa-no-data">Not enough opponent data</p>';return;}
+    const rows=data.map(d=>{
+      const pct=Math.round(d.wins/d.games*100), c=winColor(pct);
+      return `<div class="pa-h2h-row">
+        <div class="pa-h2h-name">${escapeHtml(d.username)}</div>
+        <div class="pa-h2h-record"><span style="color:#4caf7d">${d.wins}W</span> <span style="color:#555">${d.draws}D</span> <span style="color:#ef5350">${d.losses}L</span></div>
+        <div class="pa-h2h-games">${d.games} games</div>
+        <div class="pa-h2h-pct" style="color:${c}">${pct}%</div>
+      </div>`;
+    }).join('');
+    e.innerHTML=`<div class="pa-card-title">HEAD-TO-HEAD RECORDS <span class="pa-card-sub">top opponents</span></div>
+      <div class="pa-h2h-header">
+        <span>Opponent</span><span>Record</span><span>Games</span><span>Win %</span>
+      </div>
+      ${rows}`;
+  });
 }
 
 // ─── RENDER: PERFORMANCE RADAR ───────────────────────────────────────────────
 
 function renderRadar(games) {
-  const e=qs('paRadarCard'); if(!e) return;
-  const metrics=aggRadar(games);
-  if(!metrics){e.innerHTML='<p class="pa-no-data">Not enough data for radar</p>';return;}
-  e.innerHTML=`<div class="pa-card-title">PERFORMANCE RADAR</div>
-    <div class="pa-radar-wrap">
-      ${radarSVG(metrics,200)}
-    </div>
-    <div class="pa-radar-legend">
-      ${metrics.map(m=>`<div class="pa-radar-item">
-        <span class="pa-radar-lbl">${escapeHtml(m.label.replace('\n',' '))}</span>
-        <div class="pa-radar-bar"><div style="width:${m.value}%;background:#4caf7d;height:4px;border-radius:2px;transition:width .3s"></div></div>
-        <span class="pa-radar-val">${m.value}</span>
-      </div>`).join('')}
-    </div>`;
+  renderInto('paRadarCard', e => {
+    const metrics=aggRadar(games);
+    if(!metrics){e.innerHTML='<p class="pa-no-data">Not enough data for radar</p>';return;}
+    e.innerHTML=`<div class="pa-card-title">PERFORMANCE RADAR</div>
+      <div class="pa-radar-wrap">
+        ${radarSVG(metrics,200)}
+      </div>
+      <div class="pa-radar-legend">
+        ${metrics.map(m=>`<div class="pa-radar-item">
+          <span class="pa-radar-lbl">${escapeHtml(m.label.replace('\n',' '))}</span>
+          <div class="pa-radar-bar"><div style="width:${m.value}%;background:#4caf7d;height:4px;border-radius:2px;transition:width .3s"></div></div>
+          <span class="pa-radar-val">${m.value}</span>
+        </div>`).join('')}
+      </div>`;
+  });
 }
 
 // ─── RENDER: OPENINGS ────────────────────────────────────────────────────────
 
 function renderOpenings(games) {
-  const e=qs('paOpenings'); if(!e) return;
+  renderInto('paOpenings', e => {
   function topOpenings(arr){
     const m={};
     arr.forEach(g=>{
@@ -926,7 +938,9 @@ function renderOpenings(games) {
     </tbody></table>`;
   }
   const all=games.filter(g=>g.opening);
-  const avgBook=all.length?Math.max(8,Math.min(25,Math.round(all.reduce((s,g)=>s+(g.opening?.split(' ').length||4),0)/all.length*2))):12;
+  // Estimate book exit at ~25% of average game length, bounded to realistic opening depth
+  const avgMove=all.length?all.reduce((s,g)=>s+(g.moveCount||16),0)/all.length:40;
+  const avgBook=Math.max(4,Math.min(20,Math.round(avgMove*0.25)));
   const bookArc=Math.min(339.3,(avgBook/25)*339.3);
   e.innerHTML=`<div class="pa-section-hdr" style="margin:0 0 16px">
     <div class="pa-sec-icon">&#128218;</div>
@@ -965,6 +979,7 @@ function renderOpenings(games) {
       qs('paOpBlack').style.display=c==='black'?'':'none';
     });
   });
+  });
 }
 
 // ─── RENDER: ANATOMY OF LOSS ──────────────────────────────────────────────────
@@ -992,93 +1007,100 @@ function lossRatioDonutSVG(single, gradual, sz = 170) {
   ], sz);
 }
 
-function renderLossAnalysis(games) {
-  const e=qs('paLossAnalysis'); if(!e) return;
+function calcLossBreakdown(games) {
   const losses=games.filter(g=>g.lost);
   const singleBlunder=losses.filter(isSingleBlunderLoss).length;
   const gradualLoss=Math.max(losses.length-singleBlunder,0);
   const lossTerms=[
     ['Resignation', losses.filter(g=>g.result==='resigned').length],
-    ['Checkmate', losses.filter(g=>g.result==='checkmated').length],
-    ['Timeout', losses.filter(g=>g.result==='timeout').length],
-    ['Abandoned', losses.filter(g=>g.result==='abandoned').length],
+    ['Checkmate',   losses.filter(g=>g.result==='checkmated').length],
+    ['Timeout',     losses.filter(g=>g.result==='timeout').length],
+    ['Abandoned',   losses.filter(g=>g.result==='abandoned').length],
   ];
   const wh=games.filter(g=>g.color==='white'), bl=games.filter(g=>g.color==='black');
   const wWin=wh.filter(g=>g.won).length, bWin=bl.filter(g=>g.won).length;
   const wPct=wh.length?Math.round(wWin/wh.length*100):0;
   const bPct=bl.length?Math.round(bWin/bl.length*100):0;
+  return {losses,singleBlunder,gradualLoss,lossTerms,wh,bl,wWin,bWin,wPct,bPct};
+}
+
+function blunderRatioCardHTML(singleBlunder, gradualLoss, losses) {
+  return `<div class="pa-loss-card pa-loss-ratio-card">
+    <div class="pa-loss-feature-title"><span class="pa-loss-title-icon">&#128202;</span> THE "BLUNDER-TO-WIN" RATIO</div>
+    <div class="pa-loss-ratio-body">
+      <div class="pa-loss-donut-wrap">${lossRatioDonutSVG(singleBlunder,gradualLoss)}</div>
+      <div class="pa-loss-ratio-legend">
+        <div class="pa-loss-ratio-item">
+          <span class="pa-loss-legend-dot pa-loss-dot-single"></span>
+          <div><strong>Single Blunder</strong><span>${singleBlunder} ${singleBlunder===1?'game':'games'} \u2014 one massive mistake</span></div>
+        </div>
+        <div class="pa-loss-ratio-item">
+          <span class="pa-loss-legend-dot pa-loss-dot-gradual"></span>
+          <div><strong>Gradual Loss</strong><span>${gradualLoss} ${gradualLoss===1?'game':'games'} \u2014 slowly outplayed</span></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function terminationCardHTML(lossTerms, lossCount) {
+  return `<div class="pa-loss-card pa-loss-term-card">
+    <div class="pa-loss-feature-title">GAME TERMINATIONS</div>
+    <div class="pa-loss-term-bars">
+      ${lossTerms.map(([lbl,cnt])=>{const pct=Math.round(cnt/lossCount*100);return `
+        <div class="pa-loss-term-row">
+          <div class="pa-loss-term-head"><span>${lbl}</span><strong>${cnt} (${pct}%)</strong></div>
+          <div class="pa-loss-term-track"><div class="pa-loss-term-fill" style="width:${pct}%"></div></div>
+        </div>`;}).join('')}
+    </div>
+  </div>`;
+}
+
+function colorPerfCardHTML(wh, bl, wWin, bWin, wPct, bPct) {
   const colorNote=Math.abs(wPct-bPct)<=5
     ?`<div class="pa-color-note pa-note-pos">You're consistent with both colors. Keep it up.</div>`
     :`<div class="pa-color-note pa-note-warn">You perform better as ${wPct>bPct?'White':'Black'}. Focus on your ${wPct>bPct?'Black':'White'} openings.</div>`;
-  const lossFeature=losses.length ? `
-  <div class="pa-loss-feature-grid">
-    <div class="pa-loss-card pa-loss-ratio-card">
-      <div class="pa-loss-feature-title"><span class="pa-loss-title-icon">&#128202;</span> THE "BLUNDER-TO-WIN" RATIO</div>
-      <div class="pa-loss-ratio-body">
-        <div class="pa-loss-donut-wrap">${lossRatioDonutSVG(singleBlunder, gradualLoss)}</div>
-        <div class="pa-loss-ratio-legend">
-          <div class="pa-loss-ratio-item">
-            <span class="pa-loss-legend-dot pa-loss-dot-single"></span>
-            <div>
-              <strong>Single Blunder</strong>
-              <span>${singleBlunder} ${singleBlunder===1?'game':'games'} — one massive mistake</span>
-            </div>
-          </div>
-          <div class="pa-loss-ratio-item">
-            <span class="pa-loss-legend-dot pa-loss-dot-gradual"></span>
-            <div>
-              <strong>Gradual Loss</strong>
-              <span>${gradualLoss} ${gradualLoss===1?'game':'games'} — slowly outplayed</span>
-            </div>
-          </div>
-        </div>
+  return `<div class="pa-loss-card pa-color-loss-card">
+    <div class="pa-sub-label">&#128200; WHITE VS BLACK PERFORMANCE</div>
+    <div class="pa-color-perf">
+      <div class="pa-cp-col">
+        <div class="pa-cp-piece">&#9823;</div><div class="pa-cp-name">White</div>
+        <div class="pa-cp-pct" style="color:${wPct>=50?'#4caf7d':'#ef5350'}">${wPct}%</div>
+        <div class="pa-cp-sub">win rate (${wh.length} games)</div>
+        <div class="pa-cp-bar"><div style="width:${wPct}%;height:5px;background:#4caf7d;border-radius:3px"></div></div>
+        <div class="pa-cp-rec">${wWin}W &nbsp;${wh.filter(g=>g.drew).length}D &nbsp;${wh.filter(g=>g.lost).length}L</div>
+      </div>
+      <div class="pa-cp-col">
+        <div class="pa-cp-piece" style="opacity:.5">&#9823;</div><div class="pa-cp-name">Black</div>
+        <div class="pa-cp-pct" style="color:${bPct>=50?'#4caf7d':'#ef5350'}">${bPct}%</div>
+        <div class="pa-cp-sub">win rate (${bl.length} games)</div>
+        <div class="pa-cp-bar"><div style="width:${bPct}%;height:5px;background:#4caf7d;border-radius:3px"></div></div>
+        <div class="pa-cp-rec">${bWin}W &nbsp;${bl.filter(g=>g.drew).length}D &nbsp;${bl.filter(g=>g.lost).length}L</div>
       </div>
     </div>
-    <div class="pa-loss-card pa-loss-term-card">
-      <div class="pa-loss-feature-title">GAME TERMINATIONS</div>
-      <div class="pa-loss-term-bars">
-        ${lossTerms.map(([lbl,cnt])=>{const pct=Math.round(cnt/losses.length*100);return `
-          <div class="pa-loss-term-row">
-            <div class="pa-loss-term-head"><span>${lbl}</span><strong>${cnt} (${pct}%)</strong></div>
-            <div class="pa-loss-term-track"><div class="pa-loss-term-fill" style="width:${pct}%"></div></div>
-          </div>`;}).join('')}
-      </div>
-    </div>
-  </div>` : `<div class="pa-loss-empty">No losses in this filtered sample. Change the time control or period to inspect defeat patterns.</div>`;
-  e.innerHTML=`<div class="pa-section-hdr" style="margin:0 0 16px">
-    <div class="pa-sec-icon" style="background:rgba(239,83,80,.15)">&#128128;</div>
-    <div><h2 class="pa-sec-title">Anatomy of a Loss</h2><p class="pa-sec-sub">Patterns in your defeats, from a coach's perspective</p></div>
-  </div>
-  ${lossFeature}
-  <div class="pa-loss-grid">
-    <div class="pa-loss-card pa-color-loss-card">
-      <div class="pa-sub-label">&#128200; WHITE VS BLACK PERFORMANCE</div>
-      <div class="pa-color-perf">
-        <div class="pa-cp-col">
-          <div class="pa-cp-piece">&#9823;</div><div class="pa-cp-name">White</div>
-          <div class="pa-cp-pct" style="color:${wPct>=50?'#4caf7d':'#ef5350'}">${wPct}%</div>
-          <div class="pa-cp-sub">win rate (${wh.length} games)</div>
-          <div class="pa-cp-bar"><div style="width:${wPct}%;height:5px;background:#4caf7d;border-radius:3px"></div></div>
-          <div class="pa-cp-rec">${wWin}W &nbsp;${wh.filter(g=>g.drew).length}D &nbsp;${wh.filter(g=>g.lost).length}L</div>
-        </div>
-        <div class="pa-cp-col">
-          <div class="pa-cp-piece" style="opacity:.5">&#9823;</div><div class="pa-cp-name">Black</div>
-          <div class="pa-cp-pct" style="color:${bPct>=50?'#4caf7d':'#ef5350'}">${bPct}%</div>
-          <div class="pa-cp-sub">win rate (${bl.length} games)</div>
-          <div class="pa-cp-bar"><div style="width:${bPct}%;height:5px;background:#4caf7d;border-radius:3px"></div></div>
-          <div class="pa-cp-rec">${bWin}W &nbsp;${bl.filter(g=>g.drew).length}D &nbsp;${bl.filter(g=>g.lost).length}L</div>
-        </div>
-      </div>
-      ${colorNote}
-    </div>
+    ${colorNote}
   </div>`;
+}
+
+function renderLossAnalysis(games) {
+  renderInto('paLossAnalysis', e => {
+    const {losses,singleBlunder,gradualLoss,lossTerms,wh,bl,wWin,bWin,wPct,bPct}=calcLossBreakdown(games);
+    const lossFeature=losses.length
+      ?`<div class="pa-loss-feature-grid">${blunderRatioCardHTML(singleBlunder,gradualLoss,losses)}${terminationCardHTML(lossTerms,losses.length)}</div>`
+      :`<div class="pa-loss-empty">No losses in this filtered sample. Change the time control or period to inspect defeat patterns.</div>`;
+    e.innerHTML=`<div class="pa-section-hdr" style="margin:0 0 16px">
+      <div class="pa-sec-icon" style="background:rgba(239,83,80,.15)">&#128128;</div>
+      <div><h2 class="pa-sec-title">Anatomy of a Loss</h2><p class="pa-sec-sub">Patterns in your defeats, from a coach's perspective</p></div>
+    </div>
+    ${lossFeature}
+    <div class="pa-loss-grid">${colorPerfCardHTML(wh,bl,wWin,bWin,wPct,bPct)}</div>`;
+  });
 }
 
 // ─── RENDER: PERFORMANCE INSIGHTS ───────────────────────────────────────────
 
 function renderPerformanceSummary(filtered, allPeriod) {
-  const e = qs('paInsights');
-  if (!e) return;
+  renderInto('paInsights', e => {
   if (!filtered.length) { e.innerHTML = ''; return; }
 
   const insights = [];
@@ -1152,141 +1174,142 @@ function renderPerformanceSummary(filtered, allPeriod) {
     <div class="pa-insights-list">
       ${insights.map(ins => `<div class="pa-insight-item"><span class="pa-insight-icon">${ins.icon}</span><span class="pa-insight-text">${ins.text}</span></div>`).join('')}
     </div>`;
+  });
+}
+
+// ─── GAME RESULTS CHART: MODULE-LEVEL HELPERS ────────────────────────────────
+
+const GR_W=700, GR_H=490, GR_CX=340, GR_CY=248;
+const GR_IN1=90, GR_IN2=143, GR_OUT1=151, GR_OUT2=200, GR_SEG_GAP=1.5;
+
+function grToXY(r, deg) {
+  const rad = (deg - 90) * Math.PI / 180;
+  return [GR_CX + r * Math.cos(rad), GR_CY + r * Math.sin(rad)];
+}
+
+function grMakeArc(r1, r2, a0, a1) {
+  const span = a1 - a0;
+  if (span <= 0.01) return '';
+  const [x0,y0]=grToXY(r2,a0), [x1,y1]=grToXY(r2,a1);
+  const [x2,y2]=grToXY(r1,a1), [x3,y3]=grToXY(r1,a0);
+  const lg = span > 180 ? 1 : 0;
+  return `M${x0.toFixed(2)},${y0.toFixed(2)} A${r2},${r2} 0 ${lg} 1 ${x1.toFixed(2)},${y1.toFixed(2)} L${x2.toFixed(2)},${y2.toFixed(2)} A${r1},${r1} 0 ${lg} 0 ${x3.toFixed(2)},${y3.toFixed(2)} Z`;
+}
+
+function grSegLabel(midDeg, l1, l2, c1, c2) {
+  const [x,y]=grToXY(54,midDeg);
+  return `<text x="${x.toFixed(1)}" y="${(y-6).toFixed(1)}" text-anchor="middle" fill="${c1}" font-size="12" font-weight="700" font-family="ui-monospace,monospace">${l1}</text>
+    <text x="${x.toFixed(1)}" y="${(y+9).toFixed(1)}" text-anchor="middle" fill="${c2}" font-size="10.5" font-family="ui-monospace,monospace">${l2}</text>`;
+}
+
+function grLeaderLine(midDeg, label, dotColor) {
+  const cosA=Math.cos((midDeg-90)*Math.PI/180), sinA=Math.sin((midDeg-90)*Math.PI/180);
+  const isRight=cosA>=0;
+  const [ax,ay]=[GR_CX+(GR_OUT2+6)*cosA, GR_CY+(GR_OUT2+6)*sinA];
+  const [bx,by]=[GR_CX+(GR_OUT2+26)*cosA, GR_CY+(GR_OUT2+26)*sinA];
+  const hx=isRight?bx+30:bx-30, tx=isRight?hx+5:hx-5, anchor=isRight?'start':'end';
+  return `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#555" stroke-width="0.8"/>
+    <line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${hx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#555" stroke-width="0.8"/>
+    <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="2.5" fill="${dotColor}"/>
+    <text x="${tx.toFixed(1)}" y="${(by+4).toFixed(1)}" text-anchor="${anchor}" fill="#c5c5c5" font-size="11.5" font-weight="500" font-family="ui-monospace,monospace">${escapeHtml(label)}</text>`;
+}
+
+function buildWinTypes(wins, total) {
+  const types=[
+    {label:'Resigned',   count:wins.filter(g=>g.oppResult==='resigned').length,   color:'#27ae60'},
+    {label:'Timeout',    count:wins.filter(g=>g.oppResult==='timeout').length,    color:'#1a9141'},
+    {label:'Checkmated', count:wins.filter(g=>g.oppResult==='checkmated').length, color:'#52be80'},
+    {label:'Abandoned',  count:wins.filter(g=>g.oppResult==='abandoned').length,  color:'#0d7047'},
+  ].filter(t=>t.count>0);
+  const other=wins.length-types.reduce((s,t)=>s+t.count,0);
+  if(other>0) types.push({label:'Other wins',count:other,color:'#145a32'});
+  return types;
+}
+
+function buildLossTypes(losses) {
+  const types=[
+    {label:'Resigned',   count:losses.filter(g=>g.result==='resigned').length,   color:'#e74c3c'},
+    {label:'Timeout',    count:losses.filter(g=>g.result==='timeout').length,    color:'#c0392b'},
+    {label:'Checkmated', count:losses.filter(g=>g.result==='checkmated').length, color:'#a93226'},
+    {label:'Abandoned',  count:losses.filter(g=>g.result==='abandoned').length,  color:'#d35400'},
+  ].filter(t=>t.count>0);
+  const other=losses.length-types.reduce((s,t)=>s+t.count,0);
+  if(other>0) types.push({label:'Other losses',count:other,color:'#7b241c'});
+  return types;
 }
 
 // ─── RENDER: GAME RESULTS DUAL-RING DONUT ────────────────────────────────────
 
 function renderGameResults(games) {
-  const e = qs('paGameResults');
-  if (!e) return;
-  if (!games.length) { e.innerHTML = ''; return; }
+  renderInto('paGameResults', e => {
+    if (!games.length) { e.innerHTML = ''; return; }
 
-  const total = games.length;
-  const wins   = games.filter(g => g.won);
-  const losses = games.filter(g => g.lost);
-  const draws  = games.filter(g => g.drew);
+    const total=games.length;
+    const wins=games.filter(g=>g.won), losses=games.filter(g=>g.lost), draws=games.filter(g=>g.drew);
+    const winTypes=buildWinTypes(wins,total);
+    const lossTypes=buildLossTypes(losses);
 
-  const winTypes = [
-    { label: 'Resigned',   count: wins.filter(g => g.oppResult === 'resigned').length,   color: '#27ae60' },
-    { label: 'Timeout',    count: wins.filter(g => g.oppResult === 'timeout').length,    color: '#1a9141' },
-    { label: 'Checkmated', count: wins.filter(g => g.oppResult === 'checkmated').length, color: '#52be80' },
-    { label: 'Abandoned',  count: wins.filter(g => g.oppResult === 'abandoned').length,  color: '#0d7047' },
-  ].filter(t => t.count > 0);
-  const winOther = wins.length - winTypes.reduce((s, t) => s + t.count, 0);
-  if (winOther > 0) winTypes.push({ label: 'Other wins', count: winOther, color: '#145a32' });
+    const sorted=[...games].sort((a,b)=>a.endTime-b.endTime);
+    const fmt=t=>t?new Date(t).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+    const dateRange=sorted.length?`${fmt(sorted[0].endTime)} \u2013 ${fmt(sorted[sorted.length-1].endTime)}`:'';
 
-  const lossTypes = [
-    { label: 'Resigned',   count: losses.filter(g => g.result === 'resigned').length,   color: '#e74c3c' },
-    { label: 'Timeout',    count: losses.filter(g => g.result === 'timeout').length,    color: '#c0392b' },
-    { label: 'Checkmated', count: losses.filter(g => g.result === 'checkmated').length, color: '#a93226' },
-    { label: 'Abandoned',  count: losses.filter(g => g.result === 'abandoned').length,  color: '#d35400' },
-  ].filter(t => t.count > 0);
-  const lossOther = losses.length - lossTypes.reduce((s, t) => s + t.count, 0);
-  if (lossOther > 0) lossTypes.push({ label: 'Other losses', count: lossOther, color: '#7b241c' });
+    const wFrac=wins.length/total, dFrac=draws.length/total;
+    const wDeg=wFrac*360, dDeg=dFrac*360;
+    const parts=[], lbls=[];
 
-  const sorted = [...games].sort((a, b) => a.endTime - b.endTime);
-  const fmt = t => t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-  const dateRange = sorted.length ? `${fmt(sorted[0].endTime)} – ${fmt(sorted[sorted.length - 1].endTime)}` : '';
+    // Inner ring
+    if(wDeg>GR_SEG_GAP)
+      parts.push(`<path d="${grMakeArc(GR_IN1,GR_IN2,GR_SEG_GAP/2,wDeg-GR_SEG_GAP/2)}" fill="#2e7d4f" stroke="#0b0b0c" stroke-width="1.5"/>`);
+    if(dDeg>2)
+      parts.push(`<path d="${grMakeArc(GR_IN1,GR_IN2,wDeg+GR_SEG_GAP/2,wDeg+dDeg-GR_SEG_GAP/2)}" fill="#4a5568" stroke="#0b0b0c" stroke-width="1.5"/>`);
+    if(360-wDeg-dDeg>GR_SEG_GAP)
+      parts.push(`<path d="${grMakeArc(GR_IN1,GR_IN2,wDeg+dDeg+GR_SEG_GAP/2,360-GR_SEG_GAP/2)}" fill="#922b21" stroke="#0b0b0c" stroke-width="1.5"/>`);
 
-  const W = 700, H = 490, CX = 340, CY = 248;
-  const IN1 = 90, IN2 = 143, OUT1 = 151, OUT2 = 200, SEG_GAP = 1.5;
+    // Center labels
+    lbls.push(grSegLabel(wDeg/2,'Wins',`${wins.length.toLocaleString()} (${(wFrac*100).toFixed(1)}%)`,'#86efac','#a3d9b5'));
+    const lossMid=wDeg+dDeg+(360-wDeg-dDeg)/2;
+    lbls.push(grSegLabel(lossMid,'Losses',`${losses.length.toLocaleString()} (${((1-wFrac-dFrac)*100).toFixed(1)}%)`,'#fca5a5','#e0b0b0'));
+    if(dDeg>8){
+      const [dx,dy]=grToXY(56,wDeg+dDeg/2);
+      lbls.push(`<text x="${dx.toFixed(1)}" y="${dy.toFixed(1)}" text-anchor="middle" fill="#8899aa" font-size="9.5" font-family="ui-monospace,monospace">Draws ${draws.length} (${(dFrac*100).toFixed(1)}%)</text>`);
+    }
 
-  function toXY(r, deg) {
-    const rad = (deg - 90) * Math.PI / 180;
-    return [CX + r * Math.cos(rad), CY + r * Math.sin(rad)];
-  }
+    // Outer ring – wins
+    let angle=GR_SEG_GAP/2;
+    winTypes.forEach(seg=>{
+      const segDeg=(seg.count/total)*360;
+      if(segDeg<GR_SEG_GAP*2){angle+=segDeg;return;}
+      const endA=angle+segDeg-GR_SEG_GAP;
+      parts.push(`<path d="${grMakeArc(GR_OUT1,GR_OUT2,angle,endA)}" fill="${seg.color}" stroke="#0b0b0c" stroke-width="1"/>`);
+      if(segDeg>6) lbls.push(grLeaderLine((angle+endA)/2,`${seg.label}: ${seg.count.toLocaleString()} (${(seg.count/total*100).toFixed(1)}%)`,seg.color));
+      angle+=segDeg;
+    });
 
-  function makeArc(r1, r2, a0, a1) {
-    const span = a1 - a0;
-    if (span <= 0.01) return '';
-    const [x0, y0] = toXY(r2, a0), [x1, y1] = toXY(r2, a1);
-    const [x2, y2] = toXY(r1, a1), [x3, y3] = toXY(r1, a0);
-    const lg = span > 180 ? 1 : 0;
-    return `M${x0.toFixed(2)},${y0.toFixed(2)} A${r2},${r2} 0 ${lg} 1 ${x1.toFixed(2)},${y1.toFixed(2)} L${x2.toFixed(2)},${y2.toFixed(2)} A${r1},${r1} 0 ${lg} 0 ${x3.toFixed(2)},${y3.toFixed(2)} Z`;
-  }
+    // Outer draws sliver
+    if(dDeg>2){const ds=wDeg+GR_SEG_GAP,de=wDeg+dDeg-GR_SEG_GAP;if(de>ds)parts.push(`<path d="${grMakeArc(GR_OUT1,GR_OUT2,ds,de)}" fill="#5a6475" stroke="#0b0b0c" stroke-width="1"/>`);}
 
-  const wFrac = wins.length / total, dFrac = draws.length / total;
-  const wDeg = wFrac * 360, dDeg = dFrac * 360;
-  const parts = [], lbls = [];
+    // Outer ring – losses
+    angle=wDeg+dDeg+GR_SEG_GAP/2;
+    lossTypes.forEach(seg=>{
+      const segDeg=(seg.count/total)*360;
+      if(segDeg<GR_SEG_GAP*2){angle+=segDeg;return;}
+      const endA=angle+segDeg-GR_SEG_GAP;
+      parts.push(`<path d="${grMakeArc(GR_OUT1,GR_OUT2,angle,endA)}" fill="${seg.color}" stroke="#0b0b0c" stroke-width="1"/>`);
+      if(segDeg>6) lbls.push(grLeaderLine((angle+endA)/2,`${seg.label}: ${seg.count.toLocaleString()} (${(seg.count/total*100).toFixed(1)}%)`,seg.color));
+      angle+=segDeg;
+    });
 
-  // Inner ring
-  if (wDeg > SEG_GAP)
-    parts.push(`<path d="${makeArc(IN1, IN2, SEG_GAP / 2, wDeg - SEG_GAP / 2)}" fill="#2e7d4f" stroke="#0b0b0c" stroke-width="1.5"/>`);
-  if (dDeg > 2)
-    parts.push(`<path d="${makeArc(IN1, IN2, wDeg + SEG_GAP / 2, wDeg + dDeg - SEG_GAP / 2)}" fill="#4a5568" stroke="#0b0b0c" stroke-width="1.5"/>`);
-  if (360 - wDeg - dDeg > SEG_GAP)
-    parts.push(`<path d="${makeArc(IN1, IN2, wDeg + dDeg + SEG_GAP / 2, 360 - SEG_GAP / 2)}" fill="#922b21" stroke="#0b0b0c" stroke-width="1.5"/>`);
-
-  // Center labels inside the hole
-  function segLabel(midDeg, l1, l2, c1, c2) {
-    const [x, y] = toXY(54, midDeg);
-    return `<text x="${x.toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle" fill="${c1}" font-size="12" font-weight="700" font-family="ui-monospace,monospace">${l1}</text>
-      <text x="${x.toFixed(1)}" y="${(y + 9).toFixed(1)}" text-anchor="middle" fill="${c2}" font-size="10.5" font-family="ui-monospace,monospace">${l2}</text>`;
-  }
-  lbls.push(segLabel(wDeg / 2, 'Wins', `${wins.length.toLocaleString()} (${(wFrac * 100).toFixed(1)}%)`, '#86efac', '#a3d9b5'));
-  const lossMid = wDeg + dDeg + (360 - wDeg - dDeg) / 2;
-  lbls.push(segLabel(lossMid, 'Losses', `${losses.length.toLocaleString()} (${((1 - wFrac - dFrac) * 100).toFixed(1)}%)`, '#fca5a5', '#e0b0b0'));
-  if (dDeg > 8) {
-    const [dx, dy] = toXY(56, wDeg + dDeg / 2);
-    lbls.push(`<text x="${dx.toFixed(1)}" y="${dy.toFixed(1)}" text-anchor="middle" fill="#8899aa" font-size="9.5" font-family="ui-monospace,monospace">Draws ${draws.length} (${(dFrac * 100).toFixed(1)}%)</text>`);
-  }
-
-  // Leader-line labels for outer ring
-  function leaderLine(midDeg, label, dotColor) {
-    const cosA = Math.cos((midDeg - 90) * Math.PI / 180);
-    const sinA = Math.sin((midDeg - 90) * Math.PI / 180);
-    const isRight = cosA >= 0;
-    const [ax, ay] = [CX + (OUT2 + 6) * cosA,  CY + (OUT2 + 6) * sinA];
-    const [bx, by] = [CX + (OUT2 + 26) * cosA, CY + (OUT2 + 26) * sinA];
-    const hx = isRight ? bx + 30 : bx - 30;
-    const tx = isRight ? hx + 5  : hx - 5;
-    const anchor = isRight ? 'start' : 'end';
-    return `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#555" stroke-width="0.8"/>
-      <line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${hx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#555" stroke-width="0.8"/>
-      <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="2.5" fill="${dotColor}"/>
-      <text x="${tx.toFixed(1)}" y="${(by + 4).toFixed(1)}" text-anchor="${anchor}" fill="#c5c5c5" font-size="11.5" font-weight="500" font-family="ui-monospace,monospace">${escapeHtml(label)}</text>`;
-  }
-
-  // Outer ring – wins
-  let angle = SEG_GAP / 2;
-  winTypes.forEach(seg => {
-    const segDeg = (seg.count / total) * 360;
-    if (segDeg < SEG_GAP * 2) { angle += segDeg; return; }
-    const endA = angle + segDeg - SEG_GAP;
-    parts.push(`<path d="${makeArc(OUT1, OUT2, angle, endA)}" fill="${seg.color}" stroke="#0b0b0c" stroke-width="1"/>`);
-    if (segDeg > 6)
-      lbls.push(leaderLine((angle + endA) / 2, `${seg.label}: ${seg.count.toLocaleString()} (${(seg.count / total * 100).toFixed(1)}%)`, seg.color));
-    angle += segDeg;
+    const tcLabel=(_state.selectedTC||'all').toUpperCase();
+    e.innerHTML=`<div style="padding:14px 18px 0;display:flex;align-items:center;gap:8px">
+      <span style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--text-primary)">GAME RESULTS</span>
+      <span style="font-size:13px;color:#505a65;cursor:default" title="Outer ring shows win/loss subtypes; inner ring shows overall W/D/L">&#9432;</span>
+    </div>
+    <svg width="100%" viewBox="0 0 ${GR_W} ${GR_H}" style="display:block;overflow:visible">
+      ${parts.join('\n      ')}
+      ${lbls.join('\n      ')}
+      <text x="16" y="${GR_H-16}" fill="#505a65" font-size="10.5" font-family="ui-monospace,monospace">${tcLabel} \u2022 ${dateRange}</text>
+    </svg>`;
   });
-
-  // Outer draws sliver
-  if (dDeg > 2) {
-    const ds = wDeg + SEG_GAP, de = wDeg + dDeg - SEG_GAP;
-    if (de > ds) parts.push(`<path d="${makeArc(OUT1, OUT2, ds, de)}" fill="#5a6475" stroke="#0b0b0c" stroke-width="1"/>`);
-  }
-
-  // Outer ring – losses
-  angle = wDeg + dDeg + SEG_GAP / 2;
-  lossTypes.forEach(seg => {
-    const segDeg = (seg.count / total) * 360;
-    if (segDeg < SEG_GAP * 2) { angle += segDeg; return; }
-    const endA = angle + segDeg - SEG_GAP;
-    parts.push(`<path d="${makeArc(OUT1, OUT2, angle, endA)}" fill="${seg.color}" stroke="#0b0b0c" stroke-width="1"/>`);
-    if (segDeg > 6)
-      lbls.push(leaderLine((angle + endA) / 2, `${seg.label}: ${seg.count.toLocaleString()} (${(seg.count / total * 100).toFixed(1)}%)`, seg.color));
-    angle += segDeg;
-  });
-
-  const tcLabel = (_state.selectedTC || 'all').toUpperCase();
-  e.innerHTML = `<div style="padding:14px 18px 0;display:flex;align-items:center;gap:8px">
-    <span style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--text-primary)">GAME RESULTS</span>
-    <span style="font-size:13px;color:#505a65;cursor:default" title="Outer ring shows win/loss subtypes; inner ring shows overall W/D/L">&#9432;</span>
-  </div>
-  <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">
-    ${parts.join('\n    ')}
-    ${lbls.join('\n    ')}
-    <text x="16" y="${H - 16}" fill="#505a65" font-size="10.5" font-family="ui-monospace,monospace">${tcLabel} • ${dateRange}</text>
-  </svg>`;
 }
 
 // ─── WIRE CONTROLS ───────────────────────────────────────────────────────────
@@ -1316,9 +1339,14 @@ function wireControls() {
 
 function refreshRender() {
   const {allProcessed,selectedTC,selectedPeriod,profile,stats} = _state;
-  const tcOnly = filterByTC(allProcessed, selectedTC);
-  const filtered = filterByPeriod(tcOnly, selectedPeriod);
-  const allPeriod = filterByPeriod(allProcessed, selectedPeriod);
+  const cacheKey = `${selectedTC}:${selectedPeriod}`;
+  if (cacheKey !== _renderCache.key) {
+    _renderCache.key = cacheKey;
+    _renderCache.tcOnly = filterByTC(allProcessed, selectedTC);
+    _renderCache.filtered = filterByPeriod(_renderCache.tcOnly, selectedPeriod);
+    _renderCache.allPeriod = filterByPeriod(allProcessed, selectedPeriod);
+  }
+  const {filtered, tcOnly, allPeriod} = _renderCache;
 
   renderKeyMetrics(filtered, stats);
   renderSummaryBar(filtered);
@@ -1358,26 +1386,54 @@ function refreshRender() {
 
 async function analyze(username) {
   if (!username) return;
-  _state.username = username.trim().toLowerCase();
+  const normalizedUser = username.trim().toLowerCase();
+
+  // Cancel any in-flight request from a previous analyze call
+  if (_currentAbort) _currentAbort.abort();
+  _currentAbort = new AbortController();
+  const { signal } = _currentAbort;
+
+  _state.username = normalizedUser;
+  _renderCache.key = null; // invalidate filter cache on new data
   showState('loading');
 
   try {
+    // Serve from session cache if fresh (< 5 min old)
+    const cached = getCachedAnalysis(normalizedUser);
+    if (cached) {
+      _state.profile = cached.profile;
+      _state.stats = cached.stats;
+      _state.allProcessed = cached.allProcessed;
+      showState('content');
+      renderProfile(cached.profile, cached.stats);
+      wireControls();
+      refreshRender();
+      return;
+    }
+
     const [profile, stats] = await Promise.all([
-      apiGet(`${CHESS_API}/${_state.username}`),
-      apiGet(`${CHESS_API}/${_state.username}/stats`),
+      apiGet(`${CHESS_API}/${normalizedUser}`, signal),
+      apiGet(`${CHESS_API}/${normalizedUser}/stats`, signal),
     ]);
     _state.profile = profile;
     _state.stats = stats;
 
-    const { archives = [] } = await apiGet(`${CHESS_API}/${_state.username}/games/archives`);
+    const { archives = [] } = await apiGet(`${CHESS_API}/${normalizedUser}/games/archives`, signal);
 
     // Fetch enough history for the 12-month filter.
     const toFetch = archives.slice(-PLAYER_ANALYZE_MONTHS);
     const monthsData = await Promise.all(
-      toFetch.map(url => apiGet(url).then(d => d.games || []).catch(() => []))
+      toFetch.map(url => apiGet(url, signal).then(d => d.games || []).catch(e => {
+        if (e && e.name === 'AbortError') throw e;
+        return [];
+      }))
     );
 
-    _state.allProcessed = monthsData.flat().map(g => processRawGame(g, _state.username));
+    _state.allProcessed = monthsData.flat().map(g => processRawGame(g, normalizedUser));
+
+    setCachedAnalysis(normalizedUser, {
+      profile, stats, allProcessed: _state.allProcessed,
+    });
 
     showState('content');
     renderProfile(profile, stats);
@@ -1385,6 +1441,7 @@ async function analyze(username) {
     refreshRender();
 
   } catch (err) {
+    if (err && err.name === 'AbortError') return; // superseded by a newer request
     showState('error');
     const msgEl = qs('paErrorMsg');
     if (msgEl) msgEl.textContent = err.message || 'Failed to load player data';

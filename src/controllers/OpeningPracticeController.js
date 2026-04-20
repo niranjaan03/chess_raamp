@@ -438,7 +438,7 @@ const OpeningPracticeController = (function () {
 
   function saveSRS() {
     if (typeof window === 'undefined') return;
-    try { localStorage.setItem(SRS_KEY, JSON.stringify(srsData)); } catch (e) {}
+    try { localStorage.setItem(SRS_KEY, JSON.stringify(srsData)); } catch { /* storage full */ }
   }
 
   function updateSRS(srsId, rating) {
@@ -1317,7 +1317,7 @@ const OpeningPracticeController = (function () {
     if (!panel) return;
 
     if (practiceMode === 'drill') {
-      var nextTurnColor = currentMoveIndex % 2 === 0 ? 'w' : 'b';
+      const nextTurnColor = currentMoveIndex % 2 === 0 ? 'w' : 'b';
       var drillHtml =
         '<div class="coach-header"><span class="coach-icon">🔥</span> Drill</div>' +
         '<div class="coach-text">' +
@@ -1378,7 +1378,7 @@ const OpeningPracticeController = (function () {
 
     // Preview what's next
     if (currentMoveIndex < expectedMoves.length) {
-      var nextTurnColor = currentMoveIndex % 2 === 0 ? 'w' : 'b';
+      const nextTurnColor = currentMoveIndex % 2 === 0 ? 'w' : 'b';
       var nextTurn = nextTurnColor === 'w' ? 'White' : 'Black';
       var lead = nextTurnColor === userColor ? 'Your turn' : 'Opponent turn';
       html += '<div class="coach-next">' + lead + ': <strong>' + nextTurn + '</strong> to move.</div>';

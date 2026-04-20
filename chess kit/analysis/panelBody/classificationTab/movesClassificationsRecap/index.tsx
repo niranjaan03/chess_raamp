@@ -29,13 +29,13 @@ export default function MovesClassificationsRecap() {
         wrap="nowrap"
         size={12}
       >
-        <Typography width="12rem" align="center" noWrap fontSize="0.9rem">
+        <Typography width="12rem" align="center" noWrap fontSize="1.8rem">
           {white.name}
         </Typography>
 
         <Typography width="7rem" />
 
-        <Typography width="12rem" align="center" noWrap fontSize="0.9rem">
+        <Typography width="12rem" align="center" noWrap fontSize="1.8rem">
           {black.name}
         </Typography>
       </Grid>

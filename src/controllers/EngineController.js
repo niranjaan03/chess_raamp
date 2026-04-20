@@ -313,7 +313,7 @@ const EngineController = (function() {
           var m = chess.move({ from: firstUci.slice(0, 2), to: firstUci.slice(2, 4), promotion: firstUci[4] || 'q' });
           if (m) firstSan = m.san;
         }
-      } catch (e) {}
+      } catch { /* invalid position – skip SAN conversion */ }
 
       var pvFormatted = formatPV(line.pv, fen);
       var tagLabel = qualityLabels[idx] || '';

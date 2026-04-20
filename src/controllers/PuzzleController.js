@@ -303,7 +303,7 @@ const PuzzleController = (function() {
     try {
       var saved = parseInt(localStorage.getItem(PUZZLE_RATING_KEY), 10);
       if (!isNaN(saved)) return Math.max(400, Math.min(3200, saved));
-    } catch (e) {}
+    } catch { /* corrupt data – use default rating */ }
     return DEFAULT_PUZZLE_RATING;
   }
 
@@ -311,7 +311,7 @@ const PuzzleController = (function() {
     try {
       var saved = parseInt(localStorage.getItem(PUZZLE_WINS_KEY), 10);
       if (!isNaN(saved) && saved >= 0) return saved;
-    } catch (e) {}
+    } catch { /* corrupt data – use default */ }
     return 0;
   }
 
@@ -319,7 +319,7 @@ const PuzzleController = (function() {
     var safeWins = Math.max(0, Math.round(wins || 0));
     try {
       localStorage.setItem(PUZZLE_WINS_KEY, String(safeWins));
-    } catch (e) {}
+    } catch { /* storage full */ }
   }
 
   function incrementPuzzleWins() {
@@ -332,7 +332,7 @@ const PuzzleController = (function() {
     var safeRating = Math.max(400, Math.min(3200, Math.round(rating)));
     try {
       localStorage.setItem(PUZZLE_RATING_KEY, String(safeRating));
-    } catch (e) {}
+    } catch { /* storage full */ }
     renderRating();
   }
 
@@ -1438,7 +1438,7 @@ const PuzzleController = (function() {
   function saveStoredDailyMap(map) {
     try {
       localStorage.setItem(DAILY_PUZZLES_KEY, JSON.stringify(map));
-    } catch (e) {}
+    } catch { /* storage full */ }
   }
 
   function getDailyEntry(dateKey) {
@@ -1467,7 +1467,7 @@ const PuzzleController = (function() {
     var safeDate = normalizeDateKey(dateKey) || getTodayKey();
     try {
       localStorage.setItem(DAILY_SELECTED_DATE_KEY, safeDate);
-    } catch (e) {}
+    } catch { /* storage full */ }
   }
 
   function normalizeDateKey(value) {

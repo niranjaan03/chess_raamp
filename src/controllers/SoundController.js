@@ -83,7 +83,7 @@ const SoundController = (function() {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(MOVE_SOUND_KEY, value ? 'true' : 'false');
-    } catch (e) {}
+    } catch { /* storage full */ }
   }
 
   function playBufferedMove() {
@@ -108,7 +108,7 @@ const SoundController = (function() {
       if (playPromise && typeof playPromise.catch === 'function') {
         playPromise.catch(function() {});
       }
-    } catch (e) {}
+    } catch { /* audio unavailable */ }
   }
 
   function playMove() {

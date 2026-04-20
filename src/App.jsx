@@ -61,12 +61,6 @@ function App() {
     AppController.switchToTab(tab);
   };
 
-  const handleHomeChesscomFetch = () => {
-    setTimeout(() => {
-      HomeController.fetchLatestChesscomGames();
-    }, 0);
-  };
-
   const handleGamesTabFetch = () => {
     HomeController.fetchLatestChesscomGames();
   };
@@ -335,23 +329,15 @@ function App() {
                         type="button"
                         className="acct-toggle-btn active"
                         id="toggleChesscom"
-                        onClick={() => {
-                          document.getElementById('acctPanelChesscom').style.display = 'block';
-                          document.getElementById('acctPanelLichess').style.display = 'none';
-                          document.getElementById('toggleChesscom').classList.add('active');
-                          document.getElementById('toggleLichess').classList.remove('active');
-                        }}
+                        data-account-panel="chesscom"
+                        aria-pressed="true"
                       >Chess.com</button>
                       <button
                         type="button"
                         className="acct-toggle-btn"
                         id="toggleLichess"
-                        onClick={() => {
-                          document.getElementById('acctPanelChesscom').style.display = 'none';
-                          document.getElementById('acctPanelLichess').style.display = 'block';
-                          document.getElementById('toggleLichess').classList.add('active');
-                          document.getElementById('toggleChesscom').classList.remove('active');
-                        }}
+                        data-account-panel="lichess"
+                        aria-pressed="false"
                       >Lichess</button>
                     </div>
                   </div>
@@ -377,11 +363,16 @@ function App() {
                     <div className="account-linked-info" id="chesscomLinkedInfo" style={{ display: 'none' }}>
                       <div className="linked-name" id="chesscomLinkedName">@username</div>
                       <div className="linked-btns">
-                        <button type="button" className="btn-sm-green" id="fetchChesscomGames" onClick={handleHomeChesscomFetch}>Fetch Games</button>
+                        <button type="button" className="btn-sm-green" id="fetchChesscomGames">Fetch Games</button>
                         <button type="button" className="btn-sm-red" id="unlinkChesscom">Unlink</button>
                       </div>
                     </div>
-                    <div className="platform-games-list" id="chesscomGamesList"></div>
+                    <div className="platform-games-list" id="chesscomGamesList">
+                      <div className="account-panel-state is-empty">
+                        <div className="account-panel-state-title">No account linked</div>
+                        <div className="account-panel-state-copy">Link your Chess.com username to fetch recent games.</div>
+                      </div>
+                    </div>
                   </div>
 
                   <div id="acctPanelLichess" className="account-card" style={{ display: 'none' }}>
@@ -410,7 +401,10 @@ function App() {
                       </div>
                     </div>
                     <div className="platform-games-list" id="lichessGamesList">
-                      <div className="no-games">No games fetched yet.</div>
+                      <div className="account-panel-state is-empty">
+                        <div className="account-panel-state-title">No account linked</div>
+                        <div className="account-panel-state-copy">Link your Lichess username to fetch recent games.</div>
+                      </div>
                     </div>
                   </div>
                 </div>

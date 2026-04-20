@@ -144,7 +144,7 @@ const AppController = (function() {
       if (initialTab !== currentTab) {
         switchTab(initialTab, { fromHistory: true });
       }
-    } catch (e) {}
+    } catch { /* history API unavailable */ }
     window.addEventListener('popstate', function(event) {
       var historyTab = getTabFromPath(window.location.pathname) || getTabFromHistoryState(event.state) || 'home';
       switchTab(historyTab, { fromHistory: true });
@@ -192,7 +192,7 @@ const AppController = (function() {
     try {
       if (replace) window.history.replaceState(state, document.title, nextUrl);
       else window.history.pushState(state, document.title, nextUrl);
-    } catch (e) {}
+    } catch { /* restricted environment – history API blocked */ }
   }
 
   function loadPlayerAnalyzeController() {
@@ -334,7 +334,7 @@ const AppController = (function() {
   function saveStoredAuthAccounts(accounts) {
     try {
       localStorage.setItem(AUTH_ACCOUNTS_KEY, JSON.stringify(accounts));
-    } catch (e) {}
+    } catch { /* storage full */ }
   }
 
   function getStoredAuthSession() {
@@ -351,7 +351,7 @@ const AppController = (function() {
     try {
       if (authSession) localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(authSession));
       else localStorage.removeItem(AUTH_SESSION_KEY);
-    } catch (e) {}
+    } catch { /* storage full */ }
   }
 
   function deriveDisplayName(email) {
@@ -373,7 +373,7 @@ const AppController = (function() {
   function persistProfileState(syncAccount) {
     try {
       localStorage.setItem('kv_profile', JSON.stringify(profile));
-    } catch (e) {}
+    } catch { /* storage full */ }
     if (syncAccount !== false) persistProfileToAuthenticatedAccount();
   }
 
@@ -477,7 +477,7 @@ const AppController = (function() {
     try {
       sessionStorage.removeItem(GOOGLE_AUTH_STATE_KEY);
       sessionStorage.removeItem(GOOGLE_AUTH_NONCE_KEY);
-    } catch (e) {}
+    } catch { /* sessionStorage blocked in restricted environments */ }
   }
 
   function handleGooglePayload(payload) {
@@ -530,7 +530,7 @@ const AppController = (function() {
     try {
       expectedState = sessionStorage.getItem(GOOGLE_AUTH_STATE_KEY) || '';
       expectedNonce = sessionStorage.getItem(GOOGLE_AUTH_NONCE_KEY) || '';
-    } catch (e) {}
+    } catch { /* sessionStorage blocked in restricted environments */ }
 
     var nextUrl = window.location.pathname + window.location.search;
     window.history.replaceState({}, document.title, nextUrl);
@@ -732,7 +732,7 @@ const AppController = (function() {
     try {
       sessionStorage.setItem(GOOGLE_AUTH_STATE_KEY, state);
       sessionStorage.setItem(GOOGLE_AUTH_NONCE_KEY, nonce);
-    } catch (e) {}
+    } catch { /* sessionStorage blocked in restricted environments */ }
 
     var redirectUri = window.location.origin + window.location.pathname;
     var params = new URLSearchParams({
@@ -1222,7 +1222,7 @@ const AppController = (function() {
         ChessBoard.setPieceStyle(savedPieceStyle);
       }
       syncToggleValue('settingsMoveSound', SoundController.isEnabled());
-    } catch (e) {}
+    } catch { /* corrupt settings – use defaults */ }
   }
 
   function applyColorMode(mode) {
@@ -1255,20 +1255,20 @@ const AppController = (function() {
   function applyBoardThemeSelection(value) {
     syncSelectValue(['boardTheme', 'settingsBoardTheme'], value);
     ChessBoard.setTheme(value);
-    try { localStorage.setItem('kv_board_theme', value); } catch (e) {}
+    try { localStorage.setItem('kv_board_theme', value); } catch { /* storage full */ }
   }
 
   function applyColorModeSelection(value) {
     var safeMode = value === 'light' ? 'light' : 'dark';
     syncSelectValue(['settingsColorMode'], safeMode);
     applyColorMode(safeMode);
-    try { localStorage.setItem(COLOR_MODE_KEY, safeMode); } catch (e) {}
+    try { localStorage.setItem(COLOR_MODE_KEY, safeMode); } catch { /* storage full */ }
   }
 
   function applyPieceStyleSelection(value) {
     syncSelectValue(['pieceStyle', 'settingsPieceStyle'], value);
     ChessBoard.setPieceStyle(value);
-    try { localStorage.setItem('kv_piece_style', value); } catch (e) {}
+    try { localStorage.setItem('kv_piece_style', value); } catch { /* storage full */ }
   }
 
   function applyMoveSoundSelection(enabled, preview) {
@@ -1665,7 +1665,7 @@ const AppController = (function() {
           try {
             var game = JSON.parse(line);
             games.push(game);
-          } catch(e) {}
+          } catch { /* skip malformed NDJSON line */ }
         });
         
         if (games.length === 0) {
@@ -2255,8 +2255,8 @@ const AppController = (function() {
     var whiteAccEl = document.getElementById('grWhiteAcc');
     var blackAccEl = document.getElementById('grBlackAcc');
 
-    whiteAccEl.textContent = wAcc.toFixed(1) + '%';
-    blackAccEl.textContent = bAcc.toFixed(1) + '%';
+    whiteAccEl.textContent = Math.round(wAcc) + '%';
+    blackAccEl.textContent = Math.round(bAcc) + '%';
     whiteAccEl.title = displayedAccuracies.source === 'chesscom'
       ? 'Official Chess.com accuracy'
       : 'Local Stockfish review estimate';
@@ -3132,7 +3132,7 @@ const AppController = (function() {
     swing -= (playerCounts.miss || 0) * 32;
     swing -= (playerCounts.blunder || 0) * 46;
     var rating = Math.round(Math.max(300, Math.min(3200, base + swing)));
-    return rating;
+    return Math.round(rating);
   }
 
   function highlightPlayerCards(wAcc, bAcc) {
@@ -3330,7 +3330,7 @@ const AppController = (function() {
         profile = JSON.parse(saved);
         applyProfile();
       }
-    } catch(e) {}
+    } catch { /* corrupt profile data – keep defaults */ }
   }
 
   function applyProfile() {
@@ -3416,14 +3416,14 @@ const AppController = (function() {
       });
       gameDatabase.splice(existingIndex, 1);
       gameDatabase.unshift(merged);
-      try { localStorage.setItem('kv_database', JSON.stringify(gameDatabase)); } catch(e) {}
+      try { localStorage.setItem('kv_database', JSON.stringify(gameDatabase)); } catch { /* storage full */ }
       return;
     }
 
     gameDatabase.unshift(summary);
     if (gameDatabase.length > 500) gameDatabase = gameDatabase.slice(0, 500);
 
-    try { localStorage.setItem('kv_database', JSON.stringify(gameDatabase)); } catch(e) {}
+    try { localStorage.setItem('kv_database', JSON.stringify(gameDatabase)); } catch { /* storage full */ }
 
     // Update stats
     updateStats();
@@ -3538,7 +3538,8 @@ const AppController = (function() {
     fetchChesscomWithFallback: fetchChesscomWithFallback,
     fetchTextWithFallback: fetchTextWithFallback,
     describeChesscomError: describeChesscomError,
-    describeLichessError: describeLichessError
+    describeLichessError: describeLichessError,
+    triggerAutoReview: triggerAutoReview
   };
 })();
 
@@ -3548,10 +3549,12 @@ const HomeController = (function() {
 
   function init() {
     setupImportTabs();
+    setupAccountPanelTabs();
     setupAccountLinks();
     setupProfileEditToggle();
     setupSavedProfiles();
     setupHomeImport();
+    setupRecentGamesList();
     refreshHomeData();
   }
 
@@ -3627,7 +3630,7 @@ const HomeController = (function() {
         lastVisit: data.lastVisit,
         streak: data.streak
       }));
-    } catch (e) {}
+    } catch { /* storage full */ }
   }
 
   function updateVisitStreak() {
@@ -3735,7 +3738,7 @@ const HomeController = (function() {
 
   function updateHomeStats() {
     var db = [];
-    try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch(e) {}
+    try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch { /* corrupt data – start with empty db */ }
     var g = document.getElementById('hmStatGames');
     if (g) g.textContent = db.length;
   }
@@ -3803,19 +3806,33 @@ const HomeController = (function() {
 
   // Saved Profiles
   function setupSavedProfiles() {
-    var addBtn = document.getElementById('addProfileBtn');
-    if (addBtn) {
-      addBtn.addEventListener('click', function() {
-        var p = getProfile();
-        if (!p.displayName) {
-          AppController.showToast('Fill in and save your profile first', 'error');
-          document.getElementById('editProfileToggle').click();
-          return;
-        }
-        saveCurrentAsProfile(p);
-      });
-    }
+    bindHomeClick('addProfileBtn', 'homeAddProfileBound', function() {
+      var p = getProfile();
+      if (!p.displayName) {
+        AppController.showToast('Fill in and save your profile first', 'error');
+        var editBtn = document.getElementById('editProfileToggle');
+        if (editBtn) editBtn.click();
+        return;
+      }
+      saveCurrentAsProfile(p);
+    });
+    setupSavedProfileActions();
     renderSavedProfilesList();
+  }
+
+  function setupSavedProfileActions() {
+    bindHomeClick('savedProfilesList', 'homeProfilesBound', function(e) {
+      if (!e.target || !e.target.closest) return;
+      var deleteBtn = e.target.closest('[data-profile-delete]');
+      if (deleteBtn) {
+        deleteProfile(deleteBtn.getAttribute('data-profile-delete'));
+        return;
+      }
+      var loadTarget = e.target.closest('[data-profile-load], [data-profile-id]');
+      if (loadTarget) {
+        loadProfileFn(loadTarget.getAttribute('data-profile-load') || loadTarget.getAttribute('data-profile-id'));
+      }
+    });
   }
 
   function getSavedProfiles() {
@@ -3844,7 +3861,11 @@ const HomeController = (function() {
     var active = getProfile();
 
     if (!profiles.length) {
-      container.innerHTML = '<div class="no-profiles-msg">No saved profiles yet. Edit and save your profile above.</div>';
+      container.innerHTML =
+        '<div class="dashboard-empty-state">' +
+          '<div class="dashboard-empty-title">No saved profiles yet</div>' +
+          '<div class="dashboard-empty-copy">Edit your profile, then save it here for quick switching.</div>' +
+        '</div>';
       return;
     }
 
@@ -3860,7 +3881,7 @@ const HomeController = (function() {
       var meta = 'Stockfish \u00b7 Depth ' + escapeHtml(String(p.prefDepth || 20));
       var safeId = escapeAttr(p.id);
 
-      return '<div class="saved-profile-item' + (isActive ? ' active-profile' : '') + '" data-pid="' + safeId + '">' +
+      return '<div class="saved-profile-item' + (isActive ? ' active-profile' : '') + '" data-profile-id="' + safeId + '">' +
         '<div class="sp-avatar">' + escapeHtml(initials) + '</div>' +
         '<div class="sp-info">' +
           '<div class="sp-name">' + escapeHtml(p.displayName || 'Unnamed') + '</div>' +
@@ -3868,8 +3889,8 @@ const HomeController = (function() {
           '<div class="sp-meta">' + meta + '</div>' +
         '</div>' +
         '<div class="sp-actions">' +
-          '<button class="sp-load-btn" onclick="HomeController.loadProfile(\'' + safeId + '\')">Load</button>' +
-          '<button class="sp-del-btn" onclick="HomeController.deleteProfile(\'' + safeId + '\')">\u2715</button>' +
+          '<button type="button" class="sp-load-btn" data-profile-load="' + safeId + '">Load</button>' +
+          '<button type="button" class="sp-del-btn" data-profile-delete="' + safeId + '">\u2715</button>' +
         '</div>' +
         '</div>';
     }).join('');
@@ -3894,34 +3915,97 @@ const HomeController = (function() {
   }
 
   // Account Linking
+  function getPlatformLabel(platform) {
+    return platform === 'chesscom' ? 'Chess.com' : 'Lichess';
+  }
+
+  function getPlatformInputId(platform) {
+    return platform === 'chesscom' ? 'chesscomUsername' : 'lichessUsername';
+  }
+
+  function getAccountPanelCopy(platform, isLinked) {
+    var label = getPlatformLabel(platform);
+    if (!isLinked) return 'Link your ' + label + ' username to fetch recent games.';
+    return platform === 'chesscom'
+      ? 'Use Fetch Games to open your latest Chess.com archive in the Games tab.'
+      : 'Use Fetch Games to load your latest Lichess games here.';
+  }
+
+  function renderAccountPanelState(platform, state, title, copy, force) {
+    var list = document.getElementById(platform + 'GamesList');
+    if (!list) return;
+    if (!force && list.querySelector('.fetch-game-item')) return;
+    list.innerHTML =
+      '<div class="account-panel-state is-' + escapeAttr(state || 'empty') + '">' +
+        '<div class="account-panel-state-title">' + escapeHtml(title || '') + '</div>' +
+        (copy ? '<div class="account-panel-state-copy">' + escapeHtml(copy) + '</div>' : '') +
+      '</div>';
+  }
+
+  function bindHomeClick(target, key, handler) {
+    var el = getEl(target);
+    if (!el || el.dataset[key] === '1') return;
+    el.dataset[key] = '1';
+    bindClick(el, handler);
+  }
+
+  function setAccountPanel(platform) {
+    var activePlatform = platform === 'lichess' ? 'lichess' : 'chesscom';
+    [
+      { name: 'chesscom', panelId: 'acctPanelChesscom', toggleId: 'toggleChesscom' },
+      { name: 'lichess', panelId: 'acctPanelLichess', toggleId: 'toggleLichess' }
+    ].forEach(function(item) {
+      var isActive = item.name === activePlatform;
+      var panel = document.getElementById(item.panelId);
+      var toggle = document.getElementById(item.toggleId);
+      if (panel) panel.style.display = isActive ? '' : 'none';
+      if (toggle) {
+        toggle.classList.toggle('active', isActive);
+        toggle.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      }
+    });
+  }
+
+  function setupAccountPanelTabs() {
+    document.querySelectorAll('.acct-toggle-btn[data-account-panel]').forEach(function(btn) {
+      if (btn.dataset.homeAccountBound === '1') return;
+      btn.dataset.homeAccountBound = '1';
+      bindClick(btn, function() {
+        setAccountPanel(btn.getAttribute('data-account-panel') || 'chesscom');
+      });
+    });
+    setAccountPanel('chesscom');
+  }
+
   function setupAccountLinks() {
     // Chess.com
-    var linkCC = document.getElementById('linkChesscom');
-    if (linkCC) linkCC.addEventListener('click', function() {
+    bindHomeClick('linkChesscom', 'homeLinkBound', function() {
       var input = document.getElementById('chesscomUsername');
       var val = normalizeUsername(input ? input.value : '');
       if (!val) { AppController.showToast('Enter a Chess.com username', 'error'); return; }
       if (input) input.value = val;
       linkAccount('chesscom', val);
     });
-    var unlinkCC = document.getElementById('unlinkChesscom');
-    if (unlinkCC) unlinkCC.addEventListener('click', function() { unlinkAccount('chesscom'); });
+    bindHomeClick('unlinkChesscom', 'homeUnlinkBound', function() { unlinkAccount('chesscom'); });
+    bindHomeClick('fetchChesscomGames', 'homeFetchBound', function() {
+      var p = getProfile();
+      if (p.chesscomUsername) fetchPlatformGames('chesscom', p.chesscomUsername);
+      else AppController.showToast('Link your Chess.com username first', 'error');
+    });
 
     // Lichess
-    var linkLC = document.getElementById('linkLichess');
-    if (linkLC) linkLC.addEventListener('click', function() {
+    bindHomeClick('linkLichess', 'homeLinkBound', function() {
       var input = document.getElementById('lichessUsername');
       var val = normalizeUsername(input ? input.value : '');
       if (!val) { AppController.showToast('Enter a Lichess username', 'error'); return; }
       if (input) input.value = val;
       linkAccount('lichess', val);
     });
-    var unlinkLC = document.getElementById('unlinkLichess');
-    if (unlinkLC) unlinkLC.addEventListener('click', function() { unlinkAccount('lichess'); });
-    var fetchLC = document.getElementById('fetchLichessGames');
-    if (fetchLC) fetchLC.addEventListener('click', function() {
+    bindHomeClick('unlinkLichess', 'homeUnlinkBound', function() { unlinkAccount('lichess'); });
+    bindHomeClick('fetchLichessGames', 'homeFetchBound', function() {
       var p = getProfile();
       if (p.lichessUsername) fetchPlatformGames('lichess', p.lichessUsername);
+      else AppController.showToast('Link your Lichess username first', 'error');
     });
   }
 
@@ -3940,20 +4024,20 @@ const HomeController = (function() {
     updateAccountUI(platform, username);
     if (platform === 'chesscom') fetchChesscomRatings(username);
     AppController.showToast((platform === 'chesscom' ? 'Chess.com' : 'Lichess') + ' account linked!', 'success');
-    fetchPlatformGames(platform, username);
   }
 
   function unlinkAccount(platform) {
     var p = getProfile();
-    if (platform === 'chesscom') { p.chesscomUsername = ''; document.getElementById('chesscomUsername').value = ''; }
-    else { p.lichessUsername = ''; document.getElementById('lichessUsername').value = ''; }
+    var input = document.getElementById(getPlatformInputId(platform));
+    if (platform === 'chesscom') p.chesscomUsername = '';
+    else p.lichessUsername = '';
+    if (input) input.value = '';
     localStorage.setItem('kv_profile', JSON.stringify(p));
     saveCurrentAsProfile(p, true);
     loadProfileToHome();
     updateAccountUI(platform, null);
     if (platform === 'chesscom') setChesscomRatingsState(null, '');
-    var gList = document.getElementById(platform + 'GamesList');
-    if (gList) gList.innerHTML = '';
+    renderAccountPanelState(platform, 'empty', 'No account linked', getAccountPanelCopy(platform, false), true);
     AppController.showToast('Account unlinked', '');
   }
 
@@ -3961,36 +4045,51 @@ const HomeController = (function() {
     var statusEl = document.getElementById(platform + 'Status');
     var linkedInfo = document.getElementById(platform + 'LinkedInfo');
     var linkedName = document.getElementById(platform + 'LinkedName');
-    var inputRow = document.querySelector(platform === 'chesscom' ? '#chesscomUsername' : '#lichessUsername');
+    var inputEl = document.getElementById(getPlatformInputId(platform));
+    var inputRow = inputEl ? inputEl.closest('.account-input-row') : null;
+    var label = getPlatformLabel(platform);
 
     if (username) {
       if (statusEl) { statusEl.textContent = 'Linked'; statusEl.classList.add('linked'); }
       if (linkedInfo) linkedInfo.style.display = 'block';
       if (linkedName) linkedName.textContent = '@' + username;
-      if (inputRow) inputRow.value = '';
-      if (inputRow) inputRow.placeholder = 'Linked: ' + username;
+      if (inputEl) {
+        inputEl.value = '';
+        inputEl.placeholder = 'Linked: ' + username;
+      }
+      if (inputRow) inputRow.style.display = 'none';
+      renderAccountPanelState(platform, 'ready', label + ' linked', getAccountPanelCopy(platform, true), false);
     } else {
       if (statusEl) { statusEl.textContent = 'Not linked'; statusEl.classList.remove('linked'); }
       if (linkedInfo) linkedInfo.style.display = 'none';
-      if (inputRow) inputRow.placeholder = (platform === 'chesscom' ? 'Chess.com' : 'Lichess') + ' username...';
+      if (linkedName) linkedName.textContent = '';
+      if (inputEl) inputEl.placeholder = label + ' username...';
+      if (inputRow) inputRow.style.display = 'flex';
+      renderAccountPanelState(platform, 'empty', 'No account linked', getAccountPanelCopy(platform, false), true);
     }
   }
 
   function restoreLinkedAccounts() {
     var p = getProfile();
+    var ccInput = document.getElementById('chesscomUsername');
+    var lcInput = document.getElementById('lichessUsername');
     if (p.chesscomUsername) {
-      document.getElementById('chesscomUsername').value = p.chesscomUsername;
+      if (ccInput) ccInput.value = p.chesscomUsername;
       updateAccountUI('chesscom', p.chesscomUsername);
+    } else {
+      updateAccountUI('chesscom', null);
     }
     if (p.lichessUsername) {
-      document.getElementById('lichessUsername').value = p.lichessUsername;
+      if (lcInput) lcInput.value = p.lichessUsername;
       updateAccountUI('lichess', p.lichessUsername);
+    } else {
+      updateAccountUI('lichess', null);
     }
   }
 
   function isGameReviewed(white, black, result) {
     var db = [];
-    try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch(e) {}
+    try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch { /* corrupt data – start with empty db */ }
     return db.some(function(g) {
       return g.white === white && g.black === black && g.result === result;
     });
@@ -4302,11 +4401,12 @@ const HomeController = (function() {
         AppController.showToast('Link or enter a Chess.com username first', 'error');
         return;
       }
+      renderAccountPanelState('chesscom', 'loading', 'Opening Games tab...', 'Fetching your latest Chess.com archive.', true);
       fetchHomeChesscomGames(resolvedUsername);
     } else if (platform === 'lichess') {
       var container = document.getElementById('lichessGamesList');
       if (!container) return;
-      container.innerHTML = '<div class="no-games" style="padding:8px;font-size:.7rem"><span class="spinner"></span> Fetching...</div>';
+      renderAccountPanelState('lichess', 'loading', 'Fetching Lichess games...', 'This usually takes a few seconds.', true);
       var encodedUser = encodeURIComponent(username);
       var proxyUrl = '/api/lichess/user/' + encodedUser + '/games?max=8&clocks=false&evals=false&opening=true';
       var directUrl = 'https://lichess.org/api/games/user/' + encodedUser + '?max=8&clocks=false&evals=false&opening=true';
@@ -4314,31 +4414,32 @@ const HomeController = (function() {
         .then(function(text) {
           var lines = text.trim().split('\n').filter(function(l) { return l.trim(); });
           var games = [];
-          lines.forEach(function(line) { try { games.push(JSON.parse(line)); } catch(e) {} });
+          lines.forEach(function(line) { try { games.push(JSON.parse(line)); } catch { /* skip malformed NDJSON line */ } });
           renderLichessGames(container, games);
         })
         .catch(function(err) {
-          container.innerHTML = '<div class="no-games" style="font-size:.7rem;padding:8px;">' + AppController.describeLichessError(err, username) + '</div>';
+          renderAccountPanelState('lichess', 'error', 'Could not fetch Lichess games', AppController.describeLichessError(err, username), true);
         });
     }
   }
 
   function renderLichessGames(container, games) {
     if (!games.length) {
-      container.innerHTML = '<div class="no-games" style="font-size:.7rem;padding:8px;">No recent games found.</div>';
+      renderAccountPanelState('lichess', 'empty', 'No recent games found', 'Try again after playing a Lichess game.', true);
       return;
     }
-    container.innerHTML = games.map(function(g) {
+    var rows = games.map(function(g) {
       var white = g.players && g.players.white && g.players.white.user ? g.players.white.user.name : 'White';
       var black = g.players && g.players.black && g.players.black.user ? g.players.black.user.name : 'Black';
       var result = g.winner ? (g.winner === 'white' ? '1-0' : '0-1') : '½-½';
       var gameId = g.id || '';
 
-      return '<div class="fetch-game-item" data-id="' + escapeAttr(gameId) + '" data-platform="lichess" onclick="HomeController.loadPlatformGame(this)" style="font-size:.7rem">' +
+      return '<div class="fetch-game-item" data-id="' + escapeAttr(gameId) + '" data-platform="lichess" onclick="HomeController.loadPlatformGame(this)">' +
         '<span>' + escapeHtml(white) + ' vs ' + escapeHtml(black) + '</span>' +
-        '<span class="fetch-game-result ' + (result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d') + '" style="float:right">' + escapeHtml(result) + '</span>' +
+        '<span class="fetch-game-result ' + (result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d') + '">' + escapeHtml(result) + '</span>' +
         '</div>';
     }).join('');
+    container.innerHTML = '<div class="games-count">' + games.length + ' recent Lichess game' + (games.length !== 1 ? 's' : '') + '</div>' + rows;
   }
 
   function loadPlatformGame(el) {
@@ -4464,24 +4565,38 @@ const HomeController = (function() {
   }
 
   // Recent Games on Home
+  function setupRecentGamesList() {
+    bindHomeClick('homeRecentGames', 'homeRecentGamesBound', function(e) {
+      if (!e.target || !e.target.closest) return;
+      var row = e.target.closest('[data-home-game-id]');
+      if (!row) return;
+      AppController.loadDbGame(row.getAttribute('data-home-game-id'));
+    });
+  }
+
   function renderRecentGames() {
     var container = document.getElementById('homeRecentGames');
     if (!container) return;
     var db = [];
-    try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch(e) {}
+    try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch { /* corrupt data – start with empty db */ }
     if (!db.length) {
-      container.innerHTML = '<div class="no-games">No games yet. Import a game to get started.</div>';
+      container.innerHTML =
+        '<div class="dashboard-empty-state">' +
+          '<div class="dashboard-empty-title">No games yet</div>' +
+          '<div class="dashboard-empty-copy">Import a PGN, FEN, URL, or file to start building your review history.</div>' +
+        '</div>';
       return;
     }
     container.innerHTML = db.slice(0, 6).map(function(g) {
       var resClass = g.result === '1-0' ? 'white-win' : g.result === '0-1' ? 'black-win' : 'draw';
-      return '<div class="home-game-item" onclick="AppController.loadDbGame(\'' + g.id + '\')">' +
+      var safeId = escapeAttr(g.id);
+      return '<div class="home-game-item" data-home-game-id="' + safeId + '">' +
         '<div class="sp-info">' +
-          '<div class="hgi-players">' + (g.white || '?') + ' vs ' + (g.black || '?') + '</div>' +
-          '<div class="hgi-meta">' + ((g.opening || '').substring(0, 28) || 'Unknown opening') + ' · ' + (g.date || '').substring(0, 10) + '</div>' +
+          '<div class="hgi-players">' + escapeHtml(g.white || '?') + ' vs ' + escapeHtml(g.black || '?') + '</div>' +
+          '<div class="hgi-meta">' + escapeHtml((g.opening || '').substring(0, 28) || 'Unknown opening') + ' \u00b7 ' + escapeHtml((g.date || '').substring(0, 10)) + '</div>' +
         '</div>' +
-        '<span class="hgi-result ' + resClass + '">' + (g.result || '*') + '</span>' +
-        '<button class="hgi-analyze-btn" onclick="event.stopPropagation();AppController.loadDbGame(\'' + g.id + '\')">Analyze</button>' +
+        '<span class="hgi-result ' + resClass + '">' + escapeHtml(g.result || '*') + '</span>' +
+        '<button type="button" class="hgi-analyze-btn" data-home-game-id="' + safeId + '">Analyze</button>' +
         '</div>';
     }).join('');
   }
@@ -4521,10 +4636,7 @@ const HomeController = (function() {
   AppController.loadPGNAndReviewExternal = function(pgn, options) {
     AppController.loadPGNPublic(pgn, options);
     AppController.switchToTab('analyze');
-    setTimeout(function() {
-      var btn = document.getElementById('analyzeFullGame');
-      if (btn && !btn.disabled) btn.click();
-    }, 120);
+    AppController.triggerAutoReview();
   };
 
   AppController.loadFenFromExternal = function(fen) {
