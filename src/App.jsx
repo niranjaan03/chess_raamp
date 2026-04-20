@@ -189,31 +189,108 @@ function App() {
       <div className="app-container">
         <div className="tab-content active" id="tab-home">
           <div className="home-layout">
-            <div className="home-hero">
-              <div className="hero-left">
-                <div className="hero-icon">&#9822;</div>
-                <div>
-                  <div className="hero-title">
-                    Welcome back, <span id="heroName">Guest</span>
+            <section className="home-hero" aria-labelledby="homeHeroTitle">
+              <div className="home-hero-main">
+                <div className="hero-kicker">Stockfish review workspace</div>
+                <h1 className="hero-title" id="homeHeroTitle">
+                  Welcome back, <span id="heroName">Guest</span>
+                </h1>
+                <p className="hero-sub">Analyze games, tighten openings, and keep daily tactics in one focused dashboard.</p>
+                <div className="hero-actions">
+                  <button type="button" className="hero-btn primary" onClick={() => handleSwitchTab('analyze')}>
+                    <svg className="hero-btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                    </svg>
+                    Start review
+                  </button>
+                  <button type="button" className="hero-btn secondary" onClick={() => handleSwitchTab('import')}>
+                    <svg className="hero-btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 3v10m0 0l4-4m-4 4L8 9M5 17v2h14v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Import game
+                  </button>
+                </div>
+                <div className="home-hero-stats" aria-label="Home overview">
+                  <div className="hero-stat-card">
+                    <span className="hero-stat-value" id="hmStatGames">0</span>
+                    <span className="hero-stat-label">Games saved</span>
                   </div>
-                  <div className="hero-sub">Analyze games · Track progress · Improve faster</div>
+                  <div className="hero-stat-card">
+                    <span className="hero-stat-value">18</span>
+                    <span className="hero-stat-label">Stockfish</span>
+                  </div>
+                  <div className="hero-stat-card">
+                    <span className="hero-stat-value">3</span>
+                    <span className="hero-stat-label">Rating pools</span>
+                  </div>
                 </div>
               </div>
-              <div className="hero-actions">
-                <button type="button" className="hero-btn primary" onClick={() => handleSwitchTab('analyze')}>
-                  &#9889; Start Analyzing
-                </button>
-                <button type="button" className="hero-btn secondary" onClick={() => handleSwitchTab('import')}>
-                  &#128229; Import Game
-                </button>
+              <div className="home-hero-visual" aria-hidden="true">
+                <div className="hero-board-shell">
+                  <div className="hero-board-topline">
+                    <span>Live position</span>
+                    <strong>+0.6</strong>
+                  </div>
+                  <div className="hero-board-mini">
+                    <span></span><span>&#9820;</span><span></span><span>&#9818;</span>
+                    <span>&#9823;</span><span></span><span>&#9823;</span><span></span>
+                    <span></span><span>&#9816;</span><span></span><span>&#9813;</span>
+                    <span>&#9814;</span><span></span><span>&#9812;</span><span></span>
+                  </div>
+                  <div className="hero-line-card">
+                    <span>Best move</span>
+                    <strong>Nf3</strong>
+                  </div>
+                </div>
               </div>
+            </section>
+
+            <div className="home-action-strip" aria-label="Quick actions">
+              <button type="button" className="home-action-tile" onClick={() => handleSwitchTab('games')}>
+                <span className="home-action-icon">&#9823;</span>
+                <span className="home-action-copy">
+                  <strong>Games</strong>
+                  <small>Recent imports and fetched games</small>
+                </span>
+              </button>
+              <button type="button" className="home-action-tile" onClick={() => handleSwitchTab('openings')}>
+                <span className="home-action-icon">&#9816;</span>
+                <span className="home-action-copy">
+                  <strong>Practice</strong>
+                  <small>Opening lines and repetition</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="home-action-tile"
+                onClick={() => {
+                  PuzzleController.setMode('daily');
+                  handleSwitchTab('puzzle');
+                }}
+              >
+                <span className="home-action-icon">&#9733;</span>
+                <span className="home-action-copy">
+                  <strong>Daily puzzle</strong>
+                  <small>Keep the tactics streak moving</small>
+                </span>
+              </button>
+              <button type="button" className="home-action-tile" onClick={() => handleSwitchTab('player-analyze')}>
+                <span className="home-action-icon">&#8599;</span>
+                <span className="home-action-copy">
+                  <strong>Player analyze</strong>
+                  <small>Patterns across recent games</small>
+                </span>
+              </button>
             </div>
 
             <div className="home-grid">
               <div className="home-col">
                 <div className="home-card">
                   <div className="hc-header">
-                    <span className="hc-title">My Profile</span>
+                    <div className="hc-title-group">
+                      <span className="hc-title">My Profile</span>
+                      <span className="hc-subtitle">Engine preferences and linked handles</span>
+                    </div>
                     <button type="button" className="hc-edit-btn" id="editProfileToggle">
                       Edit
                     </button>
@@ -309,7 +386,10 @@ function App() {
 
                 <div className="home-card">
                   <div className="hc-header">
-                    <span className="hc-title">Saved Profiles</span>
+                    <div className="hc-title-group">
+                      <span className="hc-title">Saved Profiles</span>
+                      <span className="hc-subtitle">Switch between study setups</span>
+                    </div>
                     <button type="button" className="hc-edit-btn" id="addProfileBtn">
                       Save Current
                     </button>
@@ -318,12 +398,33 @@ function App() {
                     <div className="no-data">No saved profiles yet.</div>
                   </div>
                 </div>
+
+                <div className="home-card home-recent-card">
+                  <div className="hc-header">
+                    <div className="hc-title-group">
+                      <span className="hc-title">Review History</span>
+                      <span className="hc-subtitle">Recently saved analyses</span>
+                    </div>
+                    <button type="button" className="hc-edit-btn" onClick={() => handleSwitchTab('games')}>
+                      Open Games
+                    </button>
+                  </div>
+                  <div className="home-recent-games" id="homeRecentGames">
+                    <div className="dashboard-empty-state">
+                      <div className="dashboard-empty-title">No games yet</div>
+                      <div className="dashboard-empty-copy">Import a PGN, FEN, URL, or file to start building your review history.</div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="home-col">
                 <div className="home-card">
                   <div className="hc-header">
-                    <span className="hc-title">Linked Accounts</span>
+                    <div className="hc-title-group">
+                      <span className="hc-title">Linked Accounts</span>
+                      <span className="hc-subtitle">Fetch games from your platforms</span>
+                    </div>
                     <div className="acct-platform-toggle">
                       <button
                         type="button"
@@ -413,7 +514,10 @@ function App() {
               <div className="home-col">
                 <div className="home-card">
                   <div className="hc-header">
-                    <span className="hc-title">Quick Import</span>
+                    <div className="hc-title-group">
+                      <span className="hc-title">Quick Import</span>
+                      <span className="hc-subtitle">Load a game into analysis</span>
+                    </div>
                   </div>
                   <div className="import-home-tabs">
                     <div className="iht active" data-imethod="pgn">PGN</div>
@@ -469,7 +573,10 @@ function App() {
 
                 <div className="home-card home-daily-puzzle-card">
                   <div className="hc-header">
-                    <span className="hc-title">Daily Puzzle</span>
+                    <div className="hc-title-group">
+                      <span className="hc-title">Daily Puzzle</span>
+                      <span className="hc-subtitle">One focused tactic per day</span>
+                    </div>
                     <div className="home-daily-header-right">
                       <div className="home-daily-streak-badge" id="homeDailyStreak">
                         <span className="home-daily-streak-fire">&#9733;</span>
@@ -777,38 +884,6 @@ function App() {
               </div>
             </div>
 
-            <div className="tools-panel">
-              <div className="tools-card">
-                <div className="tools-card-title">Stockfish Settings</div>
-                <div className="setting-row">
-                  <span>Stockfish</span>
-                  <span className="settings-static-value">Stockfish</span>
-                </div>
-                <div className="slider-row">
-                  <span>Depth</span>
-                  <input type="range" min="8" max="35" defaultValue="20" id="depthSlider" className="dark-slider" />
-                  <span id="depthVal">20</span>
-                </div>
-                <div className="slider-row">
-                  <span>Threads</span>
-                  <input type="range" min="1" max="16" defaultValue="2" id="threadsSlider" className="dark-slider" />
-                  <span id="threadsVal">2</span>
-                </div>
-                <div className="slider-row">
-                  <span>Hash (MB)</span>
-                  <input type="range" min="64" max="1024" step="64" defaultValue="256" id="hashSlider" className="dark-slider" />
-                  <span id="hashVal">256</span>
-                </div>
-                <div className="setting-row toggle-row">
-                  <span>Analysis Mode</span>
-                  <label className="toggle">
-                    <input type="checkbox" id="analysisMode" defaultChecked />
-                    <span className="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-            </div>
           </div>
         </div>
         </div>
@@ -1884,13 +1959,46 @@ function App() {
           <div className="settings-layout">
             <div className="settings-hero">
               <div className="support-badge">Settings</div>
-              <h2 className="support-title">Customize your board look</h2>
+              <h2 className="support-title">Customize your analysis setup</h2>
               <p className="support-subtitle">
-                Choose your preferred board colors, piece style, and move sound. Changes apply to analyze, practice, and puzzle boards.
+                Tune Stockfish, board colors, piece style, and move sound. Changes apply across analysis, practice, and puzzle boards.
               </p>
             </div>
 
             <div className="settings-grid">
+              <div className="settings-card settings-engine-card">
+                <div className="settings-card-title">Stockfish Settings</div>
+                <p className="settings-card-text">Control the engine strength and resource usage used for live analysis.</p>
+                <div className="settings-engine-controls">
+                  <div className="setting-row settings-engine-row">
+                    <span>Stockfish</span>
+                    <span className="settings-static-value">Stockfish</span>
+                  </div>
+                  <div className="slider-row settings-engine-row">
+                    <span>Depth</span>
+                    <input type="range" min="8" max="35" defaultValue="20" id="depthSlider" className="dark-slider" />
+                    <span id="depthVal">20</span>
+                  </div>
+                  <div className="slider-row settings-engine-row">
+                    <span>Threads</span>
+                    <input type="range" min="1" max="16" defaultValue="2" id="threadsSlider" className="dark-slider" />
+                    <span id="threadsVal">2</span>
+                  </div>
+                  <div className="slider-row settings-engine-row">
+                    <span>Hash (MB)</span>
+                    <input type="range" min="64" max="1024" step="64" defaultValue="256" id="hashSlider" className="dark-slider" />
+                    <span id="hashVal">256</span>
+                  </div>
+                  <div className="setting-row toggle-row settings-engine-row">
+                    <span>Analysis Mode</span>
+                    <label className="toggle">
+                      <input type="checkbox" id="analysisMode" defaultChecked />
+                      <span className="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               <div className="settings-card">
                 <div className="settings-card-title">Appearance Mode</div>
                 <p className="settings-card-text">Switch the whole website between dark and light mode for day and night use.</p>
