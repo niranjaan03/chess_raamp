@@ -399,23 +399,6 @@ function App() {
                   </div>
                 </div>
 
-                <div className="home-card home-recent-card">
-                  <div className="hc-header">
-                    <div className="hc-title-group">
-                      <span className="hc-title">Review History</span>
-                      <span className="hc-subtitle">Recently saved analyses</span>
-                    </div>
-                    <button type="button" className="hc-edit-btn" onClick={() => handleSwitchTab('games')}>
-                      Open Games
-                    </button>
-                  </div>
-                  <div className="home-recent-games" id="homeRecentGames">
-                    <div className="dashboard-empty-state">
-                      <div className="dashboard-empty-title">No games yet</div>
-                      <div className="dashboard-empty-copy">Import a PGN, FEN, URL, or file to start building your review history.</div>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               <div className="home-col">
@@ -512,65 +495,6 @@ function App() {
               </div>
 
               <div className="home-col">
-                <div className="home-card">
-                  <div className="hc-header">
-                    <div className="hc-title-group">
-                      <span className="hc-title">Quick Import</span>
-                      <span className="hc-subtitle">Load a game into analysis</span>
-                    </div>
-                  </div>
-                  <div className="import-home-tabs">
-                    <div className="iht active" data-imethod="pgn">PGN</div>
-                    <div className="iht" data-imethod="fen">FEN</div>
-                    <div className="iht" data-imethod="url">URL</div>
-                    <div className="iht" data-imethod="file">File</div>
-                  </div>
-                  <div className="import-home-body">
-                    <div className="ihs active" id="ihs-pgn">
-                      <textarea
-                        id="homePgnInput"
-                        className="pgn-textarea short"
-                        placeholder="Paste PGN..."
-                        defaultValue=""
-                      ></textarea>
-                      <button type="button" className="btn-import-home" id="homeLoadPGN">
-                        Load PGN
-                      </button>
-                    </div>
-                    <div className="ihs" id="ihs-fen">
-                      <input
-                        type="text"
-                        className="dark-input full-width"
-                        id="homeFenInput"
-                        placeholder="Enter FEN..."
-                        defaultValue=""
-                      />
-                      <button type="button" className="btn-import-home" id="homeLoadFen">
-                        Load FEN
-                      </button>
-                    </div>
-                    <div className="ihs" id="ihs-url">
-                      <input
-                        type="text"
-                        className="dark-input full-width"
-                        id="homeUrlInput"
-                        placeholder="Paste Lichess or Chess.com URL"
-                        defaultValue=""
-                      />
-                      <button type="button" className="btn-import-home" id="homeLoadUrl">
-                        Import URL
-                      </button>
-                      <div className="url-hint">Works with public games and studies.</div>
-                    </div>
-                    <div className="ihs" id="ihs-file">
-                      <div className="file-drop-zone small-drop" id="homeFileDropZone">
-                        Drop PGN file here or click to browse
-                      </div>
-                      <input type="file" id="homeFileInput" accept=".pgn" style={{ display: 'none' }} />
-                    </div>
-                  </div>
-                </div>
-
                 <div className="home-card home-daily-puzzle-card">
                   <div className="hc-header">
                     <div className="hc-title-group">
@@ -1780,13 +1704,6 @@ function App() {
               </p>
             </div>
 
-            <div className="pricing-toggle">
-              <button type="button" className="pricing-toggle-btn active" id="pricingToggleMonthly">Monthly</button>
-              <button type="button" className="pricing-toggle-btn" id="pricingToggleYearly">Yearly
-                <span className="pricing-save-tag">Save 44%</span>
-              </button>
-            </div>
-
             <div className="pricing-grid">
               <div className="pricing-card">
                 <div className="pricing-card-badge">Free</div>
@@ -2232,6 +2149,9 @@ function App() {
 
               {/* Summary bar */}
               <div id="paSummaryBar" className="pa-summary-bar"></div>
+
+              {/* Accuracy and quality recap */}
+              <div id="paAccuracyRecap" className="pa-card pa-mt"></div>
 
               {/* Performance Insights */}
               <div id="paInsights" className="pa-insights-card pa-card pa-mt"></div>

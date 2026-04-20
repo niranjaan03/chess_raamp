@@ -979,7 +979,6 @@ const AppController = (function() {
       });
     }
     setupSupportFeedback();
-    setupPricingToggle();
 
     // Database search
     bind('dbSearch', 'input', function() {
@@ -1046,40 +1045,6 @@ const AppController = (function() {
     toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     toggle.classList.toggle('is-open', !!expanded);
     group.classList.toggle('is-active', !!expanded);
-  }
-
-  function setupPricingToggle() {
-    var monthlyBtn = document.getElementById('pricingToggleMonthly');
-    var yearlyBtn = document.getElementById('pricingToggleYearly');
-    var cards = document.querySelectorAll('.pricing-card');
-    if (!monthlyBtn || !yearlyBtn) return;
-
-    function showMonthly() {
-      monthlyBtn.classList.add('active');
-      yearlyBtn.classList.remove('active');
-      cards.forEach(function(card) {
-        if (card.classList.contains('is-yearly')) {
-          card.style.display = 'none';
-        } else if (card.classList.contains('is-featured')) {
-          card.style.display = '';
-        }
-      });
-    }
-
-    function showYearly() {
-      yearlyBtn.classList.add('active');
-      monthlyBtn.classList.remove('active');
-      cards.forEach(function(card) {
-        if (card.classList.contains('is-featured')) {
-          card.style.display = 'none';
-        } else if (card.classList.contains('is-yearly')) {
-          card.style.display = '';
-        }
-      });
-    }
-
-    monthlyBtn.addEventListener('click', showMonthly);
-    yearlyBtn.addEventListener('click', showYearly);
   }
 
   function setupSupportFeedback() {
