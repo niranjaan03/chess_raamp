@@ -11,6 +11,7 @@ import EngineController from './EngineController';
 import OpeningPracticeController from './OpeningPracticeController';
 import PuzzleController from './PuzzleController';
 import SoundController from './SoundController';
+import { bind, bindClick, escapeAttr, escapeHtml, getEl, setText } from '../utils/dom.js';
 
 const RAW_GOOGLE_CLIENT_ID = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID)
   ? import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -47,11 +48,14 @@ const AppController = (function() {
   var currentTab = 'home';
   var tabHistoryReady = false;
   var homeDailyCalendarBound = false;
+  var PlayerAnalyzeController = null;
+  var playerAnalyzeControllerPromise = null;
   var TAB_ROUTE_MAP = {
     home: '/home',
     analyze: '/analyze',
     import: '/import',
     games: '/games',
+    'player-analyze': '/player-analyze',
     puzzle: '/puzzle',
     database: '/database',
     openings: '/openings',
@@ -191,6 +195,20 @@ const AppController = (function() {
     } catch (e) {}
   }
 
+  function loadPlayerAnalyzeController() {
+    if (PlayerAnalyzeController) return Promise.resolve(PlayerAnalyzeController);
+    if (!playerAnalyzeControllerPromise) {
+      playerAnalyzeControllerPromise = import('./PlayerAnalyzeController.js').then(function(module) {
+        PlayerAnalyzeController = module.default;
+        if (typeof window !== 'undefined') {
+          window.PlayerAnalyzeController = PlayerAnalyzeController;
+        }
+        return PlayerAnalyzeController;
+      });
+    }
+    return playerAnalyzeControllerPromise;
+  }
+
   function switchTab(tab, options) {
     var opts = options || {};
     if (tab === 'support') {
@@ -260,6 +278,18 @@ const AppController = (function() {
     }
     if (tab === 'puzzle') {
       PuzzleController.init();
+    }
+    if (tab === 'player-analyze') {
+      loadPlayerAnalyzeController()
+        .then(function(controller) {
+          if (controller && typeof controller.init === 'function') {
+            controller.init();
+          }
+        })
+        .catch(function(err) {
+          console.error('Failed to load player analyze:', err);
+          showToast('Failed to load player analysis', 'error');
+        });
     }
   }
 
@@ -775,33 +805,43 @@ const AppController = (function() {
   // ===== EVENT LISTENERS =====
   function setupEventListeners() {
     // Navigation buttons
-    document.getElementById('btnFirst').addEventListener('click', goFirst);
-    document.getElementById('btnPrev').addEventListener('click', goPrev);
-    document.getElementById('btnPlay').addEventListener('click', toggleAutoPlay);
-    document.getElementById('btnNext').addEventListener('click', goNext);
-    document.getElementById('btnLast').addEventListener('click', goLast);
-    document.getElementById('btnFlip').addEventListener('click', flipBoard);
+    bindClick('btnFirst', goFirst);
+    bindClick('btnPrev', goPrev);
+    bindClick('btnPlay', toggleAutoPlay);
+    bindClick('btnNext', goNext);
+    bindClick('btnLast', goLast);
+    bindClick('btnFlip', flipBoard);
 
     // FEN
-    document.getElementById('loadFen').addEventListener('click', loadFenPosition);
-    document.getElementById('fenInput').addEventListener('keydown', function(e) {
+    bindClick('loadFen', loadFenPosition);
+    bind('fenInput', 'keydown', function(e) {
       if (e.key === 'Enter') loadFenPosition();
     });
 
     // Engine settings
-    document.getElementById('depthSlider').addEventListener('input', function() {
-      document.getElementById('depthVal').textContent = this.value;
+    bind('depthSlider', 'input', function() {
+      setText('depthVal', this.value);
       EngineController.setDepth(parseInt(this.value));
       startAnalysis();
     });
 
-    document.getElementById('analysisMode').addEventListener('change', function() {
+    bind('analysisMode', 'change', function() {
       analysisMode = this.checked;
       if (analysisMode) startAnalysis();
       else EngineController.stop();
     });
 
-    document.getElementById('analyzeFullGame').addEventListener('click', analyzeFullGame);
+    bind('threadsSlider', 'input', function() {
+      setText('threadsVal', this.value);
+      EngineController.setOption('Threads', parseInt(this.value));
+    });
+
+    bind('hashSlider', 'input', function() {
+      setText('hashVal', this.value);
+      EngineController.setOption('Hash', parseInt(this.value));
+    });
+
+    bindClick('analyzeFullGame', analyzeFullGame);
     setupReviewTabs();
 
     // Lines count
@@ -816,24 +856,19 @@ const AppController = (function() {
     });
 
     // Board appearance
-    var boardThemeEl = document.getElementById('boardTheme');
-    if (boardThemeEl) boardThemeEl.addEventListener('change', function() {
+    bind('boardTheme', 'change', function() {
       applyBoardThemeSelection(this.value);
     });
-    var settingsColorMode = document.getElementById('settingsColorMode');
-    if (settingsColorMode) settingsColorMode.addEventListener('change', function() {
+    bind('settingsColorMode', 'change', function() {
       applyColorModeSelection(this.value);
     });
-    var pieceStyleEl = document.getElementById('pieceStyle');
-    if (pieceStyleEl) pieceStyleEl.addEventListener('change', function() {
+    bind('pieceStyle', 'change', function() {
       applyPieceStyleSelection(this.value);
     });
-    var settingsBoardTheme = document.getElementById('settingsBoardTheme');
-    if (settingsBoardTheme) settingsBoardTheme.addEventListener('change', function() {
+    bind('settingsBoardTheme', 'change', function() {
       applyBoardThemeSelection(this.value);
     });
-    var settingsPieceStyle = document.getElementById('settingsPieceStyle');
-    if (settingsPieceStyle) settingsPieceStyle.addEventListener('change', function() {
+    bind('settingsPieceStyle', 'change', function() {
       applyPieceStyleSelection(this.value);
     });
     document.querySelectorAll('.settings-option-card').forEach(function(card) {
@@ -854,30 +889,26 @@ const AppController = (function() {
         }
       });
     });
-    var showArrowsEl = document.getElementById('showArrows');
-    if (showArrowsEl) showArrowsEl.addEventListener('change', function() {
+    bind('showArrows', 'change', function() {
       ChessBoard.setOptions({showArrows: this.checked});
     });
-    var showCoordsEl = document.getElementById('showCoords');
-    if (showCoordsEl) showCoordsEl.addEventListener('change', function() {
+    bind('showCoords', 'change', function() {
       ChessBoard.setOptions({showCoordinates: this.checked});
     });
-    var highlightLastEl = document.getElementById('highlightLast');
-    if (highlightLastEl) highlightLastEl.addEventListener('change', function() {
+    bind('highlightLast', 'change', function() {
       ChessBoard.setOptions({highlightLast: this.checked});
     });
-    var moveSoundEl = document.getElementById('settingsMoveSound');
-    if (moveSoundEl) moveSoundEl.addEventListener('change', function() {
+    bind('settingsMoveSound', 'change', function() {
       applyMoveSoundSelection(this.checked, true);
     });
 
     // Copy PGN / FEN
-    document.getElementById('copyPGN').addEventListener('click', function() {
+    bindClick('copyPGN', function() {
       var pgn = chess.pgn();
       copyToClipboard(pgn);
       showToast('PGN copied!', 'success');
     });
-    document.getElementById('copyFENBtn').addEventListener('click', function() {
+    bindClick('copyFENBtn', function() {
       copyToClipboard(chess.fen());
       showToast('FEN copied!', 'success');
     });
@@ -889,12 +920,14 @@ const AppController = (function() {
         document.querySelectorAll('.import-section').forEach(function(s) { s.classList.remove('active'); });
         this.classList.add('active');
         var type = this.getAttribute('data-method');
-        document.getElementById('import-' + type).classList.add('active');
+        var section = getEl('import-' + type);
+        if (section) section.classList.add('active');
       });
     });
 
-    document.getElementById('loadPGN').addEventListener('click', function() {
-      var pgn = document.getElementById('pgnInput').value;
+    bindClick('loadPGN', function() {
+      var pgnInput = getEl('pgnInput');
+      var pgn = pgnInput ? pgnInput.value : '';
       if (pgn.trim()) {
         loadPGNGame(pgn);
         switchTab('analyze');
@@ -904,39 +937,36 @@ const AppController = (function() {
     var dropZone = document.getElementById('fileDropZone');
     var fileInput = document.getElementById('fileInput');
     
-    dropZone.addEventListener('click', function() { fileInput.click(); });
-    dropZone.addEventListener('dragover', function(e) { e.preventDefault(); this.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', function() { this.classList.remove('dragover'); });
-    dropZone.addEventListener('drop', function(e) {
-      e.preventDefault();
-      this.classList.remove('dragover');
-      var file = e.dataTransfer.files[0];
-      if (file) readPGNFile(file);
-    });
-    fileInput.addEventListener('change', function() {
-      if (this.files[0]) readPGNFile(this.files[0]);
-    });
+    if (dropZone && fileInput) {
+      bindClick(dropZone, function() { fileInput.click(); });
+      bind(dropZone, 'dragover', function(e) { e.preventDefault(); this.classList.add('dragover'); });
+      bind(dropZone, 'dragleave', function() { this.classList.remove('dragover'); });
+      bind(dropZone, 'drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        var file = e.dataTransfer.files[0];
+        if (file) readPGNFile(file);
+      });
+      bind(fileInput, 'change', function() {
+        if (this.files[0]) readPGNFile(this.files[0]);
+      });
+    }
 
-    document.getElementById('loadFenImport').addEventListener('click', function() {
-      var fen = document.getElementById('fenImportInput').value;
+    bindClick('loadFenImport', function() {
+      var fenInput = getEl('fenImportInput');
+      var fen = fenInput ? fenInput.value : '';
       if (fen.trim()) { loadFenGame(fen); switchTab('analyze'); }
     });
 
-    document.getElementById('loadURL').addEventListener('click', loadFromURL);
+    bindClick('loadURL', loadFromURL);
 
     // Fetch games
-    document.getElementById('fetchGamesBtn').addEventListener('click', fetchGames);
+    bindClick('fetchGamesBtn', fetchGames);
 
     // Profile
-    document.getElementById('saveProfile').addEventListener('click', saveProfile);
-    var openDailyPuzzleHomeBtn = document.getElementById('openDailyPuzzleHome');
-    if (openDailyPuzzleHomeBtn) {
-      openDailyPuzzleHomeBtn.addEventListener('click', openDailyPuzzleCalendar);
-    }
-    var homeDailyDateBtn = document.getElementById('homeDailyPuzzleDate');
-    if (homeDailyDateBtn) {
-      homeDailyDateBtn.addEventListener('click', openDailyPuzzleCalendar);
-    }
+    bindClick('saveProfile', saveProfile);
+    bindClick('openDailyPuzzleHome', openDailyPuzzleCalendar);
+    bindClick('homeDailyPuzzleDate', openDailyPuzzleCalendar);
     if (!homeDailyCalendarBound) {
       homeDailyCalendarBound = true;
       document.addEventListener('click', function(event) {
@@ -952,7 +982,7 @@ const AppController = (function() {
     setupPricingToggle();
 
     // Database search
-    document.getElementById('dbSearch').addEventListener('input', function() {
+    bind('dbSearch', 'input', function() {
       renderDatabase(this.value);
     });
 
@@ -1507,7 +1537,7 @@ const AppController = (function() {
 
     if (platform === 'chesscom') {
       switchTab('games');
-      fetchChesscomGames(username, getChessComArchiveDate());
+      HomeController.fetchChesscomGames(username, getChessComArchiveDate());
       return;
     }
 
@@ -1639,22 +1669,22 @@ const AppController = (function() {
         });
         
         if (games.length === 0) {
-          container.innerHTML = '<div class="no-games">No games found for @' + username + '</div>';
+          container.innerHTML = '<div class="no-games">No games found for @' + escapeHtml(username) + '</div>';
           return;
         }
-        
+
         container.innerHTML = games.map(function(g) {
           var white = g.players && g.players.white ? (g.players.white.user ? g.players.white.user.name : 'White') : 'White';
           var black = g.players && g.players.black ? (g.players.black.user ? g.players.black.user.name : 'Black') : 'Black';
           var result = g.winner ? (g.winner === 'white' ? '1-0' : '0-1') : '½-½';
           var opening = g.opening ? g.opening.name : '';
           var isUserWhite = white.toLowerCase() === username.toLowerCase();
-          var resultClass = result === '1-0' ? (isUserWhite ? 'result-w' : 'result-l') : 
+          var resultClass = result === '1-0' ? (isUserWhite ? 'result-w' : 'result-l') :
                            result === '0-1' ? (isUserWhite ? 'result-l' : 'result-w') : 'result-d';
-          
-          return '<div class="fetch-game-item" data-id="' + g.id + '" data-platform="lichess" onclick="AppController.loadFetchedGame(this)">' +
-            white + ' vs ' + black + ' — ' + (opening ? opening.substring(0, 25) : '') +
-            '<span class="fetch-game-result ' + resultClass + '">' + result + '</span>' +
+
+          return '<div class="fetch-game-item" data-id="' + escapeAttr(g.id) + '" data-platform="lichess" onclick="AppController.loadFetchedGame(this)">' +
+            escapeHtml(white) + ' vs ' + escapeHtml(black) + ' — ' + (opening ? escapeHtml(opening.substring(0, 25)) : '') +
+            '<span class="fetch-game-result ' + resultClass + '">' + escapeHtml(result) + '</span>' +
             '</div>';
         }).join('');
         
@@ -1674,7 +1704,7 @@ const AppController = (function() {
       .then(function(text) {
         var games = parseChesscomArchiveGames(text, 20) || [];
         if (!games.length) {
-          container.innerHTML = '<div class="no-games">No public games for ' + username + ' in ' + archive.year + '-' + archive.month + '</div>';
+          container.innerHTML = '<div class="no-games">No public games for ' + escapeHtml(username) + ' in ' + escapeHtml(archive.year + '-' + archive.month) + '</div>';
           return;
         }
 
@@ -1686,10 +1716,10 @@ const AppController = (function() {
           var date = g.date || (g.headers ? g.headers.Date : '');
           var resultClass = result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d';
           return '<div class="fetch-game-item" data-pgn="' + encodeAttributeValue(g.pgn || '') + '" onclick="AppController.loadFetchedPGNGame(this)">' +
-            '<strong>' + white + '</strong> vs <strong>' + black + '</strong>' +
-            (opening ? ' — ' + opening.substring(0, 28) : '') +
-            '<span class="fetch-game-result ' + resultClass + '">' + result + '</span>' +
-            (date ? '<div class="fetch-game-date">' + date + '</div>' : '') +
+            '<strong>' + escapeHtml(white) + '</strong> vs <strong>' + escapeHtml(black) + '</strong>' +
+            (opening ? ' — ' + escapeHtml(opening.substring(0, 28)) : '') +
+            '<span class="fetch-game-result ' + resultClass + '">' + escapeHtml(result) + '</span>' +
+            (date ? '<div class="fetch-game-date">' + escapeHtml(date) + '</div>' : '') +
           '</div>';
         }).join('');
 
@@ -1841,31 +1871,34 @@ const AppController = (function() {
 
   function describeChesscomError(err, username, period) {
     if (!err) return 'Could not reach Chess.com. Please try again.';
+    var u = escapeHtml(username);
+    var p = escapeHtml(period || '');
     if (err.status === 404) {
-      return 'Chess.com returned 404 for "' + username + '"' +
-        (period ? ' in ' + period : '') + '. Check the username and month.';
+      return 'Chess.com returned 404 for \u201c' + u + '\u201d' +
+        (p ? ' in ' + p : '') + '. Check the username and month.';
     }
-    var msg = err.message || '';
+    var rawMsg = err.message || '';
     if (err.timeout) {
-      return 'Chess.com request timed out for "' + username + '"' +
-        (period ? ' in ' + period : '') + '. Try again or change month.';
+      return 'Chess.com request timed out for \u201c' + u + '\u201d' +
+        (p ? ' in ' + p : '') + '. Try again or change month.';
     }
-    if (/Failed to fetch|NetworkError|load failed/i.test(msg)) {
+    if (/Failed to fetch|NetworkError|load failed/i.test(rawMsg)) {
       return 'Network request to Chess.com was blocked. Disable ad/privacy blockers for this site, then retry.';
     }
-    return 'Could not fetch games from Chess.com (' + (msg || 'unknown error') + ').';
+    return 'Could not fetch games from Chess.com (' + escapeHtml(rawMsg || 'unknown error') + ').';
   }
 
   function describeLichessError(err, username) {
     if (!err) return 'Could not reach Lichess. Please try again.';
+    var u = escapeHtml(username);
     if (err.status === 404) {
-      return 'No public games found for "' + username + '" on Lichess.';
+      return 'No public games found for \u201c' + u + '\u201d on Lichess.';
     }
-    var msg = err.message || '';
-    if (/Failed to fetch|NetworkError|load failed/i.test(msg)) {
+    var rawMsg = err.message || '';
+    if (/Failed to fetch|NetworkError|load failed/i.test(rawMsg)) {
       return 'Network request to Lichess was blocked. Disable blockers for this site, then retry.';
     }
-    return 'Could not fetch games from Lichess (' + (msg || 'unknown error') + ').';
+    return 'Could not fetch games from Lichess (' + escapeHtml(rawMsg || 'unknown error') + ').';
   }
 
   function loadFetchedGame(el) {
@@ -2269,6 +2302,7 @@ const AppController = (function() {
     updateGameRatings(counts, wAcc, bAcc);
     highlightPlayerCards(wAcc, bAcc);
     updateCoachTip(wAcc, bAcc, counts);
+    drawCentipawnLossChart(history, currentMoveIndex - 1);
     updateMoveQualityBanner();
   }
 
@@ -2448,6 +2482,177 @@ const AppController = (function() {
     }
   }
 
+  function getMoveCentipawnLoss(move) {
+    if (!move) return 0;
+    var cpl = parseFloat(move.centipawnLoss);
+    if (!isNaN(cpl) && isFinite(cpl)) return Math.max(0, cpl);
+
+    var before = parseFloat(move.evalBefore);
+    var after = parseFloat(move.evalAfter);
+    if (!isNaN(before) && !isNaN(after)) {
+      var moverDelta = move.color === 'b' ? before - after : after - before;
+      return Math.max(0, -moverDelta * 100);
+    }
+
+    var fallback = {
+      brilliant: 0, great: 0, book: 0, best: 0, excellent: 6, good: 18,
+      inaccuracy: 55, mistake: 145, miss: 280, blunder: 360
+    };
+    return fallback[move.quality] || 0;
+  }
+
+  function getCplBucket(move) {
+    var quality = move && move.quality;
+    if (quality === 'blunder' || quality === 'miss') return 'blunder';
+    if (quality === 'mistake') return 'mistake';
+    if (quality === 'inaccuracy') return 'inaccuracy';
+    return 'accurate';
+  }
+
+  function getCplBucketMeta(bucket) {
+    var meta = {
+      accurate: { label: 'Accurate', color: '#6abf40' },
+      inaccuracy: { label: 'Inaccuracy', color: '#e8bd58' },
+      mistake: { label: 'Mistake', color: '#d48b2a' },
+      blunder: { label: 'Blunder', color: '#c93030' }
+    };
+    return meta[bucket] || meta.accurate;
+  }
+
+  function drawCentipawnLossChart(history, highlightIndex) {
+    var canvas = document.getElementById('cplChart');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var rect = canvas.getBoundingClientRect();
+    var cssW = Math.max(320, Math.round(rect.width || canvas.clientWidth || 420));
+    var cssH = Math.max(110, Math.round(rect.height || canvas.clientHeight || 130));
+    var dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    if (!history || !history.length) {
+      ctx.fillStyle = 'rgba(255,255,255,0.42)';
+      ctx.font = '12px IBM Plex Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Run a review to see centipawn loss', cssW / 2, cssH / 2 + 4);
+      return;
+    }
+
+    var padL = 10;
+    var padR = 10;
+    var padT = 12;
+    var padB = 18;
+    var chartW = cssW - padL - padR;
+    var chartH = cssH - padT - padB;
+    var values = history.map(getMoveCentipawnLoss);
+    var maxCpl = Math.max.apply(null, values.concat([120]));
+    maxCpl = Math.min(Math.max(maxCpl, 120), 800);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    [0.25, 0.5, 0.75, 1].forEach(function(step) {
+      var y = padT + chartH * step;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(cssW - padR, y);
+      ctx.stroke();
+    });
+
+    var gap = chartW / history.length;
+    var barW = Math.max(2, Math.min(12, gap * 0.62));
+    var selectedIdx = typeof highlightIndex === 'number' ? highlightIndex : -1;
+    var hitAreas = [];
+
+    history.forEach(function(move, idx) {
+      var cpl = values[idx];
+      var clamped = Math.min(cpl, maxCpl);
+      var h = Math.max(2, (clamped / maxCpl) * chartH);
+      var x = padL + idx * gap + (gap - barW) / 2;
+      var y = padT + chartH - h;
+      var bucket = getCplBucket(move);
+      var meta = getCplBucketMeta(bucket);
+
+      ctx.fillStyle = meta.color;
+      ctx.globalAlpha = idx === selectedIdx ? 1 : 0.82;
+      if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(x, y, barW, h, 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y, barW, h);
+      }
+      ctx.globalAlpha = 1;
+
+      if (idx === selectedIdx) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x - 2, padT - 3, barW + 4, chartH + 6);
+      }
+
+      hitAreas.push({ x: x, y: y, w: barW, h: h, move: move, index: idx, cpl: cpl, bucket: bucket });
+    });
+
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.font = '10px IBM Plex Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('0', padL, cssH - 5);
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxCpl) + ' cpl', cssW - padR, cssH - 5);
+
+    canvas._cplHitAreas = hitAreas;
+    bindCplChartTooltip(canvas);
+  }
+
+  function bindCplChartTooltip(canvas) {
+    if (!canvas || canvas._cplTooltipBound) return;
+    canvas._cplTooltipBound = true;
+    canvas.addEventListener('mousemove', function(event) {
+      var tooltip = document.getElementById('cplTooltip');
+      if (!tooltip) return;
+      var rect = canvas.getBoundingClientRect();
+      var x = event.clientX - rect.left;
+      var nearest = null;
+      var bestDist = Infinity;
+      (canvas._cplHitAreas || []).forEach(function(area) {
+        var mid = area.x + area.w / 2;
+        var dist = Math.abs(x - mid);
+        if (dist < bestDist) {
+          bestDist = dist;
+          nearest = area;
+        }
+      });
+      if (!nearest || bestDist > 14) {
+        tooltip.style.display = 'none';
+        return;
+      }
+      var meta = getCplBucketMeta(nearest.bucket);
+      var moveInfo = nearest.move || {};
+      var bestMove = formatBestMoveHint(moveInfo.bestMove, nearest.index);
+      tooltip.innerHTML =
+        '<div class="cpl-tt-header"><span class="cpl-tt-icon" style="color:' + meta.color + '">■</span>' +
+          '<span class="cpl-tt-quality">' + meta.label + '</span></div>' +
+        '<div class="cpl-tt-move">' + buildMoveLabel(moveInfo, nearest.index) + '</div>' +
+        '<div class="cpl-tt-cpl">' + Math.round(nearest.cpl) + ' centipawn loss</div>' +
+        '<div class="cpl-tt-best' + (bestMove ? '' : ' cpl-tt-best--same') + '">' +
+          (bestMove ? 'Best: ' + bestMove : 'Best move matched') +
+        '</div>';
+      tooltip.style.display = 'block';
+      tooltip.style.left = Math.min(rect.width - 160, Math.max(8, nearest.x - 24)) + 'px';
+      tooltip.style.top = Math.max(8, nearest.y - 76) + 'px';
+    });
+    canvas.addEventListener('mouseleave', function() {
+      var tooltip = document.getElementById('cplTooltip');
+      if (tooltip) tooltip.style.display = 'none';
+    });
+  }
+
   function resetGameReviewUI() {
     lastAnalysisHistory = null;
     lastAnalysisCounts = null;
@@ -2473,6 +2678,14 @@ const AppController = (function() {
       var ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
+    var cplCanvas = document.getElementById('cplChart');
+    if (cplCanvas) {
+      var cplCtx = cplCanvas.getContext('2d');
+      cplCtx.clearRect(0, 0, cplCanvas.width, cplCanvas.height);
+      cplCanvas._cplHitAreas = [];
+    }
+    var cplTooltip = document.getElementById('cplTooltip');
+    if (cplTooltip) cplTooltip.style.display = 'none';
     updateReviewAnalyzePanel(null, -1);
     setReviewBusyState(false);
   }
@@ -2483,6 +2696,7 @@ const AppController = (function() {
     var moveInfo = selected.moveInfo;
     setMoveQualityBanner(moveInfo, moveIndex);
     refreshEvalGraphHighlight(moveIndex);
+    refreshCentipawnLossHighlight(moveIndex);
     updateReviewAnalyzePanel(moveInfo, moveIndex);
   }
 
@@ -2490,6 +2704,12 @@ const AppController = (function() {
     if (!lastAnalysisHistory) return;
     var idx = (typeof highlightIndex === 'number') ? highlightIndex : currentMoveIndex - 1;
     drawEvalGraph(lastAnalysisHistory, idx);
+  }
+
+  function refreshCentipawnLossHighlight(highlightIndex) {
+    if (!lastAnalysisHistory) return;
+    var idx = (typeof highlightIndex === 'number') ? highlightIndex : currentMoveIndex - 1;
+    drawCentipawnLossChart(lastAnalysisHistory, idx);
   }
 
   function setMoveQualityBanner(moveInfo, moveIndex) {
@@ -2733,15 +2953,6 @@ const AppController = (function() {
     }
   }
 
-  function escapeReviewHtml(value) {
-    return String(value === null || value === undefined ? '' : value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
   function getFenBeforeReviewMove(moveIndex) {
     if (typeof moveIndex === 'number' && moveIndex >= 0 && gamePositions && gamePositions[moveIndex]) {
       return gamePositions[moveIndex].fen || '';
@@ -2868,19 +3079,19 @@ const AppController = (function() {
       if (candidate.isPlayed) {
         tags += '<span class="gr-candidate-tag is-played">Played</span>';
       }
-      var depth = candidate.depth ? '<span class="gr-candidate-depth">d' + escapeReviewHtml(candidate.depth) + '</span>' : '';
+      var depth = candidate.depth ? '<span class="gr-candidate-depth">d' + escapeHtml(candidate.depth) + '</span>' : '';
       var rowClass = 'gr-candidate-row' + (candidate.isBest ? ' is-best' : '') + (candidate.isPlayed ? ' is-played' : '');
       return '<button type="button" class="' + rowClass + '" onclick="AppController.loadReviewCandidateLine(' + idx + ')">' +
-        '<span class="gr-candidate-rank">' + escapeReviewHtml(candidate.rank || idx + 1) + '</span>' +
+        '<span class="gr-candidate-rank">' + escapeHtml(candidate.rank || idx + 1) + '</span>' +
         '<span class="gr-candidate-main">' +
           '<span class="gr-candidate-top">' +
-            '<span class="gr-candidate-move">' + escapeReviewHtml(firstMove) + '</span>' +
+            '<span class="gr-candidate-move">' + escapeHtml(firstMove) + '</span>' +
             tags +
           '</span>' +
-          '<span class="gr-candidate-line">' + escapeReviewHtml(pvLine || firstMove) + '</span>' +
+          '<span class="gr-candidate-line">' + escapeHtml(pvLine || firstMove) + '</span>' +
         '</span>' +
         '<span class="gr-candidate-side">' +
-          '<span class="gr-candidate-eval' + getCandidateEvalClass(candidate) + '">' + escapeReviewHtml(formatCandidateEval(candidate)) + '</span>' +
+          '<span class="gr-candidate-eval' + getCandidateEvalClass(candidate) + '">' + escapeHtml(formatCandidateEval(candidate)) + '</span>' +
           depth +
         '</span>' +
       '</button>';
@@ -3243,13 +3454,14 @@ const AppController = (function() {
     
     rows.innerHTML = games.slice(0, 50).map(function(g) {
       var resultClass = g.result === '1-0' ? 'result-w' : g.result === '0-1' ? 'result-l' : 'result-d';
-      return '<div class="db-row" onclick="AppController.loadDbGame(\'' + g.id + '\')">' +
-        '<span>' + (g.white || '?') + '</span>' +
-        '<span>' + (g.black || '?') + '</span>' +
-        '<span class="' + resultClass + '">' + (g.result || '*') + '</span>' +
-        '<span>' + ((g.opening || '').substring(0, 20) || '—') + '</span>' +
-        '<span>' + (g.date || '').substring(0, 10) + '</span>' +
-        '<span class="db-row-actions"><button class="btn-sm" onclick="event.stopPropagation();AppController.loadDbGame(\'' + g.id + '\')">Load</button></span>' +
+      var safeId = escapeAttr(g.id);
+      return '<div class="db-row" onclick="AppController.loadDbGame(\'' + safeId + '\')">' +
+        '<span>' + escapeHtml(g.white || '?') + '</span>' +
+        '<span>' + escapeHtml(g.black || '?') + '</span>' +
+        '<span class="' + resultClass + '">' + escapeHtml(g.result || '*') + '</span>' +
+        '<span>' + escapeHtml((g.opening || '').substring(0, 20) || '—') + '</span>' +
+        '<span>' + escapeHtml((g.date || '').substring(0, 10)) + '</span>' +
+        '<span class="db-row-actions"><button class="btn-sm" onclick="event.stopPropagation();AppController.loadDbGame(\'' + safeId + '\')">Load</button></span>' +
         '</div>';
     }).join('');
   }
@@ -3276,9 +3488,10 @@ const AppController = (function() {
     }
     
     list.innerHTML = gameDatabase.slice(0, 20).map(function(g) {
-      return '<div class="saved-game-item" onclick="AppController.loadDbGame(\'' + g.id + '\')">' +
-        '<div class="saved-game-players">' + (g.white || '?') + ' vs ' + (g.black || '?') + ' <strong>' + (g.result || '*') + '</strong></div>' +
-        '<div class="saved-game-meta">' + (g.opening || '').substring(0, 30) + ' • ' + (g.date || '').substring(0, 10) + '</div>' +
+      var safeId = escapeAttr(g.id);
+      return '<div class="saved-game-item" onclick="AppController.loadDbGame(\'' + safeId + '\')">' +
+        '<div class="saved-game-players">' + escapeHtml(g.white || '?') + ' vs ' + escapeHtml(g.black || '?') + ' <strong>' + escapeHtml(g.result || '*') + '</strong></div>' +
+        '<div class="saved-game-meta">' + escapeHtml((g.opening || '').substring(0, 30)) + ' \u2022 ' + escapeHtml((g.date || '').substring(0, 10)) + '</div>' +
         '</div>';
     }).join('');
   }
@@ -3640,19 +3853,23 @@ const HomeController = (function() {
       var parts = (p.displayName || '').trim().split(' ');
       if (parts.length >= 2) initials = (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
       var isActive = p.displayName === active.displayName;
-      var accounts = [p.chesscomUsername ? '&#9823; ' + p.chesscomUsername : '', p.lichessUsername ? '&#9820; ' + p.lichessUsername : ''].filter(Boolean).join(' · ') || 'No linked accounts';
-      var meta = 'Stockfish · Depth ' + (p.prefDepth || 20);
+      var accounts = [
+        p.chesscomUsername ? '&#9823; ' + escapeHtml(p.chesscomUsername) : '',
+        p.lichessUsername ? '&#9820; ' + escapeHtml(p.lichessUsername) : '',
+      ].filter(Boolean).join(' \u00b7 ') || 'No linked accounts';
+      var meta = 'Stockfish \u00b7 Depth ' + escapeHtml(String(p.prefDepth || 20));
+      var safeId = escapeAttr(p.id);
 
-      return '<div class="saved-profile-item' + (isActive ? ' active-profile' : '') + '" data-pid="' + p.id + '">' +
-        '<div class="sp-avatar">' + initials + '</div>' +
+      return '<div class="saved-profile-item' + (isActive ? ' active-profile' : '') + '" data-pid="' + safeId + '">' +
+        '<div class="sp-avatar">' + escapeHtml(initials) + '</div>' +
         '<div class="sp-info">' +
-          '<div class="sp-name">' + (p.displayName || 'Unnamed') + '</div>' +
+          '<div class="sp-name">' + escapeHtml(p.displayName || 'Unnamed') + '</div>' +
           '<div class="sp-meta sp-accounts">Linked: ' + accounts + '</div>' +
           '<div class="sp-meta">' + meta + '</div>' +
         '</div>' +
         '<div class="sp-actions">' +
-          '<button class="sp-load-btn" onclick="HomeController.loadProfile(\'' + p.id + '\')">Load</button>' +
-          '<button class="sp-del-btn" onclick="HomeController.deleteProfile(\'' + p.id + '\')">✕</button>' +
+          '<button class="sp-load-btn" onclick="HomeController.loadProfile(\'' + safeId + '\')">Load</button>' +
+          '<button class="sp-del-btn" onclick="HomeController.deleteProfile(\'' + safeId + '\')">\u2715</button>' +
         '</div>' +
         '</div>';
     }).join('');
@@ -3982,10 +4199,10 @@ const HomeController = (function() {
       var opening = g.opening || g.eco || '';
       var date = getChesscomGameDisplayDate(g) || g.date || '';
       return '<div class="fetch-game-item" data-cc-idx="' + idx + '" onclick="HomeController.loadChesscomGame(' + idx + ')">' +
-        '<strong>' + white + '</strong> vs <strong>' + black + '</strong>' +
-        (opening ? ' — ' + opening.substring(0, 28) : '') +
-        '<span class="fetch-game-result ' + resultClass + '">' + result + '</span>' +
-        (date ? '<div class="fetch-game-date">' + date + '</div>' : '') +
+        '<strong>' + escapeHtml(white) + '</strong> vs <strong>' + escapeHtml(black) + '</strong>' +
+        (opening ? ' \u2014 ' + escapeHtml(opening.substring(0, 28)) : '') +
+        '<span class="fetch-game-result ' + resultClass + '">' + escapeHtml(result) + '</span>' +
+        (date ? '<div class="fetch-game-date">' + escapeHtml(date) + '</div>' : '') +
       '</div>';
     }).join('');
     container.innerHTML = intro + rows;
@@ -4020,17 +4237,17 @@ const HomeController = (function() {
         '<div class="gt-review-icon">' + (reviewed ? '&#10003;' : '') + '</div>' +
         '<div class="gt-game-main">' +
           '<div class="gt-players">' +
-            '<span class="gt-white">' + white + ' <span class="gt-rating">(' + whiteRating + ')</span></span>' +
+            '<span class="gt-white">' + escapeHtml(white) + ' <span class="gt-rating">(' + escapeHtml(whiteRating) + ')</span></span>' +
             '<span class="gt-vs">vs</span>' +
-            '<span class="gt-black">' + black + ' <span class="gt-rating">(' + blackRating + ')</span></span>' +
+            '<span class="gt-black">' + escapeHtml(black) + ' <span class="gt-rating">(' + escapeHtml(blackRating) + ')</span></span>' +
           '</div>' +
           '<div class="gt-meta">' +
-            '<span class="gt-time-badge gt-tc-' + timeClass + '">' + timeClass + '</span>' +
-            '<span class="gt-date">' + dateStr + '</span>' +
+            '<span class="gt-time-badge gt-tc-' + escapeAttr(timeClass) + '">' + escapeHtml(timeClass) + '</span>' +
+            '<span class="gt-date">' + escapeHtml(dateStr) + '</span>' +
           '</div>' +
         '</div>' +
         '<div class="gt-result-col">' +
-          '<span class="gt-outcome ' + outcomeClass + '">' + outcomeText + '</span>' +
+          '<span class="gt-outcome ' + outcomeClass + '">' + escapeHtml(outcomeText) + '</span>' +
         '</div>' +
         '<div class="gt-actions">' +
           '<button class="gt-btn gt-btn-analyze" onclick="HomeController.loadChesscomGame(' + idx + ')">Analyze</button>' +
@@ -4117,9 +4334,9 @@ const HomeController = (function() {
       var result = g.winner ? (g.winner === 'white' ? '1-0' : '0-1') : '½-½';
       var gameId = g.id || '';
 
-      return '<div class="fetch-game-item" data-id="' + gameId + '" data-platform="lichess" onclick="HomeController.loadPlatformGame(this)" style="font-size:.7rem">' +
-        '<span>' + white + ' vs ' + black + '</span>' +
-        '<span class="fetch-game-result ' + (result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d') + '" style="float:right">' + result + '</span>' +
+      return '<div class="fetch-game-item" data-id="' + escapeAttr(gameId) + '" data-platform="lichess" onclick="HomeController.loadPlatformGame(this)" style="font-size:.7rem">' +
+        '<span>' + escapeHtml(white) + ' vs ' + escapeHtml(black) + '</span>' +
+        '<span class="fetch-game-result ' + (result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d') + '" style="float:right">' + escapeHtml(result) + '</span>' +
         '</div>';
     }).join('');
   }
@@ -4274,6 +4491,7 @@ const HomeController = (function() {
     refreshHomeData: refreshHomeData,
     setupGamesTab: setupGamesTab,
     refreshGamesTab: refreshGamesTab,
+    fetchChesscomGames: fetchChesscomGames,
     fetchLatestChesscomGames: fetchLatestChesscomGames,
     fetchHomeChesscomGames: fetchHomeChesscomGames,
     loadPlatformGame: loadPlatformGame,

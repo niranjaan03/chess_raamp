@@ -7,7 +7,7 @@ const MOVE_SOUND_KEY = 'kv_move_sound_enabled';
 
 const SoundController = (function() {
   var initialized = false;
-  var enabled = true;
+  var enabled = false;
   var audioContext = null;
   var moveBuffer = null;
   var fallbackAudio = null;
@@ -72,7 +72,7 @@ const SoundController = (function() {
     if (typeof window === 'undefined') return true;
     try {
       var saved = localStorage.getItem(MOVE_SOUND_KEY);
-      if (saved == null) return true;
+      if (saved == null) return false;
       return saved !== 'false';
     } catch (e) {
       return true;

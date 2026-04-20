@@ -170,6 +170,12 @@ async function proxy(targetUrl) {
 // Map our proxy paths to the corresponding chess.com API URLs.
 // We validate path segments strictly to avoid SSRF.
 function resolveUpstreamUrl(pathname, search) {
+  // /api/chesscom/player/:username (profile — must be checked before sub-path routes)
+  const profileMatch = pathname.match(/^\/api\/chesscom\/player\/([^/]+)$/);
+  if (profileMatch) {
+    const username = encodeURIComponent(decodeURIComponent(profileMatch[1]));
+    return 'https://api.chess.com/pub/player/' + username;
+  }
   // /api/chesscom/player/:username/stats
   const statsMatch = pathname.match(/^\/api\/chesscom\/player\/([^/]+)\/stats$/);
   if (statsMatch) {

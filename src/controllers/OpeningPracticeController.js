@@ -6,6 +6,7 @@
 import Chess from '../lib/chess';
 import ChessBoard from './ChessBoard';
 import SoundController from './SoundController';
+import { escapeAttr, escapeHtml } from '../utils/dom.js';
 
 const FAVORITES_KEY = 'kv_opening_favorites';
 const PROGRESS_KEY = 'kv_opening_progress';
@@ -17,6 +18,7 @@ const DEFAULT_OPENING_IMG = 'data:image/svg+xml;utf8,' + encodeURIComponent('<sv
 const OPENING_STATS_CACHE_KEY = 'kv_opening_stats_cache_v1';
 const OPENING_STATS_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const OPENING_STATS_MAX_CONCURRENT = 4;
+const SRS_KEY = 'kv_opening_srs_v1';
 const OPENING_STATS_SLUG_ALIASES = {
   'Sicilian': 'sicilian-defense',
   'King\'s Indian Attack with e6': 'kings-indian-attack',
@@ -148,10 +150,19 @@ const OpeningPracticeController = (function () {
   var openingStatsQueue = [];
   var openingStatsActive = 0;
 
+  // ── SRS state ──────────────────────────────────────────────────────────────
+  var srsData = loadSRS();
+  var sessionHints = 0;
+  var sessionErrors = 0;
+  var reviewQueue = [];
+  var reviewQueueIdx = 0;
+  var isInReviewMode = false;
+  var variationIndex = null;
+
   // Coach explanations for common moves (keyed by SAN)
   var COACH_EXPLANATIONS = {
     'e4': "1.e4 — The King's Pawn Opening. This controls the center immediately and opens lines for the bishop and queen. It's the most popular first move, favored by aggressive players.",
-    'e5': "1...e5 — A classical response, matching White's central control. This leads to open games with tactical opportunities for both sides.",
+    'e5': "A central pawn advance. As 1...e5 it classically matches White's control, leading to open games with tactical opportunities for both sides. When played later (e.g. French Advance), it gains space and restricts the opponent's pieces.",
     'd4': "1.d4 — The Queen's Pawn Opening. This controls the center and is generally considered more positional than 1.e4. The d4 pawn is already protected by the queen.",
     'd5': "1...d5 — Directly challenging White's central control. This solid response leads to classical Queen's Pawn structures.",
     'c4': "The English Opening / Queen's Gambit. White fights for d5 control without committing the d-pawn yet. It's a flexible move that can transpose into many systems.",
@@ -196,7 +207,6 @@ const OpeningPracticeController = (function () {
     'dxe4': "Capturing with the pawn, opening the d-file. In the French Rubinstein, this concedes the center but gains piece activity.",
     'cxd5': "Exchanging in the center. The Exchange Variation often leads to symmetrical pawn structures.",
     'exd4': "Capturing in the center, opening the position. This is a key moment in the Scotch Game and many other openings.",
-    'e5': "Advancing the pawn to gain space and restrict Black's pieces. In the French Advance, this creates a locked center.",
     'Qc2': "The Classical Nimzo-Indian. White prepares to recapture on c3 with a pawn after ...Bxc3, maintaining the pawn structure.",
     'e3': "A solid move supporting d4. In the Nimzo-Indian Normal Variation, White keeps a strong center while preparing piece development.",
     'f3': "Supporting the e4 point aggressively. In the Sämisch King's Indian, this builds a massive center.",
@@ -419,6 +429,133 @@ const OpeningPracticeController = (function () {
     }
   }
 
+  // ── SRS helpers ────────────────────────────────────────────────────────────
+
+  function loadSRS() {
+    if (typeof window === 'undefined') return {};
+    try { return JSON.parse(localStorage.getItem(SRS_KEY) || '{}'); } catch (e) { return {}; }
+  }
+
+  function saveSRS() {
+    if (typeof window === 'undefined') return;
+    try { localStorage.setItem(SRS_KEY, JSON.stringify(srsData)); } catch (e) {}
+  }
+
+  function updateSRS(srsId, rating) {
+    var r = srsData[srsId] || { interval: 1, ef: 2.5, dueDate: 0, reps: 0 };
+    var now = Date.now();
+    if (rating === 'again') {
+      r.interval = 1;
+      r.ef = Math.max(1.3, (r.ef || 2.5) - 0.2);
+    } else if (rating === 'hard') {
+      r.interval = Math.max(1, Math.round((r.interval || 1) * 1.2));
+      r.ef = Math.max(1.3, (r.ef || 2.5) - 0.15);
+    } else {
+      var reps = r.reps || 0;
+      if (reps < 1) r.interval = 1;
+      else if (reps < 2) r.interval = 3;
+      else r.interval = Math.round((r.interval || 1) * (r.ef || 2.5));
+      r.ef = Math.min(3.0, (r.ef || 2.5) + 0.1);
+    }
+    r.reps = (r.reps || 0) + 1;
+    r.dueDate = now + r.interval * 86400000;
+    srsData[srsId] = r;
+    saveSRS();
+    return r;
+  }
+
+  function getDueCount() {
+    var now = Date.now();
+    return Object.keys(srsData).filter(function(k) {
+      return srsData[k].dueDate && srsData[k].dueDate <= now;
+    }).length;
+  }
+
+  function getSRSStatusLabel(srsId) {
+    var r = srsData[srsId];
+    if (!r || !r.reps) return 'new';
+    if (r.dueDate && r.dueDate <= Date.now()) return 'due';
+    if (r.interval >= 21) return 'mature';
+    return 'learning';
+  }
+
+  function formatSRSInterval(days) {
+    if (days <= 1) return '1 day';
+    if (days < 7) return days + ' days';
+    if (days < 30) return '~' + Math.round(days / 7) + 'w';
+    return '~' + Math.round(days / 30) + 'mo';
+  }
+
+  function buildVariationIndex() {
+    if (variationIndex) return variationIndex;
+    variationIndex = {};
+    (OPENING_DATA || []).forEach(function(op) {
+      (op.variations || []).forEach(function(v, idx) {
+        variationIndex[getVariationId(op, v)] = { opening: op, variation: v, variationIdx: idx };
+      });
+    });
+    return variationIndex;
+  }
+
+  function buildReviewQueue() {
+    var now = Date.now();
+    var idx = buildVariationIndex();
+    return Object.keys(srsData)
+      .filter(function(id) { return srsData[id].dueDate && srsData[id].dueDate <= now && idx[id]; })
+      .sort(function(a, b) { return srsData[a].dueDate - srsData[b].dueDate; })
+      .map(function(id) { return { srsId: id, item: idx[id] }; });
+  }
+
+  function updateReviewBanner() {
+    var banner = document.getElementById('reviewQueueBanner');
+    var countEl = document.getElementById('reviewQueueCount');
+    if (!banner) return;
+    var count = getDueCount();
+    if (count > 0) {
+      if (countEl) countEl.textContent = count + ' line' + (count !== 1 ? 's' : '') + ' due for review';
+      banner.style.display = '';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  function startReviewSession() {
+    reviewQueue = buildReviewQueue();
+    if (!reviewQueue.length) return;
+    reviewQueueIdx = 0;
+    isInReviewMode = true;
+    launchReviewItem(reviewQueue[0]);
+  }
+
+  function launchReviewItem(entry) {
+    if (!entry) return;
+    currentOpening = entry.item.opening;
+    // Show detail briefly then start practice
+    document.getElementById('openingGalleryView').style.display = 'none';
+    document.getElementById('openingDetailView').style.display = 'none';
+    startPractice(entry.item.variationIdx, 'drill');
+  }
+
+  function advanceReviewQueue(rating) {
+    if (rating === 'again') reviewQueue.push(reviewQueue[reviewQueueIdx]);
+    reviewQueueIdx++;
+    if (reviewQueueIdx >= reviewQueue.length) {
+      isInReviewMode = false;
+      backToGallery();
+      updateReviewBanner();
+      setTimeout(function() {
+        var countEl = document.getElementById('reviewQueueCount');
+        var banner = document.getElementById('reviewQueueBanner');
+        if (!banner) return;
+        banner.style.display = '';
+        if (countEl) countEl.textContent = '\u2713 Review session complete!';
+        setTimeout(updateReviewBanner, 3000);
+      }, 300);
+      return;
+    }
+    launchReviewItem(reviewQueue[reviewQueueIdx]);
+  }
+
   function slugifyOpeningName(name) {
     return String(name || '')
       .toLowerCase()
@@ -428,15 +565,6 @@ const OpeningPracticeController = (function () {
       .replace(/["'’]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
-  }
-
-  function escapeHtml(text) {
-    return String(text || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
   }
 
   function formatOpeningStatsDate(value) {
@@ -581,12 +709,12 @@ const OpeningPracticeController = (function () {
     if (!stats.ok) {
       return detail
         ? '<span class="opening-live-stats-status is-muted">Live internet win rate is unavailable for this opening.</span>'
-        : '<span class="opening-live-stats-status is-muted">Live win rate unavailable</span>';
+        : '';
     }
 
     var games = stats.games ? escapeHtml(stats.games + ' games') : '';
     var updated = formatOpeningStatsDate(stats.dateModified);
-    var sourceUrl = stats.sourceUrl ? escapeHtml(stats.sourceUrl) : '';
+    var sourceUrl = stats.sourceUrl ? escapeAttr(stats.sourceUrl) : '';
     var sourceName = escapeHtml(stats.sourceName || 'Source');
 
     if (!detail) {
@@ -731,7 +859,7 @@ const OpeningPracticeController = (function () {
         '</div>' +
         '<div class="opening-card-name">' + op.name + '</div>' +
         '<div class="opening-card-desc">' + definition + '</div>' +
-        '<div class="opening-live-stats" data-opening-stats="' + encodeURIComponent(openingKey) + '">Loading live win rate...</div>' +
+        '<div class="opening-live-stats" data-opening-stats="' + encodeURIComponent(openingKey) + '"></div>' +
         '<div class="opening-card-footer">' +
         '<span class="var-count">' + varCount + ' variation' + (varCount !== 1 ? 's' : '') + ' · Play as ' + colorLabel + '</span>' +
         '<button class="btn-practice-open">Practice →</button>' +
@@ -749,12 +877,18 @@ const OpeningPracticeController = (function () {
     });
 
     applyImageFallbacks(container);
+    var statsObserver = new IntersectionObserver(function(entries, obs) {
+      entries.forEach(function(entry) {
+        if (!entry.isIntersecting) return;
+        obs.unobserve(entry.target);
+        var node = entry.target;
+        var openingKey = decodeURIComponent(node.getAttribute('data-opening-stats') || '');
+        var opening = filtered.find(function(item) { return getOpeningLookupKey(item) === openingKey; });
+        if (opening) hydrateOpeningStatsElement(node, opening, 'card');
+      });
+    }, { rootMargin: '120px' });
     container.querySelectorAll('[data-opening-stats]').forEach(function(node) {
-      var openingKey = decodeURIComponent(node.getAttribute('data-opening-stats') || '');
-      var opening = filtered.find(function(item) { return getOpeningLookupKey(item) === openingKey; });
-      if (opening) {
-        hydrateOpeningStatsElement(node, opening, 'card');
-      }
+      statsObserver.observe(node);
     });
   }
 
@@ -927,6 +1061,9 @@ const OpeningPracticeController = (function () {
     isPracticing = true;
     wrongMove = false;
     currentMoveIndex = 0;
+    sessionHints = 0;
+    sessionErrors = 0;
+    hideSRSPanel();
 
     // Parse PGN into move list
     expectedMoves = parsePGNMoves(currentVariation.pgn);
@@ -962,6 +1099,8 @@ const OpeningPracticeController = (function () {
         }, 250);
       }
     }
+
+    renderRelatedLines();
   }
 
   function parsePGNMoves(pgn) {
@@ -994,8 +1133,7 @@ const OpeningPracticeController = (function () {
 
       if (currentMoveIndex >= expectedMoves.length) {
         // Completed the variation!
-        showPracticeStatus('success', getCompletionMessage());
-        isPracticing = false;
+        onVariationComplete();
         return;
       }
 
@@ -1005,6 +1143,7 @@ const OpeningPracticeController = (function () {
       }, 400);
     } else {
       // Wrong move — undo it
+      sessionErrors++;
       practiceChess.undo();
       ChessBoard.setPosition(practiceChess);
       ChessBoard.clearArrows();
@@ -1034,8 +1173,7 @@ const OpeningPracticeController = (function () {
       updateCoachPanel(false);
 
       if (currentMoveIndex >= expectedMoves.length) {
-        showPracticeStatus('success', getCompletionMessage());
-        isPracticing = false;
+        onVariationComplete();
       }
     }
   }
@@ -1046,6 +1184,7 @@ const OpeningPracticeController = (function () {
       showPracticeStatus('hint', 'Hints are disabled in Drill mode. Switch back to Practice for guided help.');
       return;
     }
+    sessionHints++;
     var hint = expectedMoves[currentMoveIndex];
     showPracticeStatus('hint', 'Hint: The next move is ' + hint);
 
@@ -1299,6 +1438,99 @@ const OpeningPracticeController = (function () {
     }
   }
 
+  // ===== SRS COMPLETION PANEL =====
+
+  function onVariationComplete() {
+    isPracticing = false;
+    markVariationComplete(currentOpening, currentVariation);
+    showSRSPanel();
+  }
+
+  function showSRSPanel() {
+    var panel = document.getElementById('srsRatingPanel');
+    if (!panel) {
+      showPracticeStatus('success', getCompletionMessage());
+      return;
+    }
+
+    var srsId = currentOpening && currentVariation ? getVariationId(currentOpening, currentVariation) : null;
+    var r = srsId ? (srsData[srsId] || {}) : {};
+    var reps = r.reps || 0;
+    var curInterval = r.interval || 1;
+    var ef = r.ef || 2.5;
+
+    var hardDays = Math.max(1, Math.round(curInterval * 1.2));
+    var easyDays;
+    if (reps < 1) easyDays = 1;
+    else if (reps < 2) easyDays = 3;
+    else easyDays = Math.round(curInterval * ef);
+
+    var perfNote = sessionErrors === 0 && sessionHints === 0
+      ? '&#10003; Perfect — no mistakes or hints!'
+      : sessionErrors + ' mistake' + (sessionErrors !== 1 ? 's' : '') + ', ' + sessionHints + ' hint' + (sessionHints !== 1 ? 's' : '') + ' used.';
+
+    panel.innerHTML =
+      '<div class="srs-header">&#127775; How well did you remember it?</div>' +
+      '<div class="srs-perf-note">' + perfNote + '</div>' +
+      '<div class="srs-btns-row">' +
+        '<button class="srs-btn srs-again" id="srsAgainBtn">&#8635; Again<span class="srs-int">1 day</span></button>' +
+        '<button class="srs-btn srs-hard" id="srsHardBtn">&#9888; Hard<span class="srs-int">' + formatSRSInterval(hardDays) + '</span></button>' +
+        '<button class="srs-btn srs-easy" id="srsEasyBtn">&#10003; Easy<span class="srs-int">' + formatSRSInterval(easyDays) + '</span></button>' +
+      '</div>';
+    panel.style.display = '';
+
+    document.getElementById('srsAgainBtn').onclick = function() { rateSRS('again'); };
+    document.getElementById('srsHardBtn').onclick  = function() { rateSRS('hard');  };
+    document.getElementById('srsEasyBtn').onclick  = function() { rateSRS('easy');  };
+  }
+
+  function hideSRSPanel() {
+    var panel = document.getElementById('srsRatingPanel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  function rateSRS(rating) {
+    if (!currentOpening || !currentVariation) return;
+    var srsId = getVariationId(currentOpening, currentVariation);
+    var record = updateSRS(srsId, rating);
+    hideSRSPanel();
+    updateReviewBanner();
+    var nextLabel = formatSRSInterval(record.interval);
+    showPracticeStatus('success', getCompletionMessage() + ' Next review: ' + nextLabel + '.');
+    if (isInReviewMode) {
+      setTimeout(function() { advanceReviewQueue(rating); }, 900);
+    }
+  }
+
+  // ===== RELATED LINES (BRANCHING PANEL) =====
+
+  function renderRelatedLines() {
+    var container = document.getElementById('relatedLinesList');
+    if (!container || !currentOpening) { return; }
+    var allVars = currentOpening.variations || [];
+    var others = allVars.filter(function(v) { return v !== currentVariation; });
+    if (!others.length) {
+      container.innerHTML = '<div class="related-empty">No other lines in this opening.</div>';
+      return;
+    }
+    container.innerHTML = others.slice(0, 6).map(function(v) {
+      var realIdx = allVars.indexOf(v);
+      var vid = getVariationId(currentOpening, v);
+      var status = getSRSStatusLabel(vid);
+      var badgeColors = { due: '#ef5350', mature: '#4caf7d', learning: '#d4af37', 'new': '#4a5568' };
+      var bg = badgeColors[status] || '#4a5568';
+      return '<button class="related-line-btn" data-idx="' + realIdx + '">' +
+        '<span class="related-line-name">' + escapeHtml(v.name || 'Line') + '</span>' +
+        '<span class="related-line-badge" style="background:' + bg + '">' + status + '</span>' +
+      '</button>';
+    }).join('');
+    container.querySelectorAll('.related-line-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        startPractice(parseInt(this.getAttribute('data-idx')));
+      });
+    });
+  }
+
   // ===== NAVIGATION =====
   function backToGallery() {
     isPracticing = false;
@@ -1348,13 +1580,8 @@ const OpeningPracticeController = (function () {
         '<div class="skeleton-card opening-skeleton-card"><div class="skeleton-media"></div><div class="skeleton-line w-40"></div><div class="skeleton-line w-78"></div><div class="skeleton-line w-52"></div></div>';
     }
 
-    Promise.all([
-      import('../lib/openingData'),
-      import('../lib/openingDataExtra')
-    ]).then(function (modules) {
-      var base = (modules[0] && modules[0].default) || [];
-      var extra = (modules[1] && modules[1].default) || [];
-      OPENING_DATA = mergeOpeningSources(base, extra);
+    import('../lib/openingData').then(function (module) {
+      OPENING_DATA = (module && module.default) || [];
       setupUI();
     }).catch(function (err) {
       console.error('Failed to load opening data:', err);
@@ -1438,6 +1665,12 @@ const OpeningPracticeController = (function () {
         setPracticeMode(this.getAttribute('data-mode'));
       });
     });
+
+    // Review queue
+    var startReviewBtn = document.getElementById('startReviewBtn');
+    if (startReviewBtn) startReviewBtn.addEventListener('click', startReviewSession);
+
+    updateReviewBanner();
   }
 
   return {
@@ -1450,7 +1683,9 @@ const OpeningPracticeController = (function () {
     setPracticeMode: setPracticeMode,
     showHint: showHint,
     goToPrevMove: goToPrevMove,
-    resetPractice: resetPractice
+    resetPractice: resetPractice,
+    startReviewSession: startReviewSession,
+    updateReviewBanner: updateReviewBanner
   };
 })();
 

@@ -3,6 +3,13 @@ stockfish/
 .DS_Store
 node_modules/
 dist/
+.venv/
+
+.env
+.env.*
+*.log
+playwright-report/
+coverage/
 
 *.parquet
 src/data/openings/chess open.parquet

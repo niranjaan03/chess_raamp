@@ -1,7 +1,11 @@
 // src/controllers/PlayerAnalyzeController.js
 // Comprehensive Chess.com player analytics — mirrors ChessAnalytics.py
 
+import { bind, bindClick, escapeAttr, escapeHtml } from '../utils/dom.js';
+
 const CHESS_API = 'https://api.chess.com/pub/player';
+const CHESS_PROXY = '/api/chesscom/player';
+const PLAYER_ANALYZE_MONTHS = 12;
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const LOSS_SET = new Set([
@@ -21,14 +25,42 @@ const _state = {
   selectedTC: 'rapid',
   selectedPeriod: 30,
 };
+let uiInitialized = false;
+let controlsWired = false;
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 
-async function apiGet(url) {
+function getChessComProxyUrl(url) {
+  const prefix = CHESS_API + '/';
+  if (!String(url || '').startsWith(prefix)) return '';
+  return CHESS_PROXY + '/' + String(url).slice(prefix.length);
+}
+
+async function fetchJson(url) {
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (res.status === 404) throw new Error('Player not found');
-  if (!res.ok) throw new Error(`API error ${res.status}`);
+  if (res.status === 404) {
+    const err = new Error('Player not found');
+    err.status = 404;
+    throw err;
+  }
+  if (!res.ok) {
+    const err = new Error(`API error ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
+}
+
+async function apiGet(url) {
+  const proxyUrl = getChessComProxyUrl(url);
+  if (proxyUrl) {
+    try {
+      return await fetchJson(proxyUrl);
+    } catch (err) {
+      if (err && err.status === 404) throw err;
+    }
+  }
+  return fetchJson(url);
 }
 
 // ─── PROCESS RAW GAME ────────────────────────────────────────────────────────
@@ -77,6 +109,7 @@ function processRawGame(game, lowerUsername) {
 
   return {
     won, lost, drew, result,
+    oppResult: opp.result || '',
     color: isWhite ? 'white' : 'black',
     rating: me.rating || 0,
     oppRating: opp.rating || 0,
@@ -196,10 +229,12 @@ function aggHeadToHead(games) {
 }
 
 function aggStreaks(games) {
+  if (!games.length) {
+    return { current: 0, currentType: '', best: 0, distribution: {}, minRating: 0, maxRating: 0 };
+  }
   const sorted = [...games].sort((a,b)=>a.endTime-b.endTime);
   let cur=0, sType='', best=0, tmp=0;
   const hist = {};
-  const distCur = { wins:0, type:'' };
 
   // Best win streak + distribution
   sorted.forEach(g => {
@@ -226,8 +261,9 @@ function aggStreaks(games) {
     else break;
   }
 
-  const minR = Math.min(...games.map(g=>g.rating).filter(Boolean));
-  const maxR = Math.max(...games.map(g=>g.rating).filter(Boolean));
+  const ratings = games.map(g=>g.rating).filter(Boolean);
+  const minR = ratings.length ? Math.min(...ratings) : 0;
+  const maxR = ratings.length ? Math.max(...ratings) : 0;
 
   return { current:cur, currentType:sType, best, distribution:hist, minRating:minR, maxRating:maxR };
 }
@@ -255,7 +291,8 @@ function aggRadar(games) {
   }
 
   // 4. Activity Score: games per week relative to 10/week = 100
-  const periods = games.length && (games[games.length-1].endTime - games[0].endTime);
+  const sorted = [...games].sort((a,b)=>a.endTime-b.endTime);
+  const periods = sorted.length && (sorted[sorted.length-1].endTime - sorted[0].endTime);
   const weeks = periods ? periods/604800000 : 1;
   const activity = Math.min(100, (games.length/Math.max(weeks,1))*10);
 
@@ -352,7 +389,7 @@ function barChartSVG(data, opts={}) {
     const x=PL+i*gap+gap/2;
     const h=Math.max(0,(d.value/max)*cH);
     const c=d.color||color;
-    const label=showLabels?`<text x="${x.toFixed(1)}" y="${H-3}" text-anchor="middle" fill="#9e8350" font-size="9">${d.label}</text>`:'';
+    const label=showLabels?`<text x="${x.toFixed(1)}" y="${H-3}" text-anchor="middle" fill="#9e8350" font-size="9">${escapeHtml(d.label)}</text>`:'';
     return `<rect x="${(x-bw/2).toFixed(1)}" y="${(PT+cH-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${c}" rx="2.5"/>
       ${d.value>0?`<text x="${x.toFixed(1)}" y="${(PT+cH-h-3).toFixed(1)}" text-anchor="middle" fill="#f6e7bf" font-size="8.5">${Math.round(d.value)}%</text>`:''}
       ${label}`;
@@ -375,7 +412,7 @@ function horizBarSVG(data, opts={}) {
     const y=i*rowH+rowH/2;
     const bw=Math.max(0,(d.value/maxVal)*trackW);
     const c=d.color||color;
-    return `<text x="${labelW-6}" y="${(y+4).toFixed(1)}" text-anchor="end" fill="#9e8350" font-size="10">${d.label}</text>
+    return `<text x="${labelW-6}" y="${(y+4).toFixed(1)}" text-anchor="end" fill="#9e8350" font-size="10">${escapeHtml(d.label)}</text>
       <rect x="${labelW}" y="${(y-6).toFixed(1)}" width="${trackW.toFixed(1)}" height="12" fill="#1e1e1e" rx="2"/>
       <rect x="${labelW}" y="${(y-6).toFixed(1)}" width="${bw.toFixed(1)}" height="12" fill="${c}" rx="2"/>
       <text x="${(labelW+trackW+6).toFixed(1)}" y="${(y+4).toFixed(1)}" fill="#f6e7bf" font-size="10">${typeof d.value==='number'?d.value.toFixed(d.value%1?1:0):''}${d.suffix||''}</text>`;
@@ -427,7 +464,7 @@ function radarSVG(metrics, size=200) {
   const labels=metrics.map((m,i)=>{
     const lp=pt(i,1.28);
     const lines=m.label.split('\n');
-    return lines.map((l,li)=>`<text x="${lp.x.toFixed(1)}" y="${(lp.y+(li-Math.floor(lines.length/2))*11).toFixed(1)}" text-anchor="middle" fill="#9e8350" font-size="9.5">${l}</text>`).join('');
+    return lines.map((l,li)=>`<text x="${lp.x.toFixed(1)}" y="${(lp.y+(li-Math.floor(lines.length/2))*11).toFixed(1)}" text-anchor="middle" fill="#9e8350" font-size="9.5">${escapeHtml(l)}</text>`).join('');
   }).join('');
   const vals=dataPts.map((p,i)=>`<text x="${p.x.toFixed(1)}" y="${(p.y-6).toFixed(1)}" text-anchor="middle" fill="#f6e7bf" font-size="9" font-weight="700">${metrics[i].value}</text>`).join('');
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${refCircles}${axes}${poly}${dots}${labels}${vals}</svg>`;
@@ -464,6 +501,15 @@ function showState(s) {
 
 function winColor(pct) { return pct>=55?'#4caf7d':pct>=45?'#d4af37':'#ef5350'; }
 
+function safeImageUrl(value) {
+  try {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const url = new URL(String(value || ''), base);
+    if (url.protocol === 'http:' || url.protocol === 'https:') return escapeAttr(url.href);
+  } catch (e) {}
+  return '';
+}
+
 // ─── RENDER: PROFILE ─────────────────────────────────────────────────────────
 
 function renderProfile(profile, stats) {
@@ -477,16 +523,19 @@ function renderProfile(profile, stats) {
     </div></div>`;
   };
   const joined=profile.joined?new Date(profile.joined*1000).toLocaleDateString('en-US',{month:'short',year:'numeric'}):'–';
+  const username = escapeHtml(profile.username || _state.username || 'Player');
+  const usernameAttr = escapeAttr(profile.username || _state.username || 'Player');
+  const avatar = safeImageUrl(profile.avatar);
   e.innerHTML=`<div class="pa-profile-card">
     <div class="pa-profile-left">
-      ${profile.avatar?`<img class="pa-avatar" src="${profile.avatar}" alt="${profile.username}" onerror="this.style.display='none'">`:`<div class="pa-avatar-ph">&#9822;</div>`}
+      ${avatar?`<img class="pa-avatar" src="${avatar}" alt="${usernameAttr}" onerror="this.style.display='none'">`:`<div class="pa-avatar-ph">&#9822;</div>`}
       <div class="pa-profile-info">
-        <h2 class="pa-username">${profile.username}'s Dashboard</h2>
-        ${profile.name?`<p class="pa-realname">${profile.name}</p>`:''}
+        <h2 class="pa-username">${username}'s Dashboard</h2>
+        ${profile.name?`<p class="pa-realname">${escapeHtml(profile.name)}</p>`:''}
         <div class="pa-profile-meta">
           <span>Member since ${joined}</span>
           ${profile.followers?`<span>&#9829; ${profile.followers.toLocaleString()} followers</span>`:''}
-          ${profile.title?`<span class="pa-title-badge">${profile.title}</span>`:''}
+          ${profile.title?`<span class="pa-title-badge">${escapeHtml(profile.title)}</span>`:''}
         </div>
       </div>
     </div>
@@ -527,7 +576,8 @@ function renderKeyMetrics(games, stats) {
 // ─── RENDER: SUMMARY BAR ─────────────────────────────────────────────────────
 
 function renderSummaryBar(games) {
-  const e=qs('paSummaryBar'); if(!e||!games.length) return;
+  const e=qs('paSummaryBar'); if(!e) return;
+  if(!games.length){e.innerHTML='';return;}
   const {wins,total,winPct}=aggWLD(games);
   const sorted=[...games].sort((a,b)=>b.endTime-a.endTime);
   let streak=0; const sType=sorted[0]?.won?'win':sorted[0]?.drew?'draw':'loss';
@@ -630,7 +680,8 @@ function renderWinsByDay(games) {
 // ─── RENDER: STREAKS ─────────────────────────────────────────────────────────
 
 function renderStreaks(games) {
-  const e=qs('paStreaksCard'); if(!e||!games.length) return;
+  const e=qs('paStreaksCard'); if(!e) return;
+  if(!games.length){e.innerHTML='<p class="pa-no-data">No streak data in period</p>';return;}
   const {current,currentType,best,minRating,maxRating}=aggStreaks(games);
   const sColor=currentType==='win'?'#4caf7d':currentType==='loss'?'#ef5350':'#888';
   const sLbl=currentType==='win'?'Wins':currentType==='loss'?'Losses':'Draws';
@@ -816,7 +867,7 @@ function renderHeadToHead(games) {
     const pct=Math.round(d.wins/d.games*100);
     const c=winColor(pct);
     return `<div class="pa-h2h-row">
-      <div class="pa-h2h-name">${d.username}</div>
+      <div class="pa-h2h-name">${escapeHtml(d.username)}</div>
       <div class="pa-h2h-record"><span style="color:#4caf7d">${d.wins}W</span> <span style="color:#555">${d.draws}D</span> <span style="color:#ef5350">${d.losses}L</span></div>
       <div class="pa-h2h-games">${d.games} games</div>
       <div class="pa-h2h-pct" style="color:${c}">${pct}%</div>
@@ -841,7 +892,7 @@ function renderRadar(games) {
     </div>
     <div class="pa-radar-legend">
       ${metrics.map(m=>`<div class="pa-radar-item">
-        <span class="pa-radar-lbl">${m.label.replace('\n',' ')}</span>
+        <span class="pa-radar-lbl">${escapeHtml(m.label.replace('\n',' '))}</span>
         <div class="pa-radar-bar"><div style="width:${m.value}%;background:#4caf7d;height:4px;border-radius:2px;transition:width .3s"></div></div>
         <span class="pa-radar-val">${m.value}</span>
       </div>`).join('')}
@@ -867,8 +918,8 @@ function renderOpenings(games) {
     if(!arr.length) return '<p class="pa-no-data">No opening data</p>';
     return `<table class="pa-op-table"><thead><tr><th>Opening</th><th>ECO</th><th>Games</th><th>Win %</th></tr></thead><tbody>
       ${arr.map(o=>{const pct=Math.round(o.wins/o.games*100);return `<tr>
-        <td class="pa-op-name">${o.name}</td>
-        <td><span class="pa-eco">${o.eco}</span></td>
+        <td class="pa-op-name">${escapeHtml(o.name)}</td>
+        <td><span class="pa-eco">${escapeHtml(o.eco)}</span></td>
         <td>${o.games}</td>
         <td style="color:${winColor(pct)};font-weight:700">${pct}%</td>
       </tr>`;}).join('')}
@@ -906,7 +957,7 @@ function renderOpenings(games) {
     </div>
   </div>`;
   e.querySelectorAll('.pa-ctab').forEach(btn=>{
-    btn.addEventListener('click',()=>{
+    bindClick(btn, ()=>{
       e.querySelectorAll('.pa-ctab').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       const c=btn.dataset.c;
@@ -1023,11 +1074,228 @@ function renderLossAnalysis(games) {
   </div>`;
 }
 
+// ─── RENDER: PERFORMANCE INSIGHTS ───────────────────────────────────────────
+
+function renderPerformanceSummary(filtered, allPeriod) {
+  const e = qs('paInsights');
+  if (!e) return;
+  if (!filtered.length) { e.innerHTML = ''; return; }
+
+  const insights = [];
+
+  // 1. Win rate
+  const { winPct, total, wins } = aggWLD(filtered);
+  const wr = Math.round(winPct);
+  if (total >= 5) {
+    const wColor = wr >= 55 ? '#4caf7d' : wr >= 45 ? '#d4af37' : '#ef5350';
+    const wNote = wr >= 55 ? 'Strong result — keep the pressure up.' : wr >= 45 ? 'Hovering near 50/50 — small adjustments could tip the scale.' : 'Below break-even — focus on avoiding early blunders.';
+    insights.push({ icon: '&#9989;', text: `You won <strong style="color:${wColor}">${wr}%</strong> of ${total} games in this period. ${wNote}` });
+  }
+
+  // 2. Best time control
+  const tcData = aggByTC(allPeriod);
+  if (tcData.length >= 2) {
+    const best = tcData.reduce((a, b) => b.winRate > a.winRate ? b : a);
+    const worst = tcData.reduce((a, b) => b.winRate < a.winRate ? b : a);
+    const tcColors = { rapid: '#4caf7d', blitz: '#d4af37', bullet: '#ef5350', daily: '#a78bfa' };
+    if (best.tc !== worst.tc) {
+      insights.push({ icon: '&#9201;', text: `Your strongest format is <strong style="color:${tcColors[best.tc] || '#d4af37'}">${best.tc.charAt(0).toUpperCase() + best.tc.slice(1)}</strong> (${Math.round(best.winRate)}% wins). Consider playing more of it to grind rating.` });
+    }
+  }
+
+  // 3. Rating trend
+  const ratedGames = filtered.filter(g => g.rating > 0).sort((a, b) => a.endTime - b.endTime);
+  if (ratedGames.length >= 4) {
+    const first = ratedGames[0].rating;
+    const last = ratedGames[ratedGames.length - 1].rating;
+    const diff = last - first;
+    const sign = diff >= 0 ? '+' : '';
+    const rColor = diff > 0 ? '#4caf7d' : diff < 0 ? '#ef5350' : '#888';
+    if (Math.abs(diff) >= 5) {
+      const note = diff > 25 ? 'Excellent momentum — you\'re improving fast.' : diff > 0 ? 'Steady climb — consistency is paying off.' : diff < -25 ? 'Significant rating drop — review your most common loss patterns.' : 'Slight dip — a short break or opening study could help.';
+      insights.push({ icon: '&#128200;', text: `Rating moved <strong style="color:${rColor}">${sign}${diff} pts</strong> (${first} → ${last}) in this period. ${note}` });
+    }
+  }
+
+  // 4. Best day of week
+  const dowData = aggByDOW(filtered).filter(d => d.games >= 3);
+  if (dowData.length >= 3) {
+    const bestDay = dowData.reduce((a, b) => b.winRate > a.winRate ? b : a);
+    const worstDay = dowData.reduce((a, b) => b.winRate < a.winRate ? b : a);
+    if (bestDay.day !== worstDay.day && bestDay.winRate - worstDay.winRate > 8) {
+      insights.push({ icon: '&#128197;', text: `You play best on <strong style="color:#d4af37">${bestDay.day}</strong> (${Math.round(bestDay.winRate)}% win rate) and struggle most on <strong style="color:#ef5350">${worstDay.day}</strong> (${Math.round(worstDay.winRate)}%). Schedule your important games accordingly.` });
+    }
+  }
+
+  // 5. Color imbalance
+  const wh = filtered.filter(g => g.color === 'white');
+  const bl = filtered.filter(g => g.color === 'black');
+  const wPct = wh.length ? Math.round(wh.filter(g => g.won).length / wh.length * 100) : null;
+  const bPct = bl.length ? Math.round(bl.filter(g => g.won).length / bl.length * 100) : null;
+  if (wPct !== null && bPct !== null && wh.length >= 5 && bl.length >= 5) {
+    const gap = Math.abs(wPct - bPct);
+    if (gap >= 8) {
+      const stronger = wPct > bPct ? 'White' : 'Black';
+      const weaker = wPct > bPct ? 'Black' : 'White';
+      const weakerPct = wPct > bPct ? bPct : wPct;
+      insights.push({ icon: '&#9823;', text: `You win ${gap}% more often as <strong style="color:#d4af37">${stronger}</strong> than ${weaker} (${weakerPct}%). Study your ${weaker} repertoire to close the gap.` });
+    }
+  }
+
+  if (!insights.length) { e.innerHTML = ''; return; }
+
+  e.innerHTML = `
+    <div class="pa-insights-header">
+      <span class="pa-insights-icon">&#129504;</span>
+      <div><div class="pa-insights-title">Performance Summary</div><div class="pa-insights-sub">Key takeaways from your games in this period</div></div>
+    </div>
+    <div class="pa-insights-list">
+      ${insights.map(ins => `<div class="pa-insight-item"><span class="pa-insight-icon">${ins.icon}</span><span class="pa-insight-text">${ins.text}</span></div>`).join('')}
+    </div>`;
+}
+
+// ─── RENDER: GAME RESULTS DUAL-RING DONUT ────────────────────────────────────
+
+function renderGameResults(games) {
+  const e = qs('paGameResults');
+  if (!e) return;
+  if (!games.length) { e.innerHTML = ''; return; }
+
+  const total = games.length;
+  const wins   = games.filter(g => g.won);
+  const losses = games.filter(g => g.lost);
+  const draws  = games.filter(g => g.drew);
+
+  const winTypes = [
+    { label: 'Resigned',   count: wins.filter(g => g.oppResult === 'resigned').length,   color: '#27ae60' },
+    { label: 'Timeout',    count: wins.filter(g => g.oppResult === 'timeout').length,    color: '#1a9141' },
+    { label: 'Checkmated', count: wins.filter(g => g.oppResult === 'checkmated').length, color: '#52be80' },
+    { label: 'Abandoned',  count: wins.filter(g => g.oppResult === 'abandoned').length,  color: '#0d7047' },
+  ].filter(t => t.count > 0);
+  const winOther = wins.length - winTypes.reduce((s, t) => s + t.count, 0);
+  if (winOther > 0) winTypes.push({ label: 'Other wins', count: winOther, color: '#145a32' });
+
+  const lossTypes = [
+    { label: 'Resigned',   count: losses.filter(g => g.result === 'resigned').length,   color: '#e74c3c' },
+    { label: 'Timeout',    count: losses.filter(g => g.result === 'timeout').length,    color: '#c0392b' },
+    { label: 'Checkmated', count: losses.filter(g => g.result === 'checkmated').length, color: '#a93226' },
+    { label: 'Abandoned',  count: losses.filter(g => g.result === 'abandoned').length,  color: '#d35400' },
+  ].filter(t => t.count > 0);
+  const lossOther = losses.length - lossTypes.reduce((s, t) => s + t.count, 0);
+  if (lossOther > 0) lossTypes.push({ label: 'Other losses', count: lossOther, color: '#7b241c' });
+
+  const sorted = [...games].sort((a, b) => a.endTime - b.endTime);
+  const fmt = t => t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const dateRange = sorted.length ? `${fmt(sorted[0].endTime)} – ${fmt(sorted[sorted.length - 1].endTime)}` : '';
+
+  const W = 700, H = 490, CX = 340, CY = 248;
+  const IN1 = 90, IN2 = 143, OUT1 = 151, OUT2 = 200, SEG_GAP = 1.5;
+
+  function toXY(r, deg) {
+    const rad = (deg - 90) * Math.PI / 180;
+    return [CX + r * Math.cos(rad), CY + r * Math.sin(rad)];
+  }
+
+  function makeArc(r1, r2, a0, a1) {
+    const span = a1 - a0;
+    if (span <= 0.01) return '';
+    const [x0, y0] = toXY(r2, a0), [x1, y1] = toXY(r2, a1);
+    const [x2, y2] = toXY(r1, a1), [x3, y3] = toXY(r1, a0);
+    const lg = span > 180 ? 1 : 0;
+    return `M${x0.toFixed(2)},${y0.toFixed(2)} A${r2},${r2} 0 ${lg} 1 ${x1.toFixed(2)},${y1.toFixed(2)} L${x2.toFixed(2)},${y2.toFixed(2)} A${r1},${r1} 0 ${lg} 0 ${x3.toFixed(2)},${y3.toFixed(2)} Z`;
+  }
+
+  const wFrac = wins.length / total, dFrac = draws.length / total;
+  const wDeg = wFrac * 360, dDeg = dFrac * 360;
+  const parts = [], lbls = [];
+
+  // Inner ring
+  if (wDeg > SEG_GAP)
+    parts.push(`<path d="${makeArc(IN1, IN2, SEG_GAP / 2, wDeg - SEG_GAP / 2)}" fill="#2e7d4f" stroke="#0b0b0c" stroke-width="1.5"/>`);
+  if (dDeg > 2)
+    parts.push(`<path d="${makeArc(IN1, IN2, wDeg + SEG_GAP / 2, wDeg + dDeg - SEG_GAP / 2)}" fill="#4a5568" stroke="#0b0b0c" stroke-width="1.5"/>`);
+  if (360 - wDeg - dDeg > SEG_GAP)
+    parts.push(`<path d="${makeArc(IN1, IN2, wDeg + dDeg + SEG_GAP / 2, 360 - SEG_GAP / 2)}" fill="#922b21" stroke="#0b0b0c" stroke-width="1.5"/>`);
+
+  // Center labels inside the hole
+  function segLabel(midDeg, l1, l2, c1, c2) {
+    const [x, y] = toXY(54, midDeg);
+    return `<text x="${x.toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle" fill="${c1}" font-size="12" font-weight="700" font-family="ui-monospace,monospace">${l1}</text>
+      <text x="${x.toFixed(1)}" y="${(y + 9).toFixed(1)}" text-anchor="middle" fill="${c2}" font-size="10.5" font-family="ui-monospace,monospace">${l2}</text>`;
+  }
+  lbls.push(segLabel(wDeg / 2, 'Wins', `${wins.length.toLocaleString()} (${(wFrac * 100).toFixed(1)}%)`, '#86efac', '#a3d9b5'));
+  const lossMid = wDeg + dDeg + (360 - wDeg - dDeg) / 2;
+  lbls.push(segLabel(lossMid, 'Losses', `${losses.length.toLocaleString()} (${((1 - wFrac - dFrac) * 100).toFixed(1)}%)`, '#fca5a5', '#e0b0b0'));
+  if (dDeg > 8) {
+    const [dx, dy] = toXY(56, wDeg + dDeg / 2);
+    lbls.push(`<text x="${dx.toFixed(1)}" y="${dy.toFixed(1)}" text-anchor="middle" fill="#8899aa" font-size="9.5" font-family="ui-monospace,monospace">Draws ${draws.length} (${(dFrac * 100).toFixed(1)}%)</text>`);
+  }
+
+  // Leader-line labels for outer ring
+  function leaderLine(midDeg, label, dotColor) {
+    const cosA = Math.cos((midDeg - 90) * Math.PI / 180);
+    const sinA = Math.sin((midDeg - 90) * Math.PI / 180);
+    const isRight = cosA >= 0;
+    const [ax, ay] = [CX + (OUT2 + 6) * cosA,  CY + (OUT2 + 6) * sinA];
+    const [bx, by] = [CX + (OUT2 + 26) * cosA, CY + (OUT2 + 26) * sinA];
+    const hx = isRight ? bx + 30 : bx - 30;
+    const tx = isRight ? hx + 5  : hx - 5;
+    const anchor = isRight ? 'start' : 'end';
+    return `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#555" stroke-width="0.8"/>
+      <line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${hx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#555" stroke-width="0.8"/>
+      <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="2.5" fill="${dotColor}"/>
+      <text x="${tx.toFixed(1)}" y="${(by + 4).toFixed(1)}" text-anchor="${anchor}" fill="#c5c5c5" font-size="11.5" font-weight="500" font-family="ui-monospace,monospace">${escapeHtml(label)}</text>`;
+  }
+
+  // Outer ring – wins
+  let angle = SEG_GAP / 2;
+  winTypes.forEach(seg => {
+    const segDeg = (seg.count / total) * 360;
+    if (segDeg < SEG_GAP * 2) { angle += segDeg; return; }
+    const endA = angle + segDeg - SEG_GAP;
+    parts.push(`<path d="${makeArc(OUT1, OUT2, angle, endA)}" fill="${seg.color}" stroke="#0b0b0c" stroke-width="1"/>`);
+    if (segDeg > 6)
+      lbls.push(leaderLine((angle + endA) / 2, `${seg.label}: ${seg.count.toLocaleString()} (${(seg.count / total * 100).toFixed(1)}%)`, seg.color));
+    angle += segDeg;
+  });
+
+  // Outer draws sliver
+  if (dDeg > 2) {
+    const ds = wDeg + SEG_GAP, de = wDeg + dDeg - SEG_GAP;
+    if (de > ds) parts.push(`<path d="${makeArc(OUT1, OUT2, ds, de)}" fill="#5a6475" stroke="#0b0b0c" stroke-width="1"/>`);
+  }
+
+  // Outer ring – losses
+  angle = wDeg + dDeg + SEG_GAP / 2;
+  lossTypes.forEach(seg => {
+    const segDeg = (seg.count / total) * 360;
+    if (segDeg < SEG_GAP * 2) { angle += segDeg; return; }
+    const endA = angle + segDeg - SEG_GAP;
+    parts.push(`<path d="${makeArc(OUT1, OUT2, angle, endA)}" fill="${seg.color}" stroke="#0b0b0c" stroke-width="1"/>`);
+    if (segDeg > 6)
+      lbls.push(leaderLine((angle + endA) / 2, `${seg.label}: ${seg.count.toLocaleString()} (${(seg.count / total * 100).toFixed(1)}%)`, seg.color));
+    angle += segDeg;
+  });
+
+  const tcLabel = (_state.selectedTC || 'all').toUpperCase();
+  e.innerHTML = `<div style="padding:14px 18px 0;display:flex;align-items:center;gap:8px">
+    <span style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--text-primary)">GAME RESULTS</span>
+    <span style="font-size:13px;color:#505a65;cursor:default" title="Outer ring shows win/loss subtypes; inner ring shows overall W/D/L">&#9432;</span>
+  </div>
+  <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">
+    ${parts.join('\n    ')}
+    ${lbls.join('\n    ')}
+    <text x="16" y="${H - 16}" fill="#505a65" font-size="10.5" font-family="ui-monospace,monospace">${tcLabel} • ${dateRange}</text>
+  </svg>`;
+}
+
 // ─── WIRE CONTROLS ───────────────────────────────────────────────────────────
 
 function wireControls() {
+  if (controlsWired) return;
+  controlsWired = true;
   document.querySelectorAll('.pa-tc-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
+    bindClick(btn, ()=>{
       document.querySelectorAll('.pa-tc-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       _state.selectedTC=btn.dataset.tc;
@@ -1035,7 +1303,7 @@ function wireControls() {
     });
   });
   document.querySelectorAll('.pa-period-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
+    bindClick(btn, ()=>{
       document.querySelectorAll('.pa-period-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       _state.selectedPeriod=parseInt(btn.dataset.period);
@@ -1054,6 +1322,8 @@ function refreshRender() {
 
   renderKeyMetrics(filtered, stats);
   renderSummaryBar(filtered);
+  renderPerformanceSummary(filtered, allPeriod);
+  renderGameResults(filtered);
 
   // Performance Vitals
   renderWLD(filtered);
@@ -1101,8 +1371,8 @@ async function analyze(username) {
 
     const { archives = [] } = await apiGet(`${CHESS_API}/${_state.username}/games/archives`);
 
-    // Fetch last 6 months in parallel
-    const toFetch = archives.slice(-6);
+    // Fetch enough history for the 12-month filter.
+    const toFetch = archives.slice(-PLAYER_ANALYZE_MONTHS);
     const monthsData = await Promise.all(
       toFetch.map(url => apiGet(url).then(d => d.games || []).catch(() => []))
     );
@@ -1124,12 +1394,22 @@ async function analyze(username) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 
 function init() {
+  if (uiInitialized) return;
   const input = qs('paUsernameInput');
   const btn = qs('paAnalyzeBtn');
   if (!input || !btn) return;
+  uiInitialized = true;
   const go = () => { const u = input.value.trim(); if (u) analyze(u); };
-  btn.addEventListener('click', go);
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  bindClick(btn, go);
+  bind(input, 'keydown', e => { if (e.key === 'Enter') go(); });
 }
 
 export default { init, analyze };
+
+// Named exports for unit testing (pure aggregation functions, no DOM deps)
+export {
+  filterByTC, filterByPeriod,
+  aggWLD, aggByTC, aggMonthly, aggByDOW,
+  aggRatingDiff, aggOppStrength, aggHeadToHead,
+  aggStreaks, aggRadar, aggResultBreakdown, aggKeyMetrics,
+};

@@ -1,9 +1,6 @@
 import React, { useEffect } from 'react';
 import AppController, { HomeController } from './controllers/AppController';
-import EngineController from './controllers/EngineController';
-import ChessBoard from './controllers/ChessBoard';
 import PuzzleController from './controllers/PuzzleController';
-import PlayerAnalyzeController from './controllers/PlayerAnalyzeController';
 
 function showBootError(error) {
   if (typeof document === 'undefined') return;
@@ -50,14 +47,10 @@ function App() {
       if (typeof window !== 'undefined') {
         window.AppController = AppController;
         window.HomeController = HomeController;
-        window.EngineController = EngineController;
-        window.ChessBoard = ChessBoard;
         window.PuzzleController = PuzzleController;
-        window.PlayerAnalyzeController = PlayerAnalyzeController;
       }
 
       AppController.init();
-      PlayerAnalyzeController.init();
     } catch (error) {
       console.error('App boot failed', error);
       showBootError(error);
@@ -337,15 +330,38 @@ function App() {
                 <div className="home-card">
                   <div className="hc-header">
                     <span className="hc-title">Linked Accounts</span>
+                    <div className="acct-platform-toggle">
+                      <button
+                        type="button"
+                        className="acct-toggle-btn active"
+                        id="toggleChesscom"
+                        onClick={() => {
+                          document.getElementById('acctPanelChesscom').style.display = 'block';
+                          document.getElementById('acctPanelLichess').style.display = 'none';
+                          document.getElementById('toggleChesscom').classList.add('active');
+                          document.getElementById('toggleLichess').classList.remove('active');
+                        }}
+                      >Chess.com</button>
+                      <button
+                        type="button"
+                        className="acct-toggle-btn"
+                        id="toggleLichess"
+                        onClick={() => {
+                          document.getElementById('acctPanelChesscom').style.display = 'none';
+                          document.getElementById('acctPanelLichess').style.display = 'block';
+                          document.getElementById('toggleLichess').classList.add('active');
+                          document.getElementById('toggleChesscom').classList.remove('active');
+                        }}
+                      >Lichess</button>
+                    </div>
                   </div>
-                  <div className="account-card">
+
+                  <div id="acctPanelChesscom" className="account-card">
                     <div className="hc-header" style={{ marginBottom: '10px' }}>
                       <div className="account-icon cc-icon">&#9823;</div>
                       <div>
                         <div className="hc-title">Chess.com</div>
-                        <span className="acct-badge" id="chesscomStatus">
-                          Not linked
-                        </span>
+                        <span className="acct-badge" id="chesscomStatus">Not linked</span>
                       </div>
                     </div>
                     <div className="account-input-row">
@@ -356,34 +372,24 @@ function App() {
                         placeholder="Chess.com username..."
                         defaultValue=""
                       />
-                      <button type="button" className="btn-link-acct cc-btn" id="linkChesscom">
-                        Link
-                      </button>
+                      <button type="button" className="btn-link-acct cc-btn" id="linkChesscom">Link</button>
                     </div>
                     <div className="account-linked-info" id="chesscomLinkedInfo" style={{ display: 'none' }}>
                       <div className="linked-name" id="chesscomLinkedName">@username</div>
                       <div className="linked-btns">
-                        <button type="button" className="btn-sm-green" id="fetchChesscomGames" onClick={handleHomeChesscomFetch}>
-                          Fetch Games
-                        </button>
-                        <button type="button" className="btn-sm-red" id="unlinkChesscom">
-                          Unlink
-                        </button>
+                        <button type="button" className="btn-sm-green" id="fetchChesscomGames" onClick={handleHomeChesscomFetch}>Fetch Games</button>
+                        <button type="button" className="btn-sm-red" id="unlinkChesscom">Unlink</button>
                       </div>
                     </div>
-                    <div className="platform-games-list" id="chesscomGamesList">
-                      <div className="no-games">Fetched Chess.com games appear in the Games tab.</div>
-                    </div>
+                    <div className="platform-games-list" id="chesscomGamesList"></div>
                   </div>
 
-                  <div className="account-card" style={{ marginTop: '16px' }}>
+                  <div id="acctPanelLichess" className="account-card" style={{ display: 'none' }}>
                     <div className="hc-header" style={{ marginBottom: '10px' }}>
                       <div className="account-icon lc-icon">&#9820;</div>
                       <div>
                         <div className="hc-title">Lichess.org</div>
-                        <span className="acct-badge" id="lichessStatus">
-                          Not linked
-                        </span>
+                        <span className="acct-badge" id="lichessStatus">Not linked</span>
                       </div>
                     </div>
                     <div className="account-input-row">
@@ -394,19 +400,13 @@ function App() {
                         placeholder="Lichess username..."
                         defaultValue=""
                       />
-                      <button type="button" className="btn-link-acct lc-btn" id="linkLichess">
-                        Link
-                      </button>
+                      <button type="button" className="btn-link-acct lc-btn" id="linkLichess">Link</button>
                     </div>
                     <div className="account-linked-info" id="lichessLinkedInfo" style={{ display: 'none' }}>
                       <div className="linked-name" id="lichessLinkedName">@username</div>
                       <div className="linked-btns">
-                        <button type="button" className="btn-sm-green" id="fetchLichessGames">
-                          Fetch Games
-                        </button>
-                        <button type="button" className="btn-sm-red" id="unlinkLichess">
-                          Unlink
-                        </button>
+                        <button type="button" className="btn-sm-green" id="fetchLichessGames">Fetch Games</button>
+                        <button type="button" className="btn-sm-red" id="unlinkLichess">Unlink</button>
                       </div>
                     </div>
                     <div className="platform-games-list" id="lichessGamesList">
@@ -540,11 +540,12 @@ function App() {
                 <div className="player-clock" id="whiteClock">--:--</div>
               </div>
 
-              <div className="opening-info" style={{ marginTop: '8px', marginBottom: '8px' }}>
-                <div className="opening-name" id="openingName">
-                  Opening: Waiting for moves
+              <div className="opening-info" id="openingInfo" style={{ marginTop: '8px', marginBottom: '8px' }}>
+                <div className="opening-live-row">
+                  <span className="opening-live-dot" id="openingLiveDot"></span>
+                  <span className="opening-name" id="openingName">Waiting for moves\u2026</span>
+                  <span className="opening-eco-badge" id="openingEco"></span>
                 </div>
-                <div className="opening-eco" id="openingEco">ECO —</div>
               </div>
 
               <div className="nav-controls">
@@ -568,21 +569,6 @@ function App() {
                 </button>
               </div>
 
-              <div className="fen-input-row" style={{ marginTop: '10px' }}>
-                <input
-                  type="text"
-                  className="fen-input"
-                  id="fenInput"
-                  placeholder="Enter FEN position"
-                  defaultValue=""
-                />
-                <button type="button" className="btn-fen" id="loadFen">
-                  Load
-                </button>
-                <button type="button" className="btn-fen" id="copyFENBtn">
-                  Copy
-                </button>
-              </div>
             </div>
 
             <div className="analysis-panel">
@@ -663,8 +649,24 @@ function App() {
                     </div>
                   </div>
 
-                  <div className="gr-graph-wrap">
-                    <canvas id="evalGraph" width="400" height="120"></canvas>
+                  <div className="gr-cpl-section">
+                    <div className="gr-cpl-header">
+                      <span className="gr-section-title" style={{margin:0}}>Centipawn Loss</span>
+                      <div className="gr-cpl-legend">
+                        <span className="gr-legend-item"><span className="gr-legend-dot accurate"></span>Accurate</span>
+                        <span className="gr-legend-item"><span className="gr-legend-dot inaccuracy"></span>Inaccuracy</span>
+                        <span className="gr-legend-item"><span className="gr-legend-dot mistake"></span>Mistake</span>
+                        <span className="gr-legend-item"><span className="gr-legend-dot blunder"></span>Blunder</span>
+                      </div>
+                    </div>
+                    <div className="gr-cpl-chart-wrap" id="cplChartWrap">
+                      <canvas id="cplChart" height="130"></canvas>
+                      <div className="cpl-tooltip" id="cplTooltip" style={{display:'none'}}></div>
+                    </div>
+                  </div>
+
+                  <div className="gr-graph-wrap gr-eval-graph-wrap">
+                    <canvas id="evalGraph" width="400" height="80"></canvas>
                   </div>
 
                   <div className="gr-section-title">Players</div>
@@ -793,6 +795,16 @@ function App() {
                   <input type="range" min="8" max="35" defaultValue="20" id="depthSlider" className="dark-slider" />
                   <span id="depthVal">20</span>
                 </div>
+                <div className="slider-row">
+                  <span>Threads</span>
+                  <input type="range" min="1" max="16" defaultValue="2" id="threadsSlider" className="dark-slider" />
+                  <span id="threadsVal">2</span>
+                </div>
+                <div className="slider-row">
+                  <span>Hash (MB)</span>
+                  <input type="range" min="64" max="1024" step="64" defaultValue="256" id="hashSlider" className="dark-slider" />
+                  <span id="hashVal">256</span>
+                </div>
                 <div className="setting-row toggle-row">
                   <span>Analysis Mode</span>
                   <label className="toggle">
@@ -802,27 +814,6 @@ function App() {
                 </div>
               </div>
 
-              <div className="tools-card">
-                <div className="tools-card-title">Game Tools</div>
-                <button type="button" className="btn-full" onClick={() => handleSwitchTab('import')}>
-                  Import New Game
-                </button>
-                <button
-                  type="button"
-                  className="btn-full"
-                  style={{ marginTop: '8px' }}
-                  onClick={() => handleSwitchTab('database')}
-                >
-                  Open Database
-                </button>
-              </div>
-
-              <div className="saved-games-card">
-                <div className="saved-title">Saved Games</div>
-                <div className="saved-games-list" id="savedGamesList">
-                  <div className="no-games">Save analyzed games to reuse later.</div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -1406,6 +1397,15 @@ function App() {
               </div>
             </div>
 
+            {/* Due for Review banner */}
+            <div id="reviewQueueBanner" className="review-queue-banner" style={{ display: 'none' }}>
+              <span style={{ fontSize: '18px' }}>&#127344;</span>
+              <span id="reviewQueueCount" style={{ flex: 1 }}>0 lines due for review</span>
+              <button type="button" id="startReviewBtn" className="review-start-btn">
+                Start Review &#9889;
+              </button>
+            </div>
+
             <div className="openings-toolbar">
               <input
                 type="text"
@@ -1546,11 +1546,22 @@ function App() {
                 <div className="coach-text">Select an opening to begin practicing.</div>
               </div>
 
+              {/* SRS rating panel — shown after variation completion */}
+              <div id="srsRatingPanel" className="srs-rating-panel" style={{ display: 'none' }}></div>
+
               <div className="practice-moves-panel">
                 <div className="practice-moves-header" id="practiceMovesHeader">Moves</div>
                 <div className="practice-pgn-line" id="practiceMovePgn"></div>
                 <div className="practice-move-list" id="practiceMoveList">
                   {/* Moves rendered by JS */}
+                </div>
+              </div>
+
+              {/* Related Lines — variation branching */}
+              <div className="practice-moves-panel related-lines-panel">
+                <div className="practice-moves-header">Related Lines</div>
+                <div id="relatedLinesList">
+                  <div className="related-empty">Select a variation to see related lines.</div>
                 </div>
               </div>
             </div>
@@ -1740,7 +1751,7 @@ function App() {
                   </li>
                   <li className="pricing-feature is-excluded">
                     <span className="pricing-feature-icon">&#10007;</span>
-                    Practice openings (173 openings)
+                    Practice openings (380 openings)
                   </li>
                   <li className="pricing-feature is-excluded">
                     <span className="pricing-feature-icon">&#10007;</span>
@@ -1775,7 +1786,7 @@ function App() {
                   </li>
                   <li className="pricing-feature is-included">
                     <span className="pricing-feature-icon">&#10003;</span>
-                    Practice 173 openings &amp; 3,901 variations
+                    Practice 380 openings &amp; 4,235 variations
                   </li>
                   <li className="pricing-feature is-included">
                     <span className="pricing-feature-icon">&#10003;</span>
@@ -1824,7 +1835,7 @@ function App() {
                   </li>
                   <li className="pricing-feature is-included">
                     <span className="pricing-feature-icon">&#10003;</span>
-                    Practice 173 openings &amp; 3,901 variations
+                    Practice 380 openings &amp; 4,235 variations
                   </li>
                   <li className="pricing-feature is-included">
                     <span className="pricing-feature-icon">&#10003;</span>
@@ -2021,7 +2032,7 @@ function App() {
                 <div className="setting-row toggle-row settings-sound-row">
                   <span>Move sound</span>
                   <label className="toggle">
-                    <input type="checkbox" id="settingsMoveSound" defaultChecked />
+                    <input type="checkbox" id="settingsMoveSound" />
                     <span className="toggle-slider"></span>
                   </label>
                 </div>
@@ -2071,7 +2082,7 @@ function App() {
             {/* Hero search */}
             <div className="pa-hero">
               <h1 className="pa-hero-title">Player Analyze</h1>
-              <p className="pa-hero-sub">Full chess analytics dashboard — mirrors ChessAnalytics.py with 20+ charts</p>
+              <p className="pa-hero-sub">Find rating leaks, opening weaknesses, and recurring loss patterns from recent games</p>
               <div className="pa-search-row">
                 <input type="text" id="paUsernameInput" className="pa-search-input"
                   placeholder="Enter Chess.com username..." autoComplete="off" />
@@ -2083,7 +2094,7 @@ function App() {
             <div id="paLoading" className="pa-loading" style={{ display: 'none' }}>
               <div className="pa-loading-knight">&#9822;</div>
               <p>Loading player data...</p>
-              <p className="pa-loading-sub">Fetching last 6 months of games from Chess.com API</p>
+              <p className="pa-loading-sub">Fetching up to 12 months of games from Chess.com API</p>
             </div>
 
             {/* Error */}
@@ -2119,6 +2130,12 @@ function App() {
 
               {/* Summary bar */}
               <div id="paSummaryBar" className="pa-summary-bar"></div>
+
+              {/* Performance Insights */}
+              <div id="paInsights" className="pa-insights-card pa-card pa-mt"></div>
+
+              {/* Game Results dual-ring donut */}
+              <div id="paGameResults" className="pa-card pa-mt"></div>
 
               {/* ── PERFORMANCE VITALS ── */}
               <div className="pa-section-hdr">

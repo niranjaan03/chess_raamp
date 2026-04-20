@@ -210,7 +210,7 @@ const adaptHistoryEntry = (move, prevPosition, classifiedPosition, isLast) => {
 //   accuracy: { white, black },
 //   estimatedElo: { white, black } | undefined,
 // }
-export const analyzeGameWithChessKit = ({ history, positions, batchResults, meta }) => {
+export const analyzeGameWithChessKit = async ({ history, positions, batchResults, meta }) => {
   if (!history || !history.length) {
     return {
       classifiedHistory: [],
@@ -223,7 +223,7 @@ export const analyzeGameWithChessKit = ({ history, positions, batchResults, meta
   }
 
   const { rawPositions, uciMoves, fens } = buildPipelineInputs(history, positions, batchResults);
-  const classifiedPositions = getMovesClassification(rawPositions, uciMoves, fens);
+  const classifiedPositions = await getMovesClassification(rawPositions, uciMoves, fens);
 
   const classifiedHistory = history.map((move, i) => {
     const prev = rawPositions[i];

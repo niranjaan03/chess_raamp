@@ -81,15 +81,17 @@ function parseInfoLine(line) {
   };
 }
 
-function writeEngineSetup(engine, { multiPv }) {
-  engine.stdin.write(`setoption name Threads value ${ENGINE_THREADS}\n`);
-  engine.stdin.write(`setoption name Hash value ${ENGINE_HASH_MB}\n`);
+function writeEngineSetup(engine, { multiPv, threads, hashMb }) {
+  const t = (threads && threads > 0 && threads <= 32) ? threads : ENGINE_THREADS;
+  const h = (hashMb && hashMb >= 16 && hashMb <= 2048) ? hashMb : ENGINE_HASH_MB;
+  engine.stdin.write(`setoption name Threads value ${t}\n`);
+  engine.stdin.write(`setoption name Hash value ${h}\n`);
   engine.stdin.write(`setoption name UCI_ShowWDL value true\n`);
   engine.stdin.write(`setoption name MultiPV value ${multiPv}\n`);
   engine.stdin.write(`setoption name UCI_LimitStrength value false\n`);
 }
 
-function runStockfishAnalysis({ fen, depth, multiPv }) {
+function runStockfishAnalysis({ fen, depth, multiPv, threads, hashMb }) {
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(ENGINE_PATH)) {
       reject(new Error(`Stockfish binary not found at ${ENGINE_PATH}`));
@@ -156,7 +158,7 @@ function runStockfishAnalysis({ fen, depth, multiPv }) {
 
       if (line === 'uciok' && !uciAcknowledged) {
         uciAcknowledged = true;
-        writeEngineSetup(engine, { multiPv });
+        writeEngineSetup(engine, { multiPv, threads, hashMb });
         engine.stdin.write('ucinewgame\n');
         engine.stdin.write('isready\n');
         return;
@@ -219,7 +221,7 @@ function readJsonBody(req) {
   });
 }
 
-function runBatchAnalysis({ positions, depth, multiPv }) {
+function runBatchAnalysis({ positions, depth, multiPv, threads, hashMb }) {
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(ENGINE_PATH)) {
       reject(new Error(`Stockfish binary not found at ${ENGINE_PATH}`));
@@ -297,7 +299,7 @@ function runBatchAnalysis({ positions, depth, multiPv }) {
 
       if (line === 'uciok' && !uciAcknowledged) {
         uciAcknowledged = true;
-        writeEngineSetup(engine, { multiPv });
+        writeEngineSetup(engine, { multiPv, threads, hashMb });
         engine.stdin.write('ucinewgame\n');
         engine.stdin.write('isready\n');
         return;
@@ -372,13 +374,15 @@ function createMiddleware() {
         const fen = typeof body.fen === 'string' ? body.fen : '';
         const depth = Math.max(1, Math.min(30, parseInt(body.depth, 10) || 18));
         const multiPv = Math.max(1, Math.min(5, parseInt(body.multiPv, 10) || 1));
+        const threads = body.threads ? parseInt(body.threads, 10) : null;
+        const hashMb = body.hashMb ? parseInt(body.hashMb, 10) : null;
 
         if (!fen) {
           sendJson(res, 400, { ok: false, error: 'Missing FEN' });
           return;
         }
 
-        const result = await runStockfishAnalysis({ fen, depth, multiPv });
+        const result = await runStockfishAnalysis({ fen, depth, multiPv, threads, hashMb });
         sendJson(res, 200, result);
       } catch (err) {
         sendJson(res, 500, {
@@ -395,13 +399,15 @@ function createMiddleware() {
         const positions = Array.isArray(body.positions) ? body.positions : [];
         const depth = Math.max(1, Math.min(30, parseInt(body.depth, 10) || 18));
         const multiPv = Math.max(1, Math.min(5, parseInt(body.multiPv, 10) || 1));
+        const threads = body.threads ? parseInt(body.threads, 10) : null;
+        const hashMb = body.hashMb ? parseInt(body.hashMb, 10) : null;
 
         if (!positions.length) {
           sendJson(res, 400, { ok: false, error: 'No positions provided' });
           return;
         }
 
-        const results = await runBatchAnalysis({ positions, depth, multiPv });
+        const results = await runBatchAnalysis({ positions, depth, multiPv, threads, hashMb });
         sendJson(res, 200, { ok: true, results });
       } catch (err) {
         sendJson(res, 500, {

@@ -5,21 +5,47 @@ import {
   getPositionWinPercentage,
 } from './winPercentage.js';
 import { MoveClassification } from './enums.js';
-import OPENING_DATA from '../openingData.js';
-import OPENING_DATA_EXTRA from '../openingDataExtra.js';
 import { getIsPieceSacrifice, isSimplePieceRecapture } from './chess.js';
 
-const practiceOpeningsMap = new Map();
-for (const opening of [...OPENING_DATA, ...OPENING_DATA_EXTRA]) {
-  for (const variation of opening.variations) {
-    const piecePos = variation.epd.split(' ')[0];
-    if (!practiceOpeningsMap.has(piecePos)) {
-      practiceOpeningsMap.set(piecePos, variation.fullName);
-    }
+let _openingsMap = null;
+let _liveOpeningMap = null; // { name, eco } per piece-position key
+let _openingsMapPromise = null;
+
+export function loadOpeningsMap() {
+  if (_openingsMap) return Promise.resolve(_openingsMap);
+  if (!_openingsMapPromise) {
+    _openingsMapPromise = Promise.all([
+      import('../openingData.js'),
+      import('../openingDataExtra.js'),
+    ]).then(([od, ode]) => {
+      const nameMap = new Map();
+      const liveMap = new Map();
+      for (const opening of [...od.default, ...ode.default]) {
+        for (const variation of opening.variations) {
+          const piecePos = variation.epd.split(' ')[0];
+          if (!nameMap.has(piecePos)) {
+            nameMap.set(piecePos, variation.fullName);
+            liveMap.set(piecePos, {
+              name: variation.fullName,
+              eco: variation.eco || opening.eco || '',
+            });
+          }
+        }
+      }
+      _openingsMap = nameMap;
+      _liveOpeningMap = liveMap;
+      return nameMap;
+    });
   }
+  return _openingsMapPromise;
 }
 
-export const getMovesClassification = (rawPositions, uciMoves, fens) => {
+export function getLiveOpeningMap() {
+  return _liveOpeningMap;
+}
+
+export const getMovesClassification = async (rawPositions, uciMoves, fens) => {
+  const practiceOpeningsMap = await loadOpeningsMap();
   const positionsWinPercentage = rawPositions.map(getPositionWinPercentage);
   let currentOpening = undefined;
 
@@ -125,7 +151,7 @@ export const getMovesClassification = (rawPositions, uciMoves, fens) => {
   return positions;
 };
 
-const getMoveBasicClassification = (
+export const getMoveBasicClassification = (
   lastPositionWinPercentage,
   positionWinPercentage,
   isWhiteMove

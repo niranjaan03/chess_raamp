@@ -9,6 +9,8 @@ const EngineManager = (function() {
   var activeController = null;
   var readyCallback = null;
   var readyNotified = false;
+  var userThreads = null;
+  var userHash = null;
 
   function initEngine(onReady) {
     readyCallback = onReady;
@@ -65,7 +67,9 @@ const EngineManager = (function() {
       body: JSON.stringify({
         fen: fen,
         depth: depth,
-        multiPv: multiPvCount || 1
+        multiPv: multiPvCount || 1,
+        threads: userThreads,
+        hashMb: userHash
       }),
       signal: activeController.signal
     })
@@ -159,7 +163,9 @@ const EngineManager = (function() {
         body: JSON.stringify({
           positions: chunk,
           depth: depth,
-          multiPv: multiPv || 1
+          multiPv: multiPv || 1,
+          threads: userThreads,
+          hashMb: userHash
         }),
         signal: signal
       })
@@ -205,8 +211,9 @@ const EngineManager = (function() {
     runNextChunk();
   }
 
-  function setOption() {
-    // Native bridge ignores dynamic UCI option changes for now.
+  function setOption(name, value) {
+    if (name === 'Threads') userThreads = parseInt(value, 10) || null;
+    else if (name === 'Hash') userHash = parseInt(value, 10) || null;
   }
 
   function getStatus() {

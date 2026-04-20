@@ -9,6 +9,7 @@ import { openingStatsBridgePlugin } from './server/openingStatsBridge.js';
 export default defineConfig({
   plugins: [react(), stockfishBridgePlugin(), puzzleBridgePlugin(), chesscomBridgePlugin(), lichessBridgePlugin(), openingStatsBridgePlugin()],
   build: {
+    chunkSizeWarningLimit: 1400,
     rollupOptions: {
       output: {
         manualChunks(id) {

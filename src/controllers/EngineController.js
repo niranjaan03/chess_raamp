@@ -12,6 +12,7 @@ import PGNParser from '../lib/pgn-parser.js';
 import EngineManager from './EngineManager';
 import { analyzeGameWithChessKit } from '../lib/chesskit/gameAnalyzer.js';
 import { MoveClassification } from '../lib/chesskit/enums.js';
+import { escapeAttr, escapeHtml, setText } from '../utils/dom.js';
 
 const EngineController = (function() {
   var REVIEW_MULTI_PV = 5;
@@ -73,13 +74,12 @@ const EngineController = (function() {
       var label = engineEl ? engineEl.querySelector('.engine-label') : null;
       var engineName = status && status.engine ? status.engine : 'Stockfish 18';
       if (label) {
-        label.textContent = status && status.ready ? (engineName + ' Ready') : (engineName + ' Offline');
+        setText(label, status && status.ready ? (engineName + ' Ready') : (engineName + ' Offline'));
       }
       if (engineEl) {
         engineEl.classList.remove('is-loading', 'is-ready', 'is-offline');
         engineEl.classList.add(status && status.ready ? 'is-ready' : 'is-offline');
       }
-      console.log('Engine initialized');
     });
   }
 
@@ -150,24 +150,24 @@ const EngineController = (function() {
 
     if (evalEl) {
       if (isMate) {
-        evalEl.textContent = data.eval;
+        setText(evalEl, data.eval);
         evalEl.style.color = 'var(--accent)';
       } else {
-        evalEl.textContent = evalScore > 0 ? '+' + evalScore.toFixed(2) : evalScore.toFixed(2);
+        setText(evalEl, evalScore > 0 ? '+' + evalScore.toFixed(2) : evalScore.toFixed(2));
         evalEl.style.color = evalScore > 0 ? 'var(--text-primary)' : 'var(--danger)';
       }
     }
 
-    if (evalDepthEl) evalDepthEl.textContent = data.depth;
+    setText(evalDepthEl, data.depth);
     if (evalNodesEl && data.nodes) {
-      evalNodesEl.textContent = formatNodes(data.nodes);
+      setText(evalNodesEl, formatNodes(data.nodes));
     }
 
     updateEvalBar(evalScore, isMate, data.eval);
 
     if (bestMoveEl && data.line === 1 && data.pv) {
       var bestMove = data.pv.split(' ')[0];
-      bestMoveEl.textContent = formatMove(bestMove);
+      setText(bestMoveEl, formatMove(bestMove));
     }
   }
 
@@ -213,8 +213,8 @@ const EngineController = (function() {
       var pvFormatted = formatPV(line.pv, fen);
 
       return `<div class="line-item" data-pv="${escapeAttr(line.pv || '')}" onclick="EngineController.loadLine(this)">
-        <span class="${evalClass}">${evalDisplay}</span>
-        <span class="line-moves">${pvFormatted}</span>
+        <span class="${evalClass}">${escapeHtml(evalDisplay)}</span>
+        <span class="line-moves">${escapeHtml(pvFormatted)}</span>
         <span class="line-depth-badge">d${line.depth}</span>
       </div>`;
     }).join('');
@@ -274,10 +274,6 @@ const EngineController = (function() {
     return n;
   }
 
-  function escapeAttr(str) {
-    return str.replace(/"/g, '&quot;');
-  }
-
   function loadLine(el) {
     var pv = el.getAttribute('data-pv');
     if (!pv || !window.AppController) return;
@@ -325,13 +321,13 @@ const EngineController = (function() {
       var tag = tagLabel ? '<span class="' + tagClass + '">' + tagLabel + '</span>' : '';
 
       return '<button type="button" class="gr-live-card' + (idx === 0 ? ' is-best' : '') + '" data-pv="' + escapeAttr(line.pv || '') + '" onclick="EngineController.loadLine(this)">' +
-        '<span class="' + evalClass + '">' + evalDisplay + '</span>' +
+        '<span class="' + evalClass + '">' + escapeHtml(evalDisplay) + '</span>' +
         '<div class="gr-live-card-body">' +
           '<div class="gr-live-card-top">' +
-            '<span class="gr-live-card-move">' + firstSan + '</span>' +
+            '<span class="gr-live-card-move">' + escapeHtml(firstSan) + '</span>' +
             tag +
           '</div>' +
-          '<span class="gr-live-card-line">' + pvFormatted + '</span>' +
+          '<span class="gr-live-card-line">' + escapeHtml(pvFormatted) + '</span>' +
         '</div>' +
         '<span class="gr-live-card-depth">d' + (line.depth || '?') + '</span>' +
       '</button>';
@@ -374,25 +370,23 @@ const EngineController = (function() {
         return;
       }
 
-      var summary = analyzeGameWithChessKit({
+      analyzeGameWithChessKit({
         history: history,
         positions: positions,
         batchResults: batchResults,
         meta: meta || null
+      }).then(function(summary) {
+        if (reviewToken !== gameAnalysisToken) return;
+        var reviewedHistory = summary.classifiedHistory;
+        reviewedHistory.gameSummary = {
+          accuracy: summary.accuracy,
+          estimatedElo: summary.estimatedElo,
+          openings: summary.openings
+        };
+        if (typeof onComplete === 'function') {
+          onComplete(reviewedHistory, reviewedHistory);
+        }
       });
-
-      var reviewedHistory = summary.classifiedHistory;
-      // Stash whole-game stats so AppController can read them without
-      // recomputing the win-percentage / accuracy aggregation.
-      reviewedHistory.gameSummary = {
-        accuracy: summary.accuracy,
-        estimatedElo: summary.estimatedElo,
-        openings: summary.openings
-      };
-
-      if (typeof onComplete === 'function') {
-        onComplete(reviewedHistory, reviewedHistory);
-      }
     }, { chunkSize: profile.chunkSize });
   }
 
@@ -406,6 +400,7 @@ const EngineController = (function() {
     stop: stop,
     setNumLines: function(n) { numLines = n; },
     setDepth: function(d) { analysisDepth = d; },
+    setOption: function(name, value) { EngineManager.setOption(name, value); },
     centipawnsToWinPercent: centipawnsToWinPercent,
     MoveClassification: MoveClassification
   };
