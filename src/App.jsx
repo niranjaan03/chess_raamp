@@ -1084,7 +1084,7 @@ function App() {
                 </div>
               </div>
               <p className="form-hint" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '-8px' }}>
-                Chess.com archives are fetched by month via the official multi-game PGN API.
+                Chess.com fetches the selected month plus the previous two monthly archives.
               </p>
               <p className="form-hint" style={{ fontSize: '0.7rem', marginTop: '-6px' }}>
                 <a href="/router/chesscom" target="_blank" rel="noreferrer">Open Chess.com router page</a>
@@ -1107,11 +1107,11 @@ function App() {
                 <div className="games-tab-header">
                   <div className="games-eyebrow">Chess.com Archive</div>
                   <h2 className="games-tab-title">Games</h2>
-                  <p className="games-tab-sub" id="gamesTabSub">Connect your Chess.com account on the Home tab, then sync the latest archive here.</p>
+                  <p className="games-tab-sub" id="gamesTabSub">Connect your Chess.com account on the Home tab, then sync the latest 3 months here.</p>
                 </div>
                 <div className="games-tab-controls" id="gamesTabControls" style={{ display: 'none' }}>
                   <div className="games-tab-user" id="gamesTabUser"></div>
-                  <button type="button" className="btn-sm-green" id="gamesTabFetch" onClick={handleGamesTabFetch}>Sync Latest</button>
+                  <button type="button" className="btn-sm-green" id="gamesTabFetch" onClick={handleGamesTabFetch}>Sync 3 Months</button>
                 </div>
               </div>
 
@@ -1144,7 +1144,7 @@ function App() {
                 <div className="games-results-copy">
                   <div className="games-results-kicker">Overview</div>
                   <h3 className="games-results-title" id="gamesSummaryTitle">No archive loaded yet</h3>
-                  <p className="games-results-meta" id="gamesSummaryMeta">Fetch a Chess.com archive to analyze recent games, openings, and review coverage.</p>
+                  <p className="games-results-meta" id="gamesSummaryMeta">Fetch recent Chess.com archives to analyze games, openings, and review coverage.</p>
                 </div>
                 <div className="games-tab-filters" id="gamesTabFilters" style={{ display: 'none' }}>
                   <label className="games-filter-label" htmlFor="gamesTabFilterSelect">Filter</label>
@@ -1163,7 +1163,7 @@ function App() {
                 <div className="games-empty-state">
                   <div className="games-empty-icon">&#9823;</div>
                   <div className="games-empty-title">No games fetched yet</div>
-                  <div className="games-empty-copy">Connect Chess.com on the Home tab, then sync the latest archive to populate this page.</div>
+                  <div className="games-empty-copy">Connect Chess.com on the Home tab, then sync the latest 3 months to populate this page.</div>
                 </div>
               </div>
             </section>

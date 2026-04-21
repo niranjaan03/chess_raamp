@@ -1911,12 +1911,12 @@ const AppController = (function() {
     var p = escapeHtml(period || '');
     if (err.status === 404) {
       return 'Chess.com returned 404 for \u201c' + u + '\u201d' +
-        (p ? ' in ' + p : '') + '. Check the username and month.';
+        (p ? ' in ' + p : '') + '. Check the username and period.';
     }
     var rawMsg = err.message || '';
     if (err.timeout) {
       return 'Chess.com request timed out for \u201c' + u + '\u201d' +
-        (p ? ' in ' + p : '') + '. Try again or change month.';
+        (p ? ' in ' + p : '') + '. Try again or change period.';
     }
     if (/Failed to fetch|NetworkError|load failed/i.test(rawMsg)) {
       return 'Network request to Chess.com was blocked. Disable ad/privacy blockers for this site, then retry.';
@@ -4112,6 +4112,7 @@ const AppController = (function() {
 // ===== HOME PAGE CONTROLLER =====
 const HomeController = (function() {
   var chesscomStatsRequest = 0;
+  var CHESSCOM_FETCH_MONTHS = 3;
 
   function init() {
     setupImportTabs();
@@ -4493,7 +4494,7 @@ const HomeController = (function() {
     var label = getPlatformLabel(platform);
     if (!isLinked) return 'Link your ' + label + ' username to fetch recent games.';
     return platform === 'chesscom'
-      ? 'Use Fetch Games to open your latest Chess.com archive in the Games tab.'
+      ? 'Use Fetch Games to open your latest 3 months of Chess.com archives in the Games tab.'
       : 'Use Fetch Games to load your latest Lichess games here.';
   }
 
@@ -4675,6 +4676,26 @@ const HomeController = (function() {
     };
   }
 
+  function buildChesscomArchiveRange(endArchive, monthCount) {
+    var fallback = getYesterdayArchiveDate();
+    var safeArchive = endArchive || fallback;
+    var year = parseInt(safeArchive.year, 10);
+    var month = parseInt(safeArchive.month, 10);
+    if (isNaN(year) || year < 2000) year = fallback.year;
+    if (isNaN(month) || month < 1 || month > 12) month = parseInt(fallback.month, 10);
+
+    var count = Math.max(1, parseInt(monthCount, 10) || CHESSCOM_FETCH_MONTHS);
+    var archives = [];
+    for (var i = count - 1; i >= 0; i--) {
+      var date = new Date(Date.UTC(year, month - 1 - i, 1));
+      archives.push({
+        year: date.getUTCFullYear(),
+        month: String(date.getUTCMonth() + 1).padStart(2, '0')
+      });
+    }
+    return archives;
+  }
+
   function resolveChesscomUsername(preferredUsername) {
     var candidates = [
       preferredUsername,
@@ -4707,8 +4728,12 @@ const HomeController = (function() {
   }
 
   function getCurrentChesscomArchiveKey(username, archiveOverride) {
-    var archive = archiveOverride || getYesterdayArchiveDate();
-    return normalizeUsername(username) + ':' + archive.year + '-' + archive.month;
+    var archives = Array.isArray(archiveOverride)
+      ? archiveOverride
+      : buildChesscomArchiveRange(archiveOverride || getYesterdayArchiveDate(), CHESSCOM_FETCH_MONTHS);
+    return normalizeUsername(username) + ':' + archives.map(function(archive) {
+      return archive.year + '-' + archive.month;
+    }).join(',');
   }
 
   // ===== CHESS.COM GAMES FETCH (Games Tab) =====
@@ -4730,10 +4755,10 @@ const HomeController = (function() {
     if (username) {
       var archive = window._ccFetchedUsername === username && window._ccFetchedArchivePeriod
         ? window._ccFetchedArchivePeriod
-        : getYesterdayArchiveDate();
+        : buildChesscomArchiveRange(getYesterdayArchiveDate(), CHESSCOM_FETCH_MONTHS);
       if (controls) controls.style.display = 'flex';
       if (filters) filters.style.display = window._ccFetchedGames && window._ccFetchedGames.length && window._ccFetchedUsername === username ? 'flex' : 'none';
-      if (sub) sub.textContent = 'Chess.com archive source: ' + formatChesscomArchiveLabel(archive) + '.';
+      if (sub) sub.textContent = 'Chess.com archive range: ' + formatChesscomArchiveLabel(archive) + '.';
       if (userEl) userEl.textContent = '@' + username;
       updateGamesTabOverview({
         username: username,
@@ -4750,7 +4775,7 @@ const HomeController = (function() {
     } else {
       if (controls) controls.style.display = 'none';
       if (filters) filters.style.display = 'none';
-      if (sub) sub.textContent = 'Link your Chess.com account on the Home tab, then fetch the latest archive here.';
+      if (sub) sub.textContent = 'Link your Chess.com account on the Home tab, then fetch the latest 3 months here.';
       updateGamesTabOverview({});
     }
     if (window._ccFetchedGames && window._ccFetchedGames.length && username && window._ccFetchedUsername === username) {
@@ -4759,7 +4784,7 @@ const HomeController = (function() {
     } else if (username) {
       var emptyContainer = document.getElementById('gamesTabList');
       if (emptyContainer) {
-        emptyContainer.innerHTML = buildGamesTabEmptyState('No archive loaded yet', 'Fetch the latest Chess.com archive to review openings, results, and unfinished analysis.');
+        emptyContainer.innerHTML = buildGamesTabEmptyState('No archive loaded yet', 'Fetch the latest 3 months of Chess.com games to review openings, results, and unfinished analysis.');
       }
     }
   }
@@ -4830,10 +4855,26 @@ const HomeController = (function() {
   }
 
   function formatChesscomArchiveLabel(archive) {
+    if (Array.isArray(archive)) {
+      if (!archive.length) return 'latest 3 months';
+      if (archive.length === 1) return formatChesscomArchiveLabel(archive[0]);
+      return formatChesscomArchiveLabel(archive[0]) + ' - ' + formatChesscomArchiveLabel(archive[archive.length - 1]);
+    }
     if (!archive || !archive.year || !archive.month) return 'latest archive';
     var date = new Date(Date.UTC(Number(archive.year), Number(archive.month) - 1, 1));
     if (!date || isNaN(date.getTime())) return String(archive.year) + '/' + String(archive.month);
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  }
+
+  function getChesscomGameSortTime(game) {
+    if (!game) return 0;
+    if (game.end_time) return game.end_time * 1000;
+    var headers = game.headers || {};
+    var dateText = headers.EndDate || game.date || headers.Date || '';
+    var timeText = headers.EndTime || '00:00:00';
+    if (!dateText) return 0;
+    var date = new Date(String(dateText).replace(/\./g, '-') + 'T' + timeText + 'Z');
+    return date && !isNaN(date.getTime()) ? date.getTime() : 0;
   }
 
   function getChesscomGameOpening(game) {
@@ -4865,7 +4906,7 @@ const HomeController = (function() {
     return '<div class="games-empty-state">' +
       '<div class="games-empty-icon">&#9823;</div>' +
       '<div class="games-empty-title">' + escapeHtml(title || 'No games available') + '</div>' +
-      '<div class="games-empty-copy">' + escapeHtml(copy || 'Fetch a Chess.com archive to populate this view.') + '</div>' +
+      '<div class="games-empty-copy">' + escapeHtml(copy || 'Fetch recent Chess.com archives to populate this view.') + '</div>' +
     '</div>';
   }
 
@@ -4900,20 +4941,20 @@ const HomeController = (function() {
     var archiveLabel = formatChesscomArchiveLabel(state.archive);
     var filterLabel = getGamesTabFilterLabel(state.filter || 'all');
     var summaryTitle = 'No archive loaded yet';
-    var summaryMeta = 'Sync a recent Chess.com archive to review games, openings, and analysis coverage.';
+    var summaryMeta = 'Sync recent Chess.com archives to review games, openings, and analysis coverage.';
 
     if (!username) {
       summaryTitle = 'Connect Chess.com to get started';
-      summaryMeta = 'Link your account on the Home tab, then sync the latest archive here.';
+      summaryMeta = 'Link your account on the Home tab, then sync the latest 3 months here.';
     } else if (state.loading) {
-      summaryTitle = 'Fetching @' + username + ' archive';
+      summaryTitle = 'Fetching @' + username + ' games';
       summaryMeta = 'Loading games from ' + archiveLabel + '.';
     } else if (state.error) {
       summaryTitle = 'Could not load ' + archiveLabel;
       summaryMeta = String(state.error);
     } else if (!total) {
       summaryTitle = 'No games found in ' + archiveLabel;
-      summaryMeta = '@' + username + ' is connected, but this archive has no parsed games yet.';
+      summaryMeta = '@' + username + ' is connected, but this period has no parsed games yet.';
     } else if (!filtered) {
       summaryTitle = 'No ' + filterLabel.toLowerCase() + ' in ' + archiveLabel;
       summaryMeta = '@' + username + ' · ' + wins + '-' + losses + '-' + draws + ' · ' + reviewed + ' reviewed';
@@ -4944,14 +4985,17 @@ const HomeController = (function() {
     username = String(username || '').trim().replace(/^@+/, '');
     var container = document.getElementById('gamesTabList');
     if (!container) return;
-    var archive = archiveOverride || getYesterdayArchiveDate();
+    var archive = Array.isArray(archiveOverride)
+      ? archiveOverride
+      : buildChesscomArchiveRange(archiveOverride || getYesterdayArchiveDate(), CHESSCOM_FETCH_MONTHS);
+    var archiveLabel = formatChesscomArchiveLabel(archive);
     var controls = document.getElementById('gamesTabControls');
     var filters = document.getElementById('gamesTabFilters');
     var sub = document.getElementById('gamesTabSub');
     var userEl = document.getElementById('gamesTabUser');
     if (controls) controls.style.display = 'flex';
     if (filters) filters.style.display = 'none';
-    if (sub) sub.textContent = 'Chess.com archive source: ' + formatChesscomArchiveLabel(archive) + '.';
+    if (sub) sub.textContent = 'Chess.com archive range: ' + archiveLabel + '.';
     if (userEl) userEl.textContent = '@' + username;
     updateGamesTabOverview({
       username: username,
@@ -4960,7 +5004,7 @@ const HomeController = (function() {
       loading: true,
       modes: 'Syncing...'
     });
-    AppController.renderFetchSkeleton(container, 'Fetching games for ' + username + '...');
+    AppController.renderFetchSkeleton(container, 'Fetching 3 months of games for ' + username + '...');
 
     var archiveKey = getCurrentChesscomArchiveKey(username, archive);
     window._ccLastRequestedArchiveKey = archiveKey;
@@ -4969,11 +5013,11 @@ const HomeController = (function() {
         if (window._ccLastRequestedArchiveKey !== archiveKey) return;
         window._ccFetchedUsername = username;
         window._ccFetchedArchiveKey = archiveKey;
-        window._ccFetchedArchivePeriod = { year: archive.year, month: archive.month };
+        window._ccFetchedArchivePeriod = archive;
         if (!games.length) {
           window._ccFetchedGames = [];
           if (filters) filters.style.display = 'none';
-          if (sub) sub.textContent = 'No games found in ' + formatChesscomArchiveLabel(archive) + '.';
+          if (sub) sub.textContent = 'No games found in ' + archiveLabel + '.';
           updateGamesTabOverview({
             username: username,
             archive: archive,
@@ -4986,12 +5030,12 @@ const HomeController = (function() {
             draws: 0,
             modes: 'No archive'
           });
-          container.innerHTML = buildGamesTabEmptyState('No games found this month', 'Try again after you play a few games or switch to a newer archive.');
+          container.innerHTML = buildGamesTabEmptyState('No games found in this period', 'Try again after you play a few games or switch to a newer archive range.');
           return;
         }
         window._ccFetchedGames = games;
         if (filters) filters.style.display = 'flex';
-        if (sub) sub.textContent = 'Synced from Chess.com for ' + formatChesscomArchiveLabel(archive) + '. Analyze any game directly from the archive.';
+        if (sub) sub.textContent = 'Synced from Chess.com for ' + archiveLabel + '. Analyze any game directly from the archive range.';
         renderGamesTab(container, games, username);
       })
       .catch(function(err) {
@@ -5000,10 +5044,10 @@ const HomeController = (function() {
         window._ccFetchedGames = [];
         window._ccFetchedUsername = username;
         window._ccFetchedArchiveKey = archiveKey;
-        window._ccFetchedArchivePeriod = { year: archive.year, month: archive.month };
+        window._ccFetchedArchivePeriod = archive;
         if (filters) filters.style.display = 'none';
-        if (sub) sub.textContent = 'Chess.com archive sync failed for ' + formatChesscomArchiveLabel(archive) + '.';
-        var errorText = AppController.describeChesscomError(err, username, archive.year + '-' + archive.month);
+        if (sub) sub.textContent = 'Chess.com archive sync failed for ' + archiveLabel + '.';
+        var errorText = AppController.describeChesscomError(err, username, archiveLabel);
         updateGamesTabOverview({
           username: username,
           archive: archive,
@@ -5016,15 +5060,36 @@ const HomeController = (function() {
   }
 
   function fetchChesscomGamesFromArchive(username, archive) {
-    return AppController.fetchChesscomMonthPgn(username, archive.year, archive.month)
-      .then(function(text) {
-        return AppController.parseChesscomArchiveGames(text, 20) || [];
+    var archives = Array.isArray(archive) ? archive : [archive];
+    return Promise.all(archives.map(function(item) {
+      return AppController.fetchChesscomMonthPgn(username, item.year, item.month)
+        .then(function(text) {
+          return { archive: item, games: AppController.parseChesscomArchiveGames(text) || [] };
+        })
+        .catch(function(err) {
+          return { archive: item, error: err, games: [] };
+        });
+    })).then(function(results) {
+      var games = [];
+      var errors = [];
+      results.forEach(function(result) {
+        if (result.error) errors.push(result.error);
+        games = games.concat(result.games || []);
       });
+      if (!games.length && errors.length === results.length && errors.length) {
+        throw errors.find(function(err) {
+          return err && err.status !== 404 && !err.invalidResponse;
+        }) || errors[0];
+      }
+      return games.sort(function(a, b) {
+        return getChesscomGameSortTime(b) - getChesscomGameSortTime(a);
+      });
+    });
   }
 
   function renderHomeChesscomGames(container, games, username, archive) {
     var intro = '<div class="games-count">' + games.length + ' game' + (games.length !== 1 ? 's' : '') +
-      ' from ' + archive.year + '/' + archive.month + '</div>';
+      ' from ' + formatChesscomArchiveLabel(archive) + '</div>';
     var rows = games.map(function(g, idx) {
       var white = getChesscomGameWhiteName(g);
       var black = getChesscomGameBlackName(g);
@@ -5128,7 +5193,7 @@ const HomeController = (function() {
     var wins = items.filter(function(item) { return item.userWon; }).length;
     var losses = items.filter(function(item) { return item.userLost; }).length;
     var draws = items.length - wins - losses;
-    var archive = window._ccFetchedArchivePeriod || getYesterdayArchiveDate();
+    var archive = window._ccFetchedArchivePeriod || buildChesscomArchiveRange(getYesterdayArchiveDate(), CHESSCOM_FETCH_MONTHS);
     updateGamesTabOverview({
       username: username,
       archive: archive,
@@ -5182,7 +5247,7 @@ const HomeController = (function() {
         AppController.showToast('Link or enter a Chess.com username first', 'error');
         return;
       }
-      renderAccountPanelState('chesscom', 'loading', 'Opening Games tab...', 'Fetching your latest Chess.com archive.', true);
+      renderAccountPanelState('chesscom', 'loading', 'Opening Games tab...', 'Fetching your latest 3 months of Chess.com games.', true);
       fetchHomeChesscomGames(resolvedUsername);
     } else if (platform === 'lichess') {
       var container = document.getElementById('lichessGamesList');
