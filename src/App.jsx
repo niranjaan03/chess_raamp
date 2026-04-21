@@ -1631,6 +1631,16 @@ function App() {
                   <button type="button" className="eco-filter-btn" data-side="b">Black</button>
                 </div>
               </div>
+              <div className="openings-filter-stack">
+                <div className="games-filter-label">Track</div>
+                <div className="eco-filter-group" id="openingStatusFilters">
+                  <button type="button" className="eco-filter-btn active" data-status="">All</button>
+                  <button type="button" className="eco-filter-btn" data-status="favorites">Favorites</button>
+                  <button type="button" className="eco-filter-btn" data-status="due">Due</button>
+                  <button type="button" className="eco-filter-btn" data-status="mastered">Mastered</button>
+                  <button type="button" className="eco-filter-btn" data-status="in-progress">In Progress</button>
+                </div>
+              </div>
             </div>
 
             <div className="opening-gallery-grid" id="openingGalleryGrid">
@@ -1646,7 +1656,13 @@ function App() {
             <div className="detail-header">
               <img className="detail-header-img" id="detailOpeningImg" src="" alt="" />
               <div className="detail-header-info">
-                <h2 className="detail-opening-name" id="detailOpeningName">Opening</h2>
+                <div className="detail-opening-title-row">
+                  <h2 className="detail-opening-name" id="detailOpeningName">Opening</h2>
+                  <button type="button" className="opening-favorite-btn detail-favorite-btn" id="detailFavoriteBtn" aria-pressed="false" title="Save to favorites">
+                    <span className="opening-favorite-btn-icon" aria-hidden="true">&#9734;</span>
+                    <span>Favorite</span>
+                  </button>
+                </div>
                 <div className="detail-opening-meta">
                   <div className="detail-eco" id="detailOpeningEco">Opening guide</div>
                   <span className="opening-side-badge white-badge" id="detailOpeningSide">White</span>
@@ -1730,6 +1746,34 @@ function App() {
               <div className="opn-lines-row" id="opnLinesRow" style={{ display: 'none' }}>
                 <span className="opn-lines-icon">&#128218;</span>
                 <span className="opn-lines-text" id="opnLinesText">0 / 0 lines discovered</span>
+              </div>
+
+              <div id="timeModePanel" className="time-mode-panel" style={{ display: 'none' }}>
+                <div className="time-mode-head">
+                  <div>
+                    <div className="time-mode-title">Timed Run</div>
+                    <div className="time-mode-sub" id="timeModeSub">Race the clock through the line.</div>
+                  </div>
+                  <div className="time-mode-medal" id="timeModeMedal">No Medal Yet</div>
+                </div>
+                <div className="time-mode-grid">
+                  <div className="time-mode-stat">
+                    <span className="time-mode-stat-label">Clock</span>
+                    <span className="time-mode-stat-value" id="timeModeClock">00:00</span>
+                  </div>
+                  <div className="time-mode-stat">
+                    <span className="time-mode-stat-label">Move</span>
+                    <span className="time-mode-stat-value" id="timeModeMoveClock">00.0s</span>
+                  </div>
+                  <div className="time-mode-stat">
+                    <span className="time-mode-stat-label">Score</span>
+                    <span className="time-mode-stat-value" id="timeModeScore">0</span>
+                  </div>
+                  <div className="time-mode-stat">
+                    <span className="time-mode-stat-label">Best</span>
+                    <span className="time-mode-stat-value" id="timeModeBest">0</span>
+                  </div>
+                </div>
               </div>
 
               {/* Move progress bar */}
