@@ -1102,28 +1102,72 @@ function App() {
         {/* ===== GAMES TAB ===== */}
         <div className="tab-content" id="tab-games">
           <div className="games-tab-layout">
-            <div className="games-tab-header">
-              <h2 className="games-tab-title">&#9823; Chess.com Games</h2>
-              <p className="games-tab-sub" id="gamesTabSub">Link your Chess.com account on the Home tab, then click Fetch Games.</p>
-            </div>
-            <div className="games-tab-controls" id="gamesTabControls" style={{ display: 'none' }}>
-              <div className="games-tab-user" id="gamesTabUser"></div>
-              <button type="button" className="btn-sm-green" id="gamesTabFetch" onClick={handleGamesTabFetch}>Fetch Latest Games</button>
-            </div>
-            <div className="games-tab-filters" id="gamesTabFilters" style={{ display: 'none' }}>
-              <label className="games-filter-label" htmlFor="gamesTabFilterSelect">Filter</label>
-              <select id="gamesTabFilterSelect" className="games-filter-select" defaultValue="all">
-                <option value="all">All</option>
-                <option value="win">Win</option>
-                <option value="lost">Lost</option>
-                <option value="draw">Draw</option>
-                <option value="not-reviewed">Not Reviewed</option>
-                <option value="reviewed">Reviewed</option>
-              </select>
-            </div>
-            <div className="games-tab-list" id="gamesTabList">
-              <div className="no-games">No games fetched yet.</div>
-            </div>
+            <section className="games-shell-card">
+              <div className="games-shell-main">
+                <div className="games-tab-header">
+                  <div className="games-eyebrow">Chess.com Archive</div>
+                  <h2 className="games-tab-title">Games</h2>
+                  <p className="games-tab-sub" id="gamesTabSub">Connect your Chess.com account on the Home tab, then sync the latest archive here.</p>
+                </div>
+                <div className="games-tab-controls" id="gamesTabControls" style={{ display: 'none' }}>
+                  <div className="games-tab-user" id="gamesTabUser"></div>
+                  <button type="button" className="btn-sm-green" id="gamesTabFetch" onClick={handleGamesTabFetch}>Sync Latest</button>
+                </div>
+              </div>
+
+              <div className="games-overview-strip" aria-label="Games archive summary">
+                <div className="games-overview-item">
+                  <span className="games-overview-label">Archive</span>
+                  <strong className="games-overview-value" id="gamesMetricTotal">--</strong>
+                  <span className="games-overview-foot">Games in view</span>
+                </div>
+                <div className="games-overview-item">
+                  <span className="games-overview-label">Record</span>
+                  <strong className="games-overview-value" id="gamesMetricRecord">--</strong>
+                  <span className="games-overview-foot">Wins, losses, draws</span>
+                </div>
+                <div className="games-overview-item">
+                  <span className="games-overview-label">Reviewed</span>
+                  <strong className="games-overview-value" id="gamesMetricReviewed">--</strong>
+                  <span className="games-overview-foot">Analysis coverage</span>
+                </div>
+                <div className="games-overview-item">
+                  <span className="games-overview-label">Modes</span>
+                  <strong className="games-overview-value games-overview-value-compact" id="gamesMetricModes">No archive</strong>
+                  <span className="games-overview-foot">Most-played formats</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="games-results-card">
+              <div className="games-results-head">
+                <div className="games-results-copy">
+                  <div className="games-results-kicker">Overview</div>
+                  <h3 className="games-results-title" id="gamesSummaryTitle">No archive loaded yet</h3>
+                  <p className="games-results-meta" id="gamesSummaryMeta">Fetch a Chess.com archive to analyze recent games, openings, and review coverage.</p>
+                </div>
+                <div className="games-tab-filters" id="gamesTabFilters" style={{ display: 'none' }}>
+                  <label className="games-filter-label" htmlFor="gamesTabFilterSelect">Filter</label>
+                  <select id="gamesTabFilterSelect" className="games-filter-select" defaultValue="all">
+                    <option value="all">All Games</option>
+                    <option value="win">Wins</option>
+                    <option value="lost">Losses</option>
+                    <option value="draw">Draws</option>
+                    <option value="not-reviewed">Needs Review</option>
+                    <option value="reviewed">Reviewed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="games-tab-list" id="gamesTabList">
+                <div className="games-empty-state">
+                  <div className="games-empty-icon">&#9823;</div>
+                  <div className="games-empty-title">No games fetched yet</div>
+                  <div className="games-empty-copy">Connect Chess.com on the Home tab, then sync the latest archive to populate this page.</div>
+                </div>
+              </div>
+            </section>
+
           </div>
         </div>
 
@@ -2204,7 +2248,7 @@ function App() {
 
               <div className="settings-card">
                 <div className="settings-card-title">Move Sound</div>
-                <p className="settings-card-text">Play a tick sound for accepted moves across Analyze, Practice, and Puzzles.</p>
+                <p className="settings-card-text">Play a sound for accepted moves across Analyze, Practice, and Puzzles.</p>
                 <div className="setting-row toggle-row settings-sound-row">
                   <span>Move sound</span>
                   <label className="toggle">
@@ -2212,8 +2256,34 @@ function App() {
                     <span className="toggle-slider"></span>
                   </label>
                 </div>
+                <div className="settings-sound-label" style={{ marginTop: '16px', marginBottom: '8px', fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>Sound Style</div>
+                <select id="settingsSoundStyle" className="dark-select settings-select settings-native-select" defaultValue="classic">
+                  <option value="classic">Classic Tick</option>
+                  <option value="premium">Premium Chime</option>
+                  <option value="glass">Glass Bell</option>
+                </select>
+                <div className="settings-visual-grid settings-sound-grid" style={{ marginTop: '12px' }}>
+                  <button type="button" className="settings-option-card active" data-target="settingsSoundStyle" data-value="classic">
+                    <div className="settings-sound-preview">
+                      <span style={{ fontSize: '24px' }}>🎵</span>
+                    </div>
+                    <span className="settings-option-label">Classic</span>
+                  </button>
+                  <button type="button" className="settings-option-card" data-target="settingsSoundStyle" data-value="premium">
+                    <div className="settings-sound-preview">
+                      <span style={{ fontSize: '24px' }}>✨</span>
+                    </div>
+                    <span className="settings-option-label">Premium</span>
+                  </button>
+                  <button type="button" className="settings-option-card" data-target="settingsSoundStyle" data-value="glass">
+                    <div className="settings-sound-preview">
+                      <span style={{ fontSize: '24px' }}>🔔</span>
+                    </div>
+                    <span className="settings-option-label">Glass Bell</span>
+                  </button>
+                </div>
                 <div className="settings-sound-note">
-                  Uses a local CC0 tick sound and stays on during autoplay, opponent replies, and puzzle continuation.
+                  Choose your preferred sound style. All options stay on during autoplay, opponent replies, and puzzle continuation.
                 </div>
               </div>
             </div>

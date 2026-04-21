@@ -2,29 +2,40 @@ const RAW_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && i
   ? import.meta.env.BASE_URL
   : '';
 const CLEAN_BASE_URL = (!RAW_BASE_URL || RAW_BASE_URL === '/') ? '' : RAW_BASE_URL.replace(/\/$/, '');
-const MOVE_SOUND_SRC = (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/chess-move.ogg';
+
+const MOVE_SOUND_SOURCES = {
+  classic: (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/chess-move.ogg',
+  premium: (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/premium-chime.wav',
+  glass: (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/glass-bell.wav'
+};
+
 const MOVE_SOUND_KEY = 'kv_move_sound_enabled';
+const MOVE_SOUND_STYLE_KEY = 'kv_move_sound_style';
 
 const SoundController = (function() {
   var initialized = false;
   var enabled = false;
+  var soundStyle = 'classic';
   var audioContext = null;
-  var moveBuffer = null;
-  var fallbackAudio = null;
+  var moveBuffers = {};
+  var fallbackAudios = {};
 
   function init() {
     if (initialized) return;
     initialized = true;
     enabled = readEnabledPreference();
-    createFallbackAudio();
-    preloadMoveSound();
+    soundStyle = readSoundStylePreference();
+    createFallbackAudios();
+    preloadMoveSounds();
     registerUnlockListeners();
   }
 
-  function createFallbackAudio() {
+  function createFallbackAudios() {
     if (typeof Audio === 'undefined') return;
-    fallbackAudio = new Audio(MOVE_SOUND_SRC);
-    fallbackAudio.preload = 'auto';
+    Object.keys(MOVE_SOUND_SOURCES).forEach(function(style) {
+      fallbackAudios[style] = new Audio(MOVE_SOUND_SOURCES[style]);
+      fallbackAudios[style].preload = 'auto';
+    });
   }
 
   function ensureAudioContext() {
@@ -35,23 +46,25 @@ const SoundController = (function() {
     return audioContext;
   }
 
-  function preloadMoveSound() {
+  function preloadMoveSounds() {
     var ctx = ensureAudioContext();
     if (!ctx || typeof fetch !== 'function') return;
-    fetch(MOVE_SOUND_SRC)
-      .then(function(response) {
-        if (!response.ok) throw new Error('Sound fetch failed');
-        return response.arrayBuffer();
-      })
-      .then(function(buffer) {
-        return ctx.decodeAudioData(buffer.slice(0));
-      })
-      .then(function(decoded) {
-        moveBuffer = decoded;
-      })
-      .catch(function() {
-        /* Fallback audio element is enough if decode fails */
-      });
+    Object.keys(MOVE_SOUND_SOURCES).forEach(function(style) {
+      fetch(MOVE_SOUND_SOURCES[style])
+        .then(function(response) {
+          if (!response.ok) throw new Error('Sound fetch failed');
+          return response.arrayBuffer();
+        })
+        .then(function(buffer) {
+          return ctx.decodeAudioData(buffer.slice(0));
+        })
+        .then(function(decoded) {
+          moveBuffers[style] = decoded;
+        })
+        .catch(function() {
+          /* Fallback audio element is enough if decode fails */
+        });
+    });
   }
 
   function registerUnlockListeners() {
@@ -79,6 +92,17 @@ const SoundController = (function() {
     }
   }
 
+  function readSoundStylePreference() {
+    if (typeof window === 'undefined') return 'classic';
+    try {
+      var saved = localStorage.getItem(MOVE_SOUND_STYLE_KEY);
+      if (saved && Object.keys(MOVE_SOUND_SOURCES).indexOf(saved) !== -1) return saved;
+      return 'classic';
+    } catch (e) {
+      return 'classic';
+    }
+  }
+
   function persistEnabledPreference(value) {
     if (typeof window === 'undefined') return;
     try {
@@ -86,12 +110,20 @@ const SoundController = (function() {
     } catch { /* storage full */ }
   }
 
+  function persistSoundStylePreference(style) {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(MOVE_SOUND_STYLE_KEY, style);
+    } catch { /* storage full */ }
+  }
+
   function playBufferedMove() {
     var ctx = ensureAudioContext();
-    if (!ctx || !moveBuffer || ctx.state !== 'running') return false;
+    var buffer = moveBuffers[soundStyle];
+    if (!ctx || !buffer || ctx.state !== 'running') return false;
     var source = ctx.createBufferSource();
     var gain = ctx.createGain();
-    source.buffer = moveBuffer;
+    source.buffer = buffer;
     gain.gain.value = 0.9;
     source.connect(gain);
     gain.connect(ctx.destination);
@@ -100,9 +132,10 @@ const SoundController = (function() {
   }
 
   function playFallbackMove() {
-    if (!fallbackAudio) return;
+    var fallback = fallbackAudios[soundStyle];
+    if (!fallback) return;
     try {
-      var sound = fallbackAudio.cloneNode();
+      var sound = fallback.cloneNode();
       sound.volume = 0.9;
       var playPromise = sound.play();
       if (playPromise && typeof playPromise.catch === 'function') {
@@ -138,11 +171,24 @@ const SoundController = (function() {
     return enabled;
   }
 
+  function setSoundStyle(style) {
+    if (Object.keys(MOVE_SOUND_SOURCES).indexOf(style) !== -1) {
+      soundStyle = style;
+      persistSoundStylePreference(style);
+    }
+  }
+
+  function getSoundStyle() {
+    return soundStyle;
+  }
+
   return {
     init: init,
     playMove: playMove,
     setEnabled: setEnabled,
-    isEnabled: isEnabled
+    isEnabled: isEnabled,
+    setSoundStyle: setSoundStyle,
+    getSoundStyle: getSoundStyle
   };
 })();
 

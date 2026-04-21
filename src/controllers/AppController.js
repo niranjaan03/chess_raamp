@@ -898,6 +898,20 @@ const AppController = (function() {
     bind('settingsMoveSound', 'change', function() {
       applyMoveSoundSelection(this.checked, true);
     });
+    bind('settingsSoundStyle', 'change', function() {
+      applySoundStyleSelection(this.value);
+    });
+    bindClick('settingsSoundStyle', function(e) {
+      var button = e.target.closest('[data-target="settingsSoundStyle"]');
+      if (button) {
+        var value = button.getAttribute('data-value');
+        var select = document.getElementById('settingsSoundStyle');
+        if (select) {
+          select.value = value;
+          applySoundStyleSelection(value);
+        }
+      }
+    });
     bind('reviewBoardTheme', 'change', function() {
       applyBoardThemeSelection(this.value);
     });
@@ -1210,6 +1224,21 @@ const AppController = (function() {
         syncSelectValue(['pieceStyle', 'settingsPieceStyle', 'reviewPieceStyle'], savedPieceStyle);
         ChessBoard.setPieceStyle(savedPieceStyle);
       }
+      var savedSoundStyle = localStorage.getItem('kv_move_sound_style');
+      if (savedSoundStyle) {
+        syncSelectValue(['settingsSoundStyle'], savedSoundStyle);
+        var buttons = document.querySelectorAll('[data-target="settingsSoundStyle"]');
+        buttons.forEach(function(btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-value') === savedSoundStyle);
+        });
+        SoundController.setSoundStyle(savedSoundStyle);
+      } else {
+        syncSelectValue(['settingsSoundStyle'], 'classic');
+        var buttons = document.querySelectorAll('[data-target="settingsSoundStyle"]');
+        buttons.forEach(function(btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-value') === 'classic');
+        });
+      }
       syncToggleValue('settingsMoveSound', SoundController.isEnabled());
       syncToggleValue('reviewMoveSound', SoundController.isEnabled());
     } catch { /* corrupt settings – use defaults */ }
@@ -1267,6 +1296,16 @@ const AppController = (function() {
     syncToggleValue('reviewMoveSound', nextValue);
     SoundController.setEnabled(nextValue);
     if (preview && nextValue) SoundController.playMove();
+  }
+
+  function applySoundStyleSelection(style) {
+    SoundController.setSoundStyle(style);
+    syncSelectValue(['settingsSoundStyle'], style);
+    var buttons = document.querySelectorAll('[data-target="settingsSoundStyle"]');
+    buttons.forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-value') === style);
+    });
+    SoundController.playMove();
   }
 
   // ===== GAME LOADING =====
@@ -4689,19 +4728,39 @@ const HomeController = (function() {
     var sub = document.getElementById('gamesTabSub');
     var userEl = document.getElementById('gamesTabUser');
     if (username) {
-      var archive = window._ccFetchedArchivePeriod || getYesterdayArchiveDate();
+      var archive = window._ccFetchedUsername === username && window._ccFetchedArchivePeriod
+        ? window._ccFetchedArchivePeriod
+        : getYesterdayArchiveDate();
       if (controls) controls.style.display = 'flex';
-      if (filters) filters.style.display = 'flex';
-      if (sub) sub.textContent = 'Showing games for ' + username + ' from ' + archive.year + '/' + archive.month;
+      if (filters) filters.style.display = window._ccFetchedGames && window._ccFetchedGames.length && window._ccFetchedUsername === username ? 'flex' : 'none';
+      if (sub) sub.textContent = 'Chess.com archive source: ' + formatChesscomArchiveLabel(archive) + '.';
       if (userEl) userEl.textContent = '@' + username;
+      updateGamesTabOverview({
+        username: username,
+        archive: archive,
+        filter: getGamesTabFilter(),
+        total: 0,
+        filtered: 0,
+        reviewed: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        modes: 'No archive'
+      });
     } else {
       if (controls) controls.style.display = 'none';
       if (filters) filters.style.display = 'none';
-      if (sub) sub.textContent = 'Link your Chess.com account on the Home tab, then click Fetch Games.';
+      if (sub) sub.textContent = 'Link your Chess.com account on the Home tab, then fetch the latest archive here.';
+      updateGamesTabOverview({});
     }
-    if (window._ccFetchedGames && window._ccFetchedGames.length && username) {
+    if (window._ccFetchedGames && window._ccFetchedGames.length && username && window._ccFetchedUsername === username) {
       var container = document.getElementById('gamesTabList');
       if (container) renderGamesTab(container, window._ccFetchedGames, username);
+    } else if (username) {
+      var emptyContainer = document.getElementById('gamesTabList');
+      if (emptyContainer) {
+        emptyContainer.innerHTML = buildGamesTabEmptyState('No archive loaded yet', 'Fetch the latest Chess.com archive to review openings, results, and unfinished analysis.');
+      }
     }
   }
 
@@ -4770,6 +4829,117 @@ const HomeController = (function() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  function formatChesscomArchiveLabel(archive) {
+    if (!archive || !archive.year || !archive.month) return 'latest archive';
+    var date = new Date(Date.UTC(Number(archive.year), Number(archive.month) - 1, 1));
+    if (!date || isNaN(date.getTime())) return String(archive.year) + '/' + String(archive.month);
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  }
+
+  function getChesscomGameOpening(game) {
+    if (!game) return '';
+    var headers = game.headers || {};
+    return String(game.opening || headers.Opening || game.eco || '').trim();
+  }
+
+  function getChesscomGameTimeLabel(timeClass) {
+    var normalized = String(timeClass || '').toLowerCase();
+    if (normalized === 'bullet') return 'Bullet';
+    if (normalized === 'blitz') return 'Blitz';
+    if (normalized === 'rapid') return 'Rapid';
+    if (normalized === 'daily') return 'Daily';
+    if (!normalized) return 'Rapid';
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+
+  function getGamesTabFilterLabel(filter) {
+    if (filter === 'win') return 'Wins';
+    if (filter === 'lost') return 'Losses';
+    if (filter === 'draw') return 'Draws';
+    if (filter === 'reviewed') return 'Reviewed';
+    if (filter === 'not-reviewed') return 'Needs Review';
+    return 'All Games';
+  }
+
+  function buildGamesTabEmptyState(title, copy) {
+    return '<div class="games-empty-state">' +
+      '<div class="games-empty-icon">&#9823;</div>' +
+      '<div class="games-empty-title">' + escapeHtml(title || 'No games available') + '</div>' +
+      '<div class="games-empty-copy">' + escapeHtml(copy || 'Fetch a Chess.com archive to populate this view.') + '</div>' +
+    '</div>';
+  }
+
+  function summarizeGamesTabModes(items) {
+    var counts = {};
+    (items || []).forEach(function(item) {
+      var key = String(item.timeLabel || '').trim() || 'Rapid';
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    var ranked = Object.keys(counts)
+      .map(function(key) { return { label: key, count: counts[key] }; })
+      .sort(function(a, b) {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.label.localeCompare(b.label);
+      })
+      .slice(0, 2);
+    if (!ranked.length) return 'No archive';
+    return ranked.map(function(entry) {
+      return entry.label + ' ' + entry.count;
+    }).join(' · ');
+  }
+
+  function updateGamesTabOverview(state) {
+    state = state || {};
+    var total = Number(state.total || 0);
+    var filtered = Number(state.filtered != null ? state.filtered : total);
+    var wins = Number(state.wins || 0);
+    var losses = Number(state.losses || 0);
+    var draws = Number(state.draws || 0);
+    var reviewed = Number(state.reviewed || 0);
+    var username = normalizeUsername(state.username || '');
+    var archiveLabel = formatChesscomArchiveLabel(state.archive);
+    var filterLabel = getGamesTabFilterLabel(state.filter || 'all');
+    var summaryTitle = 'No archive loaded yet';
+    var summaryMeta = 'Sync a recent Chess.com archive to review games, openings, and analysis coverage.';
+
+    if (!username) {
+      summaryTitle = 'Connect Chess.com to get started';
+      summaryMeta = 'Link your account on the Home tab, then sync the latest archive here.';
+    } else if (state.loading) {
+      summaryTitle = 'Fetching @' + username + ' archive';
+      summaryMeta = 'Loading games from ' + archiveLabel + '.';
+    } else if (state.error) {
+      summaryTitle = 'Could not load ' + archiveLabel;
+      summaryMeta = String(state.error);
+    } else if (!total) {
+      summaryTitle = 'No games found in ' + archiveLabel;
+      summaryMeta = '@' + username + ' is connected, but this archive has no parsed games yet.';
+    } else if (!filtered) {
+      summaryTitle = 'No ' + filterLabel.toLowerCase() + ' in ' + archiveLabel;
+      summaryMeta = '@' + username + ' · ' + wins + '-' + losses + '-' + draws + ' · ' + reviewed + ' reviewed';
+    } else if ((state.filter || 'all') === 'all') {
+      summaryTitle = total + ' game' + (total !== 1 ? 's' : '') + ' in ' + archiveLabel;
+      summaryMeta = '@' + username + ' · ' + wins + '-' + losses + '-' + draws + ' · ' + reviewed + ' reviewed';
+    } else {
+      summaryTitle = filtered + ' ' + filterLabel.toLowerCase() + ' in ' + archiveLabel;
+      summaryMeta = '@' + username + ' · ' + wins + '-' + losses + '-' + draws + ' overall · ' + reviewed + ' reviewed';
+    }
+
+    var totalEl = document.getElementById('gamesMetricTotal');
+    var recordEl = document.getElementById('gamesMetricRecord');
+    var reviewedEl = document.getElementById('gamesMetricReviewed');
+    var modesEl = document.getElementById('gamesMetricModes');
+    var titleEl = document.getElementById('gamesSummaryTitle');
+    var metaEl = document.getElementById('gamesSummaryMeta');
+
+    if (totalEl) totalEl.textContent = username ? String(total) : '--';
+    if (recordEl) recordEl.textContent = username ? (total ? (wins + '-' + losses + '-' + draws) : '0-0-0') : '--';
+    if (reviewedEl) reviewedEl.textContent = username ? (total ? (reviewed + ' / ' + total) : '0 / 0') : '--';
+    if (modesEl) modesEl.textContent = username ? String(state.modes || 'No archive') : 'No archive';
+    if (titleEl) titleEl.textContent = summaryTitle;
+    if (metaEl) metaEl.textContent = summaryMeta;
+  }
+
   function fetchChesscomGames(username, archiveOverride) {
     username = String(username || '').trim().replace(/^@+/, '');
     var container = document.getElementById('gamesTabList');
@@ -4780,30 +4950,68 @@ const HomeController = (function() {
     var sub = document.getElementById('gamesTabSub');
     var userEl = document.getElementById('gamesTabUser');
     if (controls) controls.style.display = 'flex';
-    if (filters) filters.style.display = 'flex';
-    if (sub) sub.textContent = 'Showing games for ' + username + ' from ' + archive.year + '/' + archive.month;
+    if (filters) filters.style.display = 'none';
+    if (sub) sub.textContent = 'Chess.com archive source: ' + formatChesscomArchiveLabel(archive) + '.';
     if (userEl) userEl.textContent = '@' + username;
+    updateGamesTabOverview({
+      username: username,
+      archive: archive,
+      filter: getGamesTabFilter(),
+      loading: true,
+      modes: 'Syncing...'
+    });
     AppController.renderFetchSkeleton(container, 'Fetching games for ' + username + '...');
 
     var archiveKey = getCurrentChesscomArchiveKey(username, archive);
     window._ccLastRequestedArchiveKey = archiveKey;
     fetchChesscomGamesFromArchive(username, archive)
       .then(function(games) {
+        if (window._ccLastRequestedArchiveKey !== archiveKey) return;
+        window._ccFetchedUsername = username;
+        window._ccFetchedArchiveKey = archiveKey;
+        window._ccFetchedArchivePeriod = { year: archive.year, month: archive.month };
         if (!games.length) {
-          container.innerHTML = '<div class="no-games">No games found for this month. Try playing some games first!</div>';
+          window._ccFetchedGames = [];
+          if (filters) filters.style.display = 'none';
+          if (sub) sub.textContent = 'No games found in ' + formatChesscomArchiveLabel(archive) + '.';
+          updateGamesTabOverview({
+            username: username,
+            archive: archive,
+            filter: getGamesTabFilter(),
+            total: 0,
+            filtered: 0,
+            reviewed: 0,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            modes: 'No archive'
+          });
+          container.innerHTML = buildGamesTabEmptyState('No games found this month', 'Try again after you play a few games or switch to a newer archive.');
           return;
         }
         window._ccFetchedGames = games;
-        window._ccFetchedUsername = username;
-        window._ccFetchedArchiveKey = getCurrentChesscomArchiveKey(username, archive);
-        window._ccFetchedArchivePeriod = { year: archive.year, month: archive.month };
-        if (sub) sub.textContent = 'Showing games for ' + username + ' from ' + archive.year + '/' + archive.month;
+        if (filters) filters.style.display = 'flex';
+        if (sub) sub.textContent = 'Synced from Chess.com for ' + formatChesscomArchiveLabel(archive) + '. Analyze any game directly from the archive.';
         renderGamesTab(container, games, username);
       })
       .catch(function(err) {
+        if (window._ccLastRequestedArchiveKey !== archiveKey) return;
         console.error('Chess.com fetch error:', err);
-        container.innerHTML = '<div class="no-games">' +
-          AppController.describeChesscomError(err, username, archive.year + '-' + archive.month) + '</div>';
+        window._ccFetchedGames = [];
+        window._ccFetchedUsername = username;
+        window._ccFetchedArchiveKey = archiveKey;
+        window._ccFetchedArchivePeriod = { year: archive.year, month: archive.month };
+        if (filters) filters.style.display = 'none';
+        if (sub) sub.textContent = 'Chess.com archive sync failed for ' + formatChesscomArchiveLabel(archive) + '.';
+        var errorText = AppController.describeChesscomError(err, username, archive.year + '-' + archive.month);
+        updateGamesTabOverview({
+          username: username,
+          archive: archive,
+          filter: getGamesTabFilter(),
+          error: errorText,
+          modes: 'Unavailable'
+        });
+        container.innerHTML = buildGamesTabEmptyState('Archive unavailable', errorText);
       });
   }
 
@@ -4851,7 +5059,16 @@ const HomeController = (function() {
       var outcomeText = userWon ? 'Won' : userLost ? 'Lost' : 'Draw';
       var reviewed = isGameReviewed(white, black, result);
       var timeClass = getChesscomGameTimeClass(g);
+      var timeLabel = getChesscomGameTimeLabel(timeClass);
       var dateStr = getChesscomGameDisplayDate(g);
+      var opening = getChesscomGameOpening(g) || 'Opening not tagged';
+      var userName = isUserWhite ? white : black;
+      var userRating = isUserWhite ? whiteRating : blackRating;
+      var opponentName = isUserWhite ? black : white;
+      var opponentRating = isUserWhite ? blackRating : whiteRating;
+      var userSide = isUserWhite ? 'White' : 'Black';
+      var reviewedClass = reviewed ? 'is-reviewed' : 'is-pending';
+      var reviewedText = reviewed ? 'Reviewed' : 'Needs review';
 
       return {
         idx: idx,
@@ -4859,27 +5076,42 @@ const HomeController = (function() {
         userLost: userLost,
         reviewed: reviewed,
         outcomeText: outcomeText,
-        html: '<div class="gt-game-row ' + outcomeClass + (reviewed ? ' game-reviewed' : '') + '" data-cc-idx="' + idx + '">' +
-        '<div class="gt-review-icon">' + (reviewed ? '&#10003;' : '') + '</div>' +
-        '<div class="gt-game-main">' +
-          '<div class="gt-players">' +
-            '<span class="gt-white">' + escapeHtml(white) + ' <span class="gt-rating">(' + escapeHtml(whiteRating) + ')</span></span>' +
-            '<span class="gt-vs">vs</span>' +
-            '<span class="gt-black">' + escapeHtml(black) + ' <span class="gt-rating">(' + escapeHtml(blackRating) + ')</span></span>' +
+        timeLabel: timeLabel,
+        html: '<article class="gt-game-row ' + outcomeClass + (reviewed ? ' game-reviewed' : '') + '" data-cc-idx="' + idx + '">' +
+          '<div class="gt-row-main">' +
+            '<div class="gt-row-head">' +
+              '<div class="gt-title-block">' +
+                '<div class="gt-opening-line">' +
+                  '<span class="gt-opening">' + escapeHtml(opening) + '</span>' +
+                '</div>' +
+                '<div class="gt-subline">' +
+                  '<span class="gt-date">' + escapeHtml(dateStr || 'Date unavailable') + '</span>' +
+                  '<span class="gt-separator">&middot;</span>' +
+                  '<span class="gt-review-inline ' + reviewedClass + '">' + escapeHtml(reviewedText) + '</span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="gt-result-col">' +
+                '<span class="gt-outcome ' + outcomeClass + '">' + escapeHtml(outcomeText) + '</span>' +
+                '<span class="gt-result ' + resultClass + '">' + escapeHtml(result) + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="gt-row-body">' +
+              '<div class="gt-player-line">' +
+                '<span class="gt-player-emphasis">You · ' + escapeHtml(userName) + ' (' + escapeHtml(userRating) + ')</span>' +
+                '<span class="gt-player-divider">vs</span>' +
+                '<span class="gt-player-secondary">' + escapeHtml(opponentName) + ' (' + escapeHtml(opponentRating) + ')</span>' +
+              '</div>' +
+              '<div class="gt-meta">' +
+                '<span class="gt-side-chip gt-side-' + (isUserWhite ? 'white' : 'black') + '">' + escapeHtml(userSide) + '</span>' +
+                '<span class="gt-time-badge gt-tc-' + escapeAttr(timeClass) + '">' + escapeHtml(timeLabel) + '</span>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
-          '<div class="gt-meta">' +
-            '<span class="gt-time-badge gt-tc-' + escapeAttr(timeClass) + '">' + escapeHtml(timeClass) + '</span>' +
-            '<span class="gt-date">' + escapeHtml(dateStr) + '</span>' +
+          '<div class="gt-actions">' +
+            '<button type="button" class="gt-btn gt-btn-analyze" onclick="HomeController.loadChesscomGame(' + idx + ')">Analyze</button>' +
+            '<button type="button" class="gt-btn gt-btn-share" onclick="HomeController.shareGame(' + idx + ')">Share</button>' +
           '</div>' +
-        '</div>' +
-        '<div class="gt-result-col">' +
-          '<span class="gt-outcome ' + outcomeClass + '">' + escapeHtml(outcomeText) + '</span>' +
-        '</div>' +
-        '<div class="gt-actions">' +
-          '<button class="gt-btn gt-btn-analyze" onclick="HomeController.loadChesscomGame(' + idx + ')">Analyze</button>' +
-          '<button class="gt-btn gt-btn-share" onclick="HomeController.shareGame(' + idx + ')">Share</button>' +
-        '</div>' +
-      '</div>'
+        '</article>'
       };
     });
 
@@ -4892,10 +5124,32 @@ const HomeController = (function() {
       return true;
     });
 
-    var header = '<div class="games-count">' + filteredItems.length + ' of ' + games.length + ' game' + (games.length !== 1 ? 's' : '') + ' this month <span class="games-legend">&#10003; reviewed</span></div>';
+    var reviewedCount = items.filter(function(item) { return item.reviewed; }).length;
+    var wins = items.filter(function(item) { return item.userWon; }).length;
+    var losses = items.filter(function(item) { return item.userLost; }).length;
+    var draws = items.length - wins - losses;
+    var archive = window._ccFetchedArchivePeriod || getYesterdayArchiveDate();
+    updateGamesTabOverview({
+      username: username,
+      archive: archive,
+      filter: filter,
+      total: items.length,
+      filtered: filteredItems.length,
+      reviewed: reviewedCount,
+      wins: wins,
+      losses: losses,
+      draws: draws,
+      modes: summarizeGamesTabModes(items)
+    });
+
+    var header = '<div class="games-list-banner">' +
+      '<div class="games-count">' + filteredItems.length + ' game' + (filteredItems.length !== 1 ? 's' : '') +
+        (filter === 'all' ? '' : ' matching ' + escapeHtml(getGamesTabFilterLabel(filter).toLowerCase())) + '</div>' +
+      '<div class="games-list-banner-meta">' + wins + '-' + losses + '-' + draws + ' · ' + reviewedCount + ' reviewed</div>' +
+    '</div>';
     var rows = filteredItems.length
-      ? filteredItems.map(function(item) { return item.html; }).join('')
-      : '<div class="no-games">No games match the selected filter.</div>';
+      ? '<div class="games-list-stack">' + filteredItems.map(function(item) { return item.html; }).join('') + '</div>'
+      : buildGamesTabEmptyState('No games match this filter', 'Try another filter to inspect the rest of the archive.');
 
     container.innerHTML = header + rows;
   }
