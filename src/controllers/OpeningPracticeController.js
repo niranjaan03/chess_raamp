@@ -10,6 +10,18 @@ import { escapeAttr, escapeHtml } from '../utils/dom.js';
 
 const FAVORITES_KEY = 'kv_opening_favorites';
 const PROGRESS_KEY = 'kv_opening_progress';
+const LEARN_PROGRESS_KEY = 'kv_learn_progress_v1';
+
+const MODE_UNLOCK = { learn: 0, practice: 0, drill: 0, time: 0, puzzles: 0, arena: 0 };
+
+const MODE_META = {
+  learn:    { icon: '📖', title: 'Learn',    desc: 'Step through the line with coach explanations.' },
+  practice: { icon: '🎯', title: 'Practice', desc: 'Play the moves with guided feedback and hints.' },
+  drill:    { icon: '🔥', title: 'Drill',    desc: 'Replay the line from memory, no hints.' },
+  time:     { icon: '⏱',  title: 'Time',     desc: 'Race the clock through the opening.' },
+  puzzles:  { icon: '🧩', title: 'Puzzles',  desc: 'Solve positions from this opening.' },
+  arena:    { icon: '⚔',  title: 'Arena',    desc: 'Compete with others in this opening.' },
+};
 const RAW_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL)
   ? import.meta.env.BASE_URL
   : '';
@@ -139,9 +151,11 @@ const OpeningPracticeController = (function () {
   var expectedMoves = [];       // SAN moves for the current variation
   var currentMoveIndex = 0;     // How far the user has progressed
   var userColor = 'w';          // Which color the user plays
-  var practiceMode = 'practice';
+  var practiceMode = 'learn';
   var practiceBoard = null;     // We reuse ChessBoard but in practice mode
   var isPracticing = false;
+  var learnMoveIndex = 0;       // Position cursor in learn-mode walk-through
+  var learnProgress = loadLearnProgress(); // {openingId: {discovered: {varId: true}}}
   var wrongMove = false;
   var searchQuery = '';
   var filterColor = '';
@@ -396,6 +410,43 @@ const OpeningPracticeController = (function () {
       localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress || {}));
     } catch (e) {
       /* ignore */
+    }
+  }
+
+  function loadLearnProgress() {
+    if (typeof window === 'undefined') return {};
+    try {
+      return JSON.parse(localStorage.getItem(LEARN_PROGRESS_KEY) || '{}');
+    } catch (e) { return {}; }
+  }
+
+  function saveLearnProgress() {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(LEARN_PROGRESS_KEY, JSON.stringify(learnProgress || {}));
+    } catch (e) { /* ignore */ }
+  }
+
+  function getDiscoveredLines(opening) {
+    if (!opening || !learnProgress) return 0;
+    var openingId = getOpeningId(opening);
+    var record = learnProgress[openingId];
+    if (!record || !record.discovered) return 0;
+    return Object.keys(record.discovered).length;
+  }
+
+  function markLineDiscovered(opening, variation) {
+    if (!opening || !variation) return;
+    var openingId = getOpeningId(opening);
+    var variationId = getVariationId(opening, variation);
+    learnProgress = learnProgress || {};
+    if (!learnProgress[openingId]) learnProgress[openingId] = { discovered: {} };
+    if (!learnProgress[openingId].discovered) learnProgress[openingId].discovered = {};
+    if (!learnProgress[openingId].discovered[variationId]) {
+      learnProgress[openingId].discovered[variationId] = true;
+      saveLearnProgress();
+      renderModeCards();
+      updateLinesCounter();
     }
   }
 
@@ -959,29 +1010,106 @@ const OpeningPracticeController = (function () {
   }
 
   function normalizePracticeMode(mode) {
-    return mode === 'drill' ? 'drill' : 'practice';
+    if (mode === 'drill') return 'drill';
+    if (mode === 'learn') return 'learn';
+    if (mode === 'time' || mode === 'puzzles' || mode === 'arena') return mode;
+    return 'practice';
   }
 
   function getCompletionMessage() {
-    return practiceMode === 'drill'
-      ? 'Drill complete! You replayed the full line from memory.'
-      : 'Excellent! You completed this variation!';
+    if (practiceMode === 'drill') return 'Drill complete! You replayed the full line from memory.';
+    if (practiceMode === 'learn') return 'Line complete! You\'ve walked through every move.';
+    return 'Excellent! You completed this variation!';
+  }
+
+  function renderModeCards() {
+    var grid = document.getElementById('opnModeGrid');
+    if (!grid) return;
+    var html = '';
+    ['learn', 'practice', 'drill', 'time', 'puzzles', 'arena'].forEach(function(mode) {
+      var meta = MODE_META[mode];
+      var isActive = practiceMode === mode;
+      html += '<div class="opn-mode-card' + (isActive ? ' active' : '') + '" data-mode="' + mode + '">';
+      html += '<span class="opn-mode-card-icon">' + meta.icon + '</span>';
+      html += '<div class="opn-mode-card-info">';
+      html += '<span class="opn-mode-card-title">' + meta.title + '</span>';
+      html += '<span class="opn-mode-card-sub">' + meta.desc + '</span>';
+      html += '</div>';
+      html += '</div>';
+    });
+    grid.innerHTML = html;
+
+    grid.querySelectorAll('.opn-mode-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        setPracticeMode(this.getAttribute('data-mode'));
+      });
+    });
+  }
+
+  function updateTrainingHeader() {
+    var badge = document.getElementById('opnModeBadge');
+    var nameEl = document.getElementById('opnTrainName');
+    var stepEl = document.getElementById('opnTrainStep');
+    var meta = MODE_META[practiceMode] || MODE_META.practice;
+    if (badge) badge.textContent = meta.icon + ' ' + meta.title;
+    if (nameEl) {
+      if (currentVariation && currentOpening) {
+        nameEl.textContent = currentOpening.name + ': ' + currentVariation.name;
+      } else if (currentOpening) {
+        nameEl.textContent = currentOpening.name;
+      } else {
+        nameEl.textContent = 'Select an Opening';
+      }
+    }
+    if (stepEl) stepEl.textContent = currentVariation ? ('#' + (currentMoveIndex + 1)) : '';
+  }
+
+  function updateLinesCounter() {
+    var row = document.getElementById('opnLinesRow');
+    var text = document.getElementById('opnLinesText');
+    if (!currentOpening) { if (row) row.style.display = 'none'; return; }
+    var discovered = getDiscoveredLines(currentOpening);
+    var total = currentOpening.variations ? currentOpening.variations.length : 0;
+    if (row) row.style.display = '';
+    if (text) text.textContent = discovered + ' / ' + total + ' lines discovered';
+  }
+
+  function goToNextLearnMove() {
+    if (practiceMode !== 'learn') return;
+    if (!expectedMoves || !expectedMoves.length) return;
+    if (learnMoveIndex >= expectedMoves.length) { onVariationComplete(); return; }
+    var move = expectedMoves[learnMoveIndex];
+    var result = practiceChess.move(move);
+    if (!result) return;
+    learnMoveIndex++;
+    currentMoveIndex = learnMoveIndex;
+    ChessBoard.setPosition(practiceChess);
+    ChessBoard.setLastMove(result.from, result.to);
+    SoundController.playMove();
+    updatePracticeProgress();
+    renderPracticeMoveList();
+    updateCoachPanel(false);
+    updateTrainingHeader();
+    if (learnMoveIndex >= expectedMoves.length) {
+      markLineDiscovered(currentOpening, currentVariation);
+      setTimeout(onVariationComplete, 500);
+    }
   }
 
   function updatePracticeModeUI() {
-    var selectedMode = normalizePracticeMode(practiceMode);
-    document.querySelectorAll('.practice-mode-card[data-mode]').forEach(function(btn) {
-      var isActive = btn.getAttribute('data-mode') === selectedMode;
-      btn.classList.toggle('active', isActive);
-      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-    });
+    renderModeCards();
 
     var hintBtn = document.getElementById('practiceHintBtn');
     if (hintBtn) {
-      var hintDisabled = selectedMode === 'drill';
+      var hintDisabled = practiceMode === 'drill' || practiceMode === 'learn';
       hintBtn.disabled = hintDisabled;
       hintBtn.classList.toggle('is-disabled', hintDisabled);
-      hintBtn.title = hintDisabled ? 'Hints are disabled in Drill mode' : 'Show hint';
+      hintBtn.title = hintDisabled ? 'Hints are disabled in this mode' : 'Show hint';
+    }
+
+    var nextBtn = document.getElementById('practiceNextBtn');
+    if (nextBtn) {
+      nextBtn.style.display = practiceMode === 'learn' ? '' : 'none';
     }
   }
 
@@ -1004,9 +1132,13 @@ const OpeningPracticeController = (function () {
 
     var practiceSideCopy = document.getElementById('practiceSideCopy');
     if (practiceSideCopy) {
-      practiceSideCopy.textContent = practiceMode === 'drill'
-        ? 'Drill this opening as ' + getColorLabel(userColor) + ' from memory.'
-        : 'Train this opening as ' + getColorLabel(userColor) + ' with guided feedback.';
+      if (practiceMode === 'drill') {
+        practiceSideCopy.textContent = 'Drill this opening as ' + getColorLabel(userColor) + ' from memory.';
+      } else if (practiceMode === 'learn') {
+        practiceSideCopy.textContent = 'Step through this line as ' + getColorLabel(userColor) + ' with coach explanations.';
+      } else {
+        practiceSideCopy.textContent = 'Train this opening as ' + getColorLabel(userColor) + ' with guided feedback.';
+      }
     }
 
     var pgnLine = document.getElementById('practiceMovePgn');
@@ -1033,18 +1165,19 @@ const OpeningPracticeController = (function () {
     updatePracticeMeta();
     updatePracticeProgress();
     renderPracticeMoveList();
+    updateTrainingHeader();
+    updateLinesCounter();
 
     if (currentOpening && currentVariation) {
       updateCoachPanel(currentMoveIndex === 0);
     }
 
     if (!options.silent && currentVariation) {
-      showPracticeStatus(
-        'hint',
-        practiceMode === 'drill'
-          ? 'Drill mode is on. Hints are disabled and the full line is hidden.'
-          : 'Practice mode is on. Hints, coach notes, and the full line are available.'
-      );
+      var statusMsg;
+      if (practiceMode === 'drill') statusMsg = 'Drill mode — play from memory. Hints disabled.';
+      else if (practiceMode === 'learn') statusMsg = 'Learn mode — press › to step through the line.';
+      else statusMsg = 'Practice mode — play the moves with guided feedback.';
+      showPracticeStatus('hint', statusMsg);
     }
   }
 
@@ -1061,6 +1194,7 @@ const OpeningPracticeController = (function () {
     isPracticing = true;
     wrongMove = false;
     currentMoveIndex = 0;
+    learnMoveIndex = 0;
     sessionHints = 0;
     sessionErrors = 0;
     hideSRSPanel();
@@ -1079,24 +1213,28 @@ const OpeningPracticeController = (function () {
     document.getElementById('openingPracticeView').style.display = 'flex';
     animateEntry('openingPracticeView');
 
-    // Init the board
+    // Init the board — learn mode is display-only (no interaction)
     ChessBoard.init('practiceChessBoard', 'practiceBoardOverlay', onPracticeMove);
     ChessBoard.setPosition(practiceChess);
     ChessBoard.setLastMove(null, null);
     ChessBoard.setFlipped(userColor === 'b');
-    ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [] });
+    if (practiceMode === 'learn') {
+      ChessBoard.setOptions({ interactionColor: null, allowedMoves: [] });
+    } else {
+      ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [] });
+    }
 
     // Update UI
     setPracticeMode(practiceMode, { silent: true });
+    updateTrainingHeader();
+    updateLinesCounter();
     clearPracticeStatus();
 
-    // Update move list display
-    if (currentMoveIndex < expectedMoves.length) {
+    // In practice/drill mode auto-play opponent's first move if needed
+    if (practiceMode !== 'learn' && currentMoveIndex < expectedMoves.length) {
       var turn = practiceChess.turn();
       if (turn !== userColor) {
-        setTimeout(function () {
-          autoPlayOpponentMove();
-        }, 250);
+        setTimeout(function () { autoPlayOpponentMove(); }, 250);
       }
     }
 
@@ -1313,113 +1451,223 @@ const OpeningPracticeController = (function () {
   }
 
   function updateCoachPanel(isStart) {
-    var panel = document.getElementById('coachExplanation');
-    if (!panel) return;
+    var body = document.getElementById('opnCoachBody') || document.getElementById('coachExplanation');
+    if (!body) return;
+
+    if (practiceMode === 'learn') {
+      if (isStart || currentMoveIndex === 0) {
+        body.innerHTML =
+          '<div class="opn-coach-move-label"><strong>' + currentOpening.name + '</strong></div>' +
+          '<div class="opn-coach-move-explain">' + getOpeningDefinition(currentOpening) + '</div>' +
+          '<div class="opn-coach-move-explain" style="margin-top:8px">Playing as <strong>' + getColorLabel(userColor) + '</strong> — <em>' + currentVariation.name + '</em></div>' +
+          '<div class="opn-coach-next">Press <strong>›</strong> to step through each move.</div>';
+      } else if (currentMoveIndex > 0 && currentMoveIndex <= expectedMoves.length) {
+        var idx = currentMoveIndex - 1;
+        var move = expectedMoves[idx];
+        var moveNum = Math.floor(idx / 2) + 1;
+        var isWhiteTurn = idx % 2 === 0;
+        var label = moveNum + (isWhiteTurn ? '.' : '...') + ' ' + move;
+        body.innerHTML =
+          '<div class="opn-coach-move-label">' + label + '</div>' +
+          '<div class="opn-coach-move-explain">' + getExplanation(move, idx) + '</div>' +
+          (currentMoveIndex < expectedMoves.length
+            ? '<div class="opn-coach-next">Press <strong>›</strong> for the next move.</div>'
+            : '<div class="opn-coach-complete">🎉 Line complete! All moves discovered.</div>');
+      }
+      return;
+    }
 
     if (practiceMode === 'drill') {
-      const nextTurnColor = currentMoveIndex % 2 === 0 ? 'w' : 'b';
+      var nextTurnColor = currentMoveIndex % 2 === 0 ? 'w' : 'b';
       var drillHtml =
-        '<div class="coach-header"><span class="coach-icon">🔥</span> Drill</div>' +
-        '<div class="coach-text">' +
-        '<p><strong>' + currentOpening.name + '</strong></p>' +
-        '<p>Variation: <strong>' + currentVariation.name + '</strong></p>' +
-        '<p style="margin-top:10px">Practice side: <strong>' + getColorLabel(userColor) + '</strong></p>' +
-        '<p style="margin-top:10px">Play the line from memory. Hints and the full move list stay hidden in this mode.</p>' +
-        '<p style="margin-top:10px">Progress: <strong>' + currentMoveIndex + ' / ' + expectedMoves.length + '</strong> moves revealed.</p>';
-
+        '<p><strong>' + currentOpening.name + '</strong> — ' + currentVariation.name + '</p>' +
+        '<p style="margin-top:8px">Play as <strong>' + getColorLabel(userColor) + '</strong> from memory.</p>' +
+        '<p style="margin-top:8px">Progress: <strong>' + currentMoveIndex + ' / ' + expectedMoves.length + '</strong></p>';
       if (!isStart && currentMoveIndex < expectedMoves.length) {
-        if (nextTurnColor === userColor) {
-          drillHtml += '<p style="margin-top:10px">Your turn. Find the next move without assistance.</p>';
-        } else {
-          drillHtml += '<p style="margin-top:10px">The line reply will appear automatically after your move.</p>';
-        }
+        drillHtml += '<p style="margin-top:8px">' + (nextTurnColor === userColor ? 'Your turn.' : 'Opponent reply incoming.') + '</p>';
       }
-
-      if (currentMoveIndex >= expectedMoves.length) {
-        drillHtml += '<p style="margin-top:10px"><strong>Line complete.</strong></p>';
-      }
-
-      drillHtml += '</div>';
-      panel.innerHTML = drillHtml;
+      if (currentMoveIndex >= expectedMoves.length) drillHtml += '<p style="margin-top:8px"><strong>Line complete.</strong></p>';
+      body.innerHTML = drillHtml;
       return;
     }
 
     if (isStart) {
-      panel.innerHTML =
-        '<div class="coach-header"><span class="coach-icon">🎓</span> Coach</div>' +
-        '<div class="coach-text">' +
-        '<p><strong>' + currentOpening.name + '</strong></p>' +
-        '<p>' + getOpeningDefinition(currentOpening) + '</p>' +
-        '<p style="margin-top:10px">Practice side: <strong>' + getColorLabel(userColor) + '</strong></p>' +
-        '<p style="margin-top:10px">Variation: <strong>' + currentVariation.name + '</strong></p>' +
-        '<p style="margin-top:6px">Play the correct moves on the board. Your opponent\'s moves will be played automatically. Use the <strong>Hint</strong> button if you get stuck!</p>' +
-        '</div>';
+      body.innerHTML =
+        '<div class="opn-coach-move-label"><strong>' + currentOpening.name + '</strong></div>' +
+        '<div class="opn-coach-move-explain">' + getOpeningDefinition(currentOpening) + '</div>' +
+        '<div class="opn-coach-move-explain" style="margin-top:8px">Playing as <strong>' + getColorLabel(userColor) + '</strong> — <em>' + currentVariation.name + '</em></div>' +
+        '<div class="opn-coach-next">Play the correct moves. Use <strong>Hint</strong> if you get stuck.</div>';
       return;
     }
 
-    // Explain the last move(s)
-    var html = '<div class="coach-header"><span class="coach-icon">🎓</span> Coach</div>';
-
-    // Show explanation for recent moves
+    // Practice mode: explain the last move(s)
+    var html = '';
     var startIdx = Math.max(0, currentMoveIndex - 2);
     for (var i = startIdx; i < currentMoveIndex && i < expectedMoves.length; i++) {
-      var move = expectedMoves[i];
-      var moveNum = Math.floor(i / 2) + 1;
-      var isWhite = i % 2 === 0;
-      var label = moveNum + (isWhite ? '.' : '...') + ' ' + move;
-
-      html += '<div class="coach-move-explain">';
-      html += '<div class="coach-move-label">' + label + ' <span class="coach-color-badge ' + (isWhite ? 'white-badge' : 'black-badge') + '">' + (isWhite ? 'White' : 'Black') + '</span></div>';
-
-      var explanation = getExplanation(move, i);
-      html += '<div class="coach-move-text">' + explanation + '</div>';
-      html += '</div>';
+      var mv = expectedMoves[i];
+      var mn = Math.floor(i / 2) + 1;
+      var iw = i % 2 === 0;
+      var lbl = mn + (iw ? '.' : '...') + ' ' + mv;
+      html += '<div class="opn-coach-move-label">' + lbl + ' <span class="coach-color-badge ' + (iw ? 'white-badge' : 'black-badge') + '">' + (iw ? 'White' : 'Black') + '</span></div>';
+      html += '<div class="opn-coach-move-explain">' + getExplanation(mv, i) + '</div>';
     }
 
-    // Preview what's next
     if (currentMoveIndex < expectedMoves.length) {
-      const nextTurnColor = currentMoveIndex % 2 === 0 ? 'w' : 'b';
-      var nextTurn = nextTurnColor === 'w' ? 'White' : 'Black';
-      var lead = nextTurnColor === userColor ? 'Your turn' : 'Opponent turn';
-      html += '<div class="coach-next">' + lead + ': <strong>' + nextTurn + '</strong> to move.</div>';
+      var ntc = currentMoveIndex % 2 === 0 ? 'w' : 'b';
+      var nt = ntc === 'w' ? 'White' : 'Black';
+      var ld = ntc === userColor ? 'Your turn' : 'Opponent turn';
+      html += '<div class="opn-coach-next">' + ld + ': <strong>' + nt + '</strong> to move.</div>';
     }
 
-    panel.innerHTML = html;
+    body.innerHTML = html;
   }
 
+  // GAC-inspired commentary: combines Move Description + Planning/Rationale + Move Quality
   function getExplanation(san, moveIndex) {
-    // Check our explanation database first
     var baseSan = san.replace(/[+#!?]/g, '');
-    if (COACH_EXPLANATIONS[baseSan]) {
-      return COACH_EXPLANATIONS[baseSan];
+    if (COACH_EXPLANATIONS[baseSan]) return COACH_EXPLANATIONS[baseSan];
+    return generateGACCommentary(san, moveIndex);
+  }
+
+  var PIECE_NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
+  var FILE_NAMES  = { a:'a-file', b:'b-file', c:'c-file', d:'d-file', e:'e-file', f:'f-file', g:'g-file', h:'h-file' };
+  var CENTER_SQUARES = { e4:1, e5:1, d4:1, d5:1, c4:1, c5:1, f4:1, f5:1 };
+  var KINGSIDE_FILES = { f:1, g:1, h:1 };
+  var QUEENSIDE_FILES = { a:1, b:1, c:1 };
+
+  function generateGACCommentary(san, moveIndex) {
+    var color    = moveIndex % 2 === 0 ? 'White' : 'Black';
+    var opponent = color === 'White' ? 'Black' : 'White';
+    var moveNum  = Math.floor(moveIndex / 2) + 1;
+    var phase    = moveNum <= 5 ? 'opening' : moveNum <= 12 ? 'middlegame-approach' : 'late-opening';
+
+    // Extract verbose move data from chess.js history
+    var history  = (practiceChess && typeof practiceChess.history === 'function')
+                     ? practiceChess.history({ verbose: true }) : [];
+    var mv       = history.length > 0 ? history[history.length - 1] : null;
+
+    var piece    = mv ? mv.piece : null;
+    var from     = mv ? mv.from  : null;
+    var to       = mv ? mv.to    : null;
+    var captured = mv ? mv.captured : null;
+    var flags    = mv ? (mv.flags || '') : '';
+
+    var isCapture   = san.includes('x');
+    var isCheck     = san.includes('+') && !san.includes('#');
+    var isMate      = san.includes('#');
+    var isKCastle   = san === 'O-O';
+    var isQCastle   = san === 'O-O-O';
+    var isPromotion = san.includes('=');
+    var isEnPassant = flags.includes('e');
+    var isCenter    = to && CENTER_SQUARES[to];
+    var toFile      = to ? to[0] : null;
+    var toRank      = to ? parseInt(to[1]) : null;
+
+    var parts = [];
+
+    // ── Category 1: Move Description ──────────────────────────────────────
+    if (isMate) {
+      parts.push(color + ' plays ' + san + ' — checkmate! The game is over.');
+    } else if (isKCastle) {
+      parts.push(color + ' castles kingside (O-O), tucking the king behind the pawns on f, g, and h while activating the rook on the h-file.');
+    } else if (isQCastle) {
+      parts.push(color + ' castles queenside (O-O-O), moving the king to c1/c8 and bringing the a-rook into the center.');
+    } else if (isPromotion) {
+      var promPiece = san.slice(-1).toLowerCase();
+      parts.push(color + ' promotes the pawn to a ' + (PIECE_NAMES[promPiece] || 'queen') + ' on ' + to + '!');
+    } else if (isEnPassant) {
+      parts.push(color + ' captures en passant with ' + san + ', removing ' + opponent + '\'s pawn that advanced two squares last turn.');
+    } else if (isCapture && captured) {
+      var capName = PIECE_NAMES[captured] || 'piece';
+      parts.push(color + ' captures the ' + opponent.toLowerCase() + ' ' + capName + ' on ' + to + ' with ' + san + (isCheck ? ', giving check' : '') + '.');
+    } else if (piece) {
+      var pieceName = PIECE_NAMES[piece] || 'piece';
+      if (piece === 'p') {
+        parts.push(color + ' advances the ' + pieceName + ' to ' + to + (isCenter ? ', striking at the center' : '') + (isCheck ? ', giving check' : '') + '.');
+      } else {
+        parts.push(color + ' develops the ' + pieceName + ' to ' + to + (isCenter ? ', placing it on a central square' : '') + (isCheck ? ', giving check' : '') + '.');
+      }
+    } else {
+      parts.push(color + ' plays ' + san + '.');
     }
 
-    // Generate contextual explanation
-    var moveNum = Math.floor(moveIndex / 2) + 1;
-    var isWhite = moveIndex % 2 === 0;
-    var color = isWhite ? 'White' : 'Black';
-
-    if (san.includes('x')) {
-      return color + ' captures with ' + san + '. This exchange changes the pawn structure or removes a key piece. Consider how this affects control of the center.';
-    }
-    if (san.startsWith('N')) {
-      return color + ' develops the knight with ' + san + '. Knights are best on central squares where they control the most squares.';
-    }
-    if (san.startsWith('B')) {
-      return color + ' develops the bishop with ' + san + '. Bishops are long-range pieces that thrive on open diagonals.';
-    }
-    if (san.startsWith('R')) {
-      return color + ' activates the rook with ' + san + '. Rooks belong on open or semi-open files where they can exert maximum pressure.';
-    }
-    if (san.startsWith('Q')) {
-      return color + ' moves the queen with ' + san + '. The queen is powerful but should not be developed too early to avoid being chased by minor pieces.';
-    }
-    if (san.startsWith('K')) {
-      return color + ' moves the king with ' + san + '. King moves in the opening are unusual — this may be part of a specific theoretical line.';
+    // ── Category 2: Move Quality (threat / check context) ─────────────────
+    if (isCheck && !isMate) {
+      parts.push('This check forces ' + opponent + ' to respond immediately, disrupting their plans and potentially gaining a tempo.');
     }
 
-    // Pawn move
-    return color + ' plays ' + san + '. This pawn move fights for central control and creates the foundation of the middlegame pawn structure.';
+    // ── Category 4: Planning / Rationale ──────────────────────────────────
+    var rationale = getOpeningRationale(piece, to, from, toFile, toRank, isCapture, captured, isKCastle, isQCastle, color, opponent, phase, san, moveNum, isCenter);
+    if (rationale) parts.push(rationale);
+
+    return parts.join(' ');
+  }
+
+  function getOpeningRationale(piece, to, from, toFile, toRank, isCapture, captured, isKCastle, isQCastle, color, opponent, phase, san, moveNum, isCenter) {
+    if (isKCastle || isQCastle) return null; // already described above
+
+    // Pawn moves
+    if (piece === 'p') {
+      if (to === 'e4' || to === 'e5') return 'Central pawns claim maximum space and open diagonals for the bishops and queen — a cornerstone of classical opening theory.';
+      if (to === 'd4' || to === 'd5') return 'The d-pawn supports central control. Together with e4/e5 it forms a classical pawn center that restricts the opponent\'s pieces.';
+      if (to === 'c4' || to === 'c5') return 'This flank pawn fights for d5/d4 control without committing the d-pawn. It\'s a flexible move common to the English, Queen\'s Gambit, and Sicilian structures.';
+      if (isCapture && captured) {
+        if (captured === 'p') return 'Capturing the pawn changes the pawn structure. The recapture choice will shape the middlegame — open files and diagonals shift accordingly.';
+        if (captured === 'n' || captured === 'b') return 'Exchanging a minor piece can be strong if it disrupts the opponent\'s piece coordination or gains the bishop pair.';
+      }
+      if (toFile === 'h' || toFile === 'a') return 'This flank pawn advance makes space, prevents an opponent piece from using that square, or prepares a future expansion.';
+      if (toFile === 'f') return 'The f-pawn move can sharpen the game, supporting e5 or preparing a kingside attack — but it slightly weakens the king if castled short.';
+      if (phase === 'opening') return 'Pawn moves in the opening fight for space and establish the structural foundation that determines the middlegame pawn skeleton.';
+      return 'This pawn advance claims space and restricts opponent piece mobility in this area of the board.';
+    }
+
+    // Knight moves
+    if (piece === 'n') {
+      if (to === 'f3' || to === 'f6') return 'A model developing move — the knight on f3/f6 controls e5/e4 and d4/d5, prepares kingside castling, and rarely gets in the way of other pieces.';
+      if (to === 'c3' || to === 'c6') return 'Developing toward the center. This knight supports e4/e5 and pressures d4/d5, though it blocks the c-pawn\'s advance.';
+      if (to === 'd4' || to === 'd5') return 'An outpost in the center! A knight on d4/d5 that cannot be challenged by an opponent pawn is a powerful piece.';
+      if (to === 'e5' || to === 'e4') return 'A centralized knight on e5/e4 is a powerful piece, controlling many squares and often supported by a pawn on d4/d4.';
+      if (isCapture && captured) return 'This knight capture removes an important ' + opponent.toLowerCase() + ' piece, potentially gaining the bishop pair or removing a key defender.';
+      if (phase === 'opening') return 'Knights are best developed early toward central squares. Each developing move brings the knight closer to its optimal outpost.';
+      return 'This knight maneuver repositions to a more active square, a common technique called a "knight reroute" in opening theory.';
+    }
+
+    // Bishop moves
+    if (piece === 'b') {
+      if (to === 'b5' || to === 'b4') return 'A pin or threat of a pin! This classical bishop move (Ruy Lopez / Nimzo-Indian style) creates long-term pressure without immediately capturing.';
+      if (to === 'c4' || to === 'c5') return 'The bishop targets the sensitive f7/f2 square — one of the oldest ideas in chess. It supports piece activity and potential kingside pressure.';
+      if (to === 'g5' || to === 'g4') return 'Pinning the opponent\'s knight against the queen. This disrupts coordination and forces the opponent to decide whether to accept the pin or break it.';
+      if (to === 'e2' || to === 'e7') return 'A modest but solid development, keeping the bishop on a flexible square while preparing to castle kingside.';
+      if (to === 'g2' || to === 'g7') return 'Fianchettoing the bishop — placing it on the long diagonal where it can influence the center from a distance. A hypermodern technique.';
+      if (to === 'b2' || to === 'b7') return 'The fianchetto bishop on b2/b7 controls the long diagonal (a1–h8), exerting powerful pressure across the board.';
+      if (to === 'f4' || to === 'f5') return 'The bishop is placed outside the pawn chain before playing e3, keeping it actively on f4/f5. This is the signature of the London System and similar setups.';
+      if (isCapture) return 'This bishop capture disrupts the opponent\'s structure or removes a key piece. Consider the consequences for the diagonal and pawn structure.';
+      return 'Bishops are long-range pieces that thrive on open diagonals. This move activates it toward a productive diagonal for the coming middlegame.';
+    }
+
+    // Rook moves
+    if (piece === 'r') {
+      if (to && to[0] === 'e') return 'The rook eyes the open or semi-open e-file, preparing to double rooks or exert pressure on the e-pawn.';
+      if (to && to[0] === 'd') return 'Placing the rook on the d-file — useful for supporting the d-pawn or contesting an open file in the center.';
+      if (phase === 'opening') return 'Rooks are typically activated after castling. Connecting the rooks and placing them on open or semi-open files is a key goal in the opening.';
+      return 'Rooks belong on open files where they can exert maximum pressure. This move aims to seize file control or support a pawn advance.';
+    }
+
+    // Queen moves
+    if (piece === 'q') {
+      if (moveNum <= 4) return 'Early queen development is risky — it can be chased by opponent minor pieces, losing tempos. This is a deliberate choice in this specific opening line.';
+      if (isCapture) return 'The queen recapture is strong here, centralizing the queen while removing material. In the opening, recapturing with the queen avoids exposing it to early harassment.';
+      if (to === 'd1' || to === 'd8') return 'The queen retreats to a safe central square, maintaining flexibility and keeping attacking options open.';
+      return 'The queen move connects the ideas on both sides of the board. Watch for how it supports future piece coordination or threatens multiple targets.';
+    }
+
+    // King moves (non-castle)
+    if (piece === 'k') {
+      if (moveNum <= 8) return 'A king move this early is unusual and signals a specific theoretical idea — the king may be heading to safety via an unorthodox route, or this is a forcing response.';
+      return 'The king steps to safety or activates in a simplified position. King activity is crucial in the endgame.';
+    }
+
+    return null;
   }
 
   function showPracticeStatus(type, message) {
@@ -1650,6 +1898,9 @@ const OpeningPracticeController = (function () {
     var prevBtn = document.getElementById('practicePrevBtn');
     if (prevBtn) prevBtn.addEventListener('click', goToPrevMove);
 
+    var nextBtn = document.getElementById('practiceNextBtn');
+    if (nextBtn) nextBtn.addEventListener('click', goToNextLearnMove);
+
     var resetBtn = document.getElementById('practiceResetBtn');
     if (resetBtn) resetBtn.addEventListener('click', resetPractice);
 
@@ -1659,12 +1910,6 @@ const OpeningPracticeController = (function () {
         ChessBoard.flip();
       });
     }
-
-    document.querySelectorAll('.practice-mode-card[data-mode]').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        setPracticeMode(this.getAttribute('data-mode'));
-      });
-    });
 
     // Review queue
     var startReviewBtn = document.getElementById('startReviewBtn');
@@ -1683,6 +1928,7 @@ const OpeningPracticeController = (function () {
     setPracticeMode: setPracticeMode,
     showHint: showHint,
     goToPrevMove: goToPrevMove,
+    goToNextLearnMove: goToNextLearnMove,
     resetPractice: resetPractice,
     startReviewSession: startReviewSession,
     updateReviewBanner: updateReviewBanner

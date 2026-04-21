@@ -22,6 +22,458 @@ function showBootError(error) {
   document.body.appendChild(overlay);
 }
 
+function PlayerStrip({ side, avatar, nameId, ratingId, clockId, defaultName }) {
+  return (
+    <div className={`player-info review-player-strip ${side}`}>
+      <div className={`player-avatar ${side}`}>{avatar}</div>
+      <div className="player-details">
+        <span className="player-side-label">{side}</span>
+        <span className="player-name" id={nameId}>{defaultName}</span>
+        <span className="player-rating" id={ratingId}>—</span>
+      </div>
+      <div className="player-clock" id={clockId}>--:--</div>
+    </div>
+  );
+}
+
+function MoveNavigationControls({ compact = false }) {
+  return (
+    <div className={`nav-controls review-nav-controls${compact ? ' is-compact' : ''}`}>
+      <button type="button" className="nav-btn" id="btnFirst" aria-label="First move">&#8676;</button>
+      <button type="button" className="nav-btn" id="btnPrev" aria-label="Previous move">&#8592;</button>
+      <button type="button" className="nav-btn" id="btnPlay" aria-label="Play game">&#9654;</button>
+      <button type="button" className="nav-btn" id="btnNext" aria-label="Next move">&#8594;</button>
+      <button type="button" className="nav-btn" id="btnLast" aria-label="Last move">&#8677;</button>
+      <button type="button" className="nav-btn flip-btn" id="btnFlip" aria-label="Flip board">&#8645;</button>
+    </div>
+  );
+}
+
+function ReviewTabs() {
+  return (
+    <div className="gr-tabs review-tabs" role="tablist" aria-label="Game review views">
+      <button type="button" className="gr-tab active" id="grReportTab" data-review-tab="report">Report</button>
+      <button type="button" className="gr-tab" id="grAnalyzeTab" data-review-tab="analyze">Analysis</button>
+      <button type="button" className="gr-tab" id="grSettingsTab" data-review-tab="settings">Settings</button>
+    </div>
+  );
+}
+
+function AccuracySummary() {
+  return (
+    <section className="review-card review-summary-card" aria-label="Accuracy summary">
+      <div className="review-card-head">
+        <div>
+          <div className="gr-section-title">Game Report</div>
+          <div className="review-card-title">Accuracy & estimated ELO</div>
+        </div>
+        <span className="review-vs-pill">VS</span>
+      </div>
+      <div className="gr-players-row review-summary-grid">
+        <div className="gr-player-card review-player-card" id="grWhiteCard">
+          <div className="gr-player-card-top">
+            <div className="gr-player-avatar">♙</div>
+            <div className="gr-player-meta">
+              <span className="gr-player-role">White</span>
+              <span className="gr-player-name" id="grWhiteName">White</span>
+              <span className="gr-player-rating" id="grWhiteElo">—</span>
+            </div>
+          </div>
+          <div className="review-metric-row">
+            <span className="gr-acc-label">Accuracy</span>
+            <span className="gr-acc-value" id="grWhiteAcc">--</span>
+          </div>
+          <div className="review-metric-row">
+            <span className="gr-acc-label">Estimated ELO</span>
+            <span className="gr-val gr-rating-box" id="grWhiteGameRating">?</span>
+          </div>
+        </div>
+        <div className="gr-player-card review-player-card" id="grBlackCard">
+          <div className="gr-player-card-top">
+            <div className="gr-player-avatar">♟</div>
+            <div className="gr-player-meta">
+              <span className="gr-player-role">Black</span>
+              <span className="gr-player-name" id="grBlackName">Black</span>
+              <span className="gr-player-rating" id="grBlackElo">—</span>
+            </div>
+          </div>
+          <div className="review-metric-row">
+            <span className="gr-acc-label">Accuracy</span>
+            <span className="gr-acc-value" id="grBlackAcc">--</span>
+          </div>
+          <div className="review-metric-row">
+            <span className="gr-acc-label">Estimated ELO</span>
+            <span className="gr-val gr-rating-box" id="grBlackGameRating">?</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function EvalGraphCard() {
+  return (
+    <section className="review-card eval-graph-card">
+      <div className="review-card-head">
+        <div>
+          <div className="gr-section-title">Evaluation Graph</div>
+          <div className="review-card-title">Game trend</div>
+        </div>
+        <div className="gr-cpl-legend">
+          <span className="gr-legend-item"><span className="gr-legend-dot accurate"></span>Good</span>
+          <span className="gr-legend-item"><span className="gr-legend-dot mistake"></span>Mistake</span>
+          <span className="gr-legend-item"><span className="gr-legend-dot blunder"></span>Blunder</span>
+        </div>
+      </div>
+      <div className="gr-graph-wrap gr-eval-graph-wrap">
+        <canvas id="evalGraph" width="640" height="160"></canvas>
+      </div>
+    </section>
+  );
+}
+
+function MoveQualityBreakdown() {
+  return (
+    <section className="review-card review-quality-card">
+      <div className="review-card-head">
+        <div>
+          <div className="gr-section-title">Move Quality</div>
+          <div className="review-card-title">Good vs bad decisions</div>
+        </div>
+      </div>
+      <div className="gr-classify-table" id="grClassifyTable"></div>
+    </section>
+  );
+}
+
+function CriticalMomentsPanel() {
+  return (
+    <section className="review-card critical-card">
+      <div className="review-card-head">
+        <div>
+          <div className="gr-section-title danger">Critical Analysis</div>
+          <div className="review-card-title">Learn from your mistakes</div>
+        </div>
+      </div>
+      <div id="grCriticalMoments" className="critical-moments-list">
+        <div className="gr-analysis-empty">Run full analysis to see critical positions.</div>
+      </div>
+    </section>
+  );
+}
+
+function AnalysisPanel() {
+  return (
+    <div className="gr-tab-panel gr-analyze-panel" id="grAnalyzePanel" style={{ display: 'none' }}>
+      <section className="review-card current-engine-card">
+        <div className="review-card-head">
+          <div>
+            <div className="gr-section-title">Current Position</div>
+            <div className="review-card-title">Engine read</div>
+          </div>
+          <div className="eval-score" id="evalScore">+0.00</div>
+        </div>
+        <div className="eval-section">
+          <div className="eval-body">
+            <div className="eval-meta">
+              <span className="eval-meta-label">Best Move</span>
+              <span className="eval-meta-move" id="bestMoveDisplay">—</span>
+            </div>
+          </div>
+          <div className="eval-footer">
+            Depth <span id="evalDepth">0</span> · Nodes <span id="evalNodes">0</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="review-card">
+        <div className="lines-header">
+          <span>Engine Lines</span>
+          <span className="lines-summary" id="engineLinesSummary">All available</span>
+        </div>
+        <div className="lines-container" id="linesContainer">
+          <div className="line-item loading">Waiting for Stockfish...</div>
+        </div>
+      </section>
+
+      <section className="review-card">
+        <div className="move-quality-banner" id="moveQualityBanner">
+          <div className="mq-label">Selected Move</div>
+          <div className="mq-pill">
+            <span className="qi" id="moveQualityIcon">?</span>
+            <div className="mq-details">
+              <div className="mq-grade" id="moveQualityGrade">Awaiting analysis</div>
+              <div className="mq-desc" id="moveQualityDesc">
+                Run a full game review to see brilliance, inaccuracies, and more for each move.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="gr-coach-bar review-card" id="grCoachTip">
+        <div className="gr-coach-avatar" aria-hidden="true">
+          <div className="gr-coach-face">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'100%',height:'100%'}}>
+              <circle cx="32" cy="32" r="30" fill="#1a1a2e"/>
+              <circle cx="32" cy="36" r="18" fill="#e8c170"/>
+              <ellipse cx="32" cy="42" rx="10" ry="7" fill="#d4a555"/>
+              <rect x="13" y="28" rx="3" width="38" height="8" fill="#111"/>
+              <rect x="15" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
+              <rect x="35" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
+              <line x1="29" y1="32" x2="35" y2="32" stroke="#555" strokeWidth="1.5"/>
+              <path d="M26 44 Q32 50 38 44" stroke="#1a1a2e" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+              <path d="M10 24 Q32 10 54 24 L52 28 Q32 16 12 28 Z" fill="#2d2d5e"/>
+              <circle cx="48" cy="26" r="2" fill="#f7c948"/>
+            </svg>
+          </div>
+          <span className="gr-coach-badge">Coach</span>
+        </div>
+        <div className="gr-coach-copy">
+          <div className="gr-coach-name" id="grCoachTitle">Coach Ramp</div>
+          <div className="gr-coach-text" id="grCoachText">
+            Run a full analysis to unlock personalized move-by-move coaching.
+          </div>
+        </div>
+      </section>
+
+      <section className="review-card gr-live-section">
+        <div className="gr-live-header">
+          <span className="gr-section-title">Live Engine Analysis</span>
+          <span className="gr-live-badge">Live</span>
+        </div>
+        <div className="gr-live-candidates" id="grLiveCandidates">
+          <div className="gr-analysis-empty">Start analyzing a position to see engine candidates.</div>
+        </div>
+      </section>
+
+      <section className="review-card">
+        <div className="gr-analysis-head">
+          <div>
+            <div className="gr-section-title">Review Candidates</div>
+            <div className="gr-analysis-position" id="grAnalysisPositionLabel">
+              Select a move after running full analysis.
+            </div>
+          </div>
+        </div>
+        <div className="gr-analysis-list" id="grAnalysisCandidates">
+          <div className="gr-analysis-empty">Run full analysis to see better moves in this position.</div>
+        </div>
+      </section>
+
+      <section className="review-card phase-review-card">
+        <div className="review-card-head">
+          <div>
+            <div className="gr-section-title">Phase Review</div>
+            <div className="review-card-title">Opening, middlegame, endgame</div>
+          </div>
+        </div>
+        <div className="phase-review-grid">
+          <div className="phase-review-row">
+            <span>Opening</span>
+            <div className="gr-val" id="grPhaseOpW"><span className="gr-phase-icon">--</span></div>
+            <div className="gr-val" id="grPhaseOpB"><span className="gr-phase-icon">--</span></div>
+          </div>
+          <div className="phase-review-row">
+            <span>Middlegame</span>
+            <div className="gr-val" id="grPhaseMidW"><span className="gr-phase-icon">--</span></div>
+            <div className="gr-val" id="grPhaseMidB"><span className="gr-phase-icon">--</span></div>
+          </div>
+          <div className="phase-review-row">
+            <span>Endgame</span>
+            <div className="gr-val" id="grPhaseEndW"><span className="gr-phase-icon">--</span></div>
+            <div className="gr-val" id="grPhaseEndB"><span className="gr-phase-icon">--</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="review-card gr-cpl-section">
+        <div className="gr-cpl-header">
+          <span className="gr-section-title" style={{margin:0}}>Centipawn Loss</span>
+          <div className="gr-cpl-legend">
+            <span className="gr-legend-item"><span className="gr-legend-dot accurate"></span>Accurate</span>
+            <span className="gr-legend-item"><span className="gr-legend-dot inaccuracy"></span>Inaccuracy</span>
+            <span className="gr-legend-item"><span className="gr-legend-dot mistake"></span>Mistake</span>
+            <span className="gr-legend-item"><span className="gr-legend-dot blunder"></span>Blunder</span>
+          </div>
+        </div>
+        <div className="gr-cpl-chart-wrap" id="cplChartWrap">
+          <canvas id="cplChart" height="130"></canvas>
+          <div className="cpl-tooltip" id="cplTooltip" style={{display:'none'}}></div>
+        </div>
+      </section>
+
+      <section className="moves-section review-card">
+        <div className="moves-header">
+          <span>Moves &amp; Notation</span>
+        </div>
+        <div className="moves-list" id="movesList"></div>
+      </section>
+    </div>
+  );
+}
+
+function ReviewSettingsPanel() {
+  return (
+    <div className="gr-tab-panel gr-settings-panel" id="grSettingsPanel" style={{ display: 'none' }}>
+      <section className="review-card review-settings-card">
+        <div className="review-card-head">
+          <div>
+            <div className="gr-section-title">Board</div>
+            <div className="review-card-title">Review preferences</div>
+          </div>
+        </div>
+        <div className="review-settings-grid">
+          <button type="button" className="review-setting-action" id="reviewFlipBoard">
+            <span>&#8645;</span>
+            <strong>Flip board</strong>
+          </button>
+          <label className="review-setting-row">
+            <span>Show engine arrows</span>
+            <input type="checkbox" id="reviewShowArrows" defaultChecked />
+          </label>
+          <label className="review-setting-row">
+            <span>Highlight last move</span>
+            <input type="checkbox" id="reviewHighlightLast" defaultChecked />
+          </label>
+          <label className="review-setting-row">
+            <span>Show board coordinates</span>
+            <input type="checkbox" id="reviewShowCoords" defaultChecked />
+          </label>
+        </div>
+      </section>
+
+      <section className="review-card review-settings-card">
+        <div className="review-card-head">
+          <div>
+            <div className="gr-section-title">Appearance</div>
+            <div className="review-card-title">Board and pieces</div>
+          </div>
+        </div>
+        <div className="review-settings-grid two-col">
+          <label className="review-setting-field">
+            <span>Board theme</span>
+            <select id="reviewBoardTheme" className="dark-select" defaultValue="blue">
+              <option value="green">Classic Green</option>
+              <option value="brown">Brown Wood</option>
+              <option value="blue">Blue Ice</option>
+              <option value="purple">Purple Dark</option>
+              <option value="red">Crimson</option>
+            </select>
+          </label>
+          <label className="review-setting-field">
+            <span>Piece style</span>
+            <select id="reviewPieceStyle" className="dark-select" defaultValue="classic">
+              <option value="classic">Classic</option>
+              <option value="modern">Modern</option>
+              <option value="glass">Glass</option>
+              <option value="minimal">Minimal</option>
+              <option value="outline">Outline</option>
+              <option value="bold">Bold</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section className="review-card review-settings-card">
+        <div className="review-card-head">
+          <div>
+            <div className="gr-section-title">Playback</div>
+            <div className="review-card-title">Flow and sound</div>
+          </div>
+        </div>
+        <div className="review-settings-grid">
+          <label className="review-setting-field">
+            <span>Auto-play speed <strong id="reviewAutoplaySpeedVal">1.2s</strong></span>
+            <input type="range" min="500" max="2500" step="100" defaultValue="1200" id="reviewAutoplaySpeed" className="dark-slider" />
+          </label>
+          <label className="review-setting-row">
+            <span>Move sound</span>
+            <input type="checkbox" id="reviewMoveSound" defaultChecked />
+          </label>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function GameReviewLayout() {
+  return (
+    <div className="tab-content" id="tab-analyze">
+      <div className="analyze-shell game-review-shell" id="analyzeShell">
+        <div className="analyze-layout game-review-layout" id="analyzeContent">
+          <section className="board-panel review-board-panel">
+            <PlayerStrip side="black" avatar="♜" nameId="blackName" ratingId="blackRating" clockId="blackClock" defaultName="Black Player" />
+
+            <div className="review-board-stage">
+              <div className="review-eval-rail" aria-label="Evaluation">
+                <span className="review-eval-side">White</span>
+                <div className="eval-bar review-eval-bar">
+                  <div className="eval-fill eval-fill-white white-fill" id="evalFillWhite"></div>
+                  <div className="eval-fill eval-fill-black black-fill" id="evalFillBlack"></div>
+                </div>
+                <span className="review-eval-side">Black</span>
+              </div>
+
+              <div className="review-board-stack">
+                <div className="board-wrapper">
+                  <div className="board-main">
+                    <canvas id="chessBoard" width="640" height="640"></canvas>
+                    <div id="boardOverlay" className="board-overlay"></div>
+                  </div>
+                  <div className="board-coordinates" id="rankCoords"></div>
+                </div>
+                <div className="board-coordinates coords-file" id="fileCoords"></div>
+              </div>
+            </div>
+
+            <PlayerStrip side="white" avatar="♖" nameId="whiteName" ratingId="whiteRating" clockId="whiteClock" defaultName="White Player" />
+
+            <div className="opening-info review-opening-info" id="openingInfo">
+              <div className="opening-live-row">
+                <span className="opening-live-dot" id="openingLiveDot"></span>
+                <span className="opening-name" id="openingName">Waiting for moves…</span>
+                <span className="opening-eco-badge" id="openingEco"></span>
+              </div>
+            </div>
+          </section>
+
+          <aside className="analysis-panel review-side-panel">
+            <div className="game-review-panel is-empty" id="gameReviewPanel">
+              <div className="gr-header review-panel-header">
+                <div>
+                  <span className="gr-title">Game Review</span>
+                  <span className="review-panel-subtitle">Report, engine lines, and review settings</span>
+                </div>
+                <div className="moves-actions review-panel-actions">
+                  <button type="button" className="btn-sm" id="copyPGN">Copy PGN</button>
+                  <button type="button" className="btn-sm review-primary-action" id="analyzeFullGame">Full Analysis</button>
+                </div>
+              </div>
+
+              <ReviewTabs />
+
+              <div className="gr-tab-panel active" id="grReportPanel">
+                <AccuracySummary />
+                <EvalGraphCard />
+                <MoveQualityBreakdown />
+                <CriticalMomentsPanel />
+              </div>
+
+              <AnalysisPanel />
+              <ReviewSettingsPanel />
+
+              <div className="review-panel-footer">
+                <MoveNavigationControls compact />
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -530,287 +982,7 @@ function App() {
           </div>
         </div>
 
-        <div className="tab-content" id="tab-analyze">
-          <div className="analyze-shell" id="analyzeShell">
-            <div className="analyze-layout" id="analyzeContent">
-            <div className="board-panel">
-              <div className="player-info">
-                <div className="player-avatar black">&#9820;</div>
-                <div className="player-details">
-                  <span className="player-name" id="blackName">
-                    Black Player
-                  </span>
-                  <span className="player-rating" id="blackRating">—</span>
-                </div>
-                <div className="player-clock" id="blackClock">--:--</div>
-              </div>
-
-              <div className="board-wrapper">
-                <div className="board-main">
-                  <canvas id="chessBoard" width="640" height="640"></canvas>
-                  <div id="boardOverlay" className="board-overlay"></div>
-                </div>
-                <div className="board-coordinates" id="rankCoords"></div>
-              </div>
-              <div className="board-coordinates coords-file" id="fileCoords"></div>
-
-              <div className="player-info">
-                <div className="player-avatar white">&#9816;</div>
-                <div className="player-details">
-                  <span className="player-name" id="whiteName">
-                    White Player
-                  </span>
-                  <span className="player-rating" id="whiteRating">—</span>
-                </div>
-                <div className="player-clock" id="whiteClock">--:--</div>
-              </div>
-
-              <div className="opening-info" id="openingInfo" style={{ marginTop: '8px', marginBottom: '8px' }}>
-                <div className="opening-live-row">
-                  <span className="opening-live-dot" id="openingLiveDot"></span>
-                  <span className="opening-name" id="openingName">Waiting for moves\u2026</span>
-                  <span className="opening-eco-badge" id="openingEco"></span>
-                </div>
-              </div>
-
-              <div className="nav-controls">
-                <button type="button" className="nav-btn" id="btnFirst">
-                  &#8676;
-                </button>
-                <button type="button" className="nav-btn" id="btnPrev">
-                  &#8592;
-                </button>
-                <button type="button" className="nav-btn" id="btnPlay">
-                  &#9654;
-                </button>
-                <button type="button" className="nav-btn" id="btnNext">
-                  &#8594;
-                </button>
-                <button type="button" className="nav-btn" id="btnLast">
-                  &#8677;
-                </button>
-                <button type="button" className="nav-btn flip-btn" id="btnFlip">
-                  &#8645;
-                </button>
-              </div>
-
-            </div>
-
-            <div className="analysis-panel">
-              <div className="eval-section">
-                <div className="eval-body">
-                  <div className="eval-meta">
-                    <span className="eval-meta-label">Best Move</span>
-                    <span className="eval-meta-move" id="bestMoveDisplay">—</span>
-                  </div>
-                  <div className="eval-score" id="evalScore">+0.00</div>
-                  <div className="eval-bar">
-                    <div className="eval-fill eval-fill-white" id="evalFillWhite"></div>
-                    <div className="eval-fill eval-fill-black" id="evalFillBlack"></div>
-                  </div>
-                </div>
-                <div className="eval-footer">
-                  Depth <span id="evalDepth">0</span> · Nodes <span id="evalNodes">0</span>
-                </div>
-              </div>
-
-              <div className="engine-lines">
-                <div className="lines-header">
-                  <span>Stockfish Lines</span>
-                  <div className="lines-toggle">
-                    <button type="button" className="lines-btn active" data-lines="1">
-                      1
-                    </button>
-                    <button type="button" className="lines-btn" data-lines="3">
-                      3
-                    </button>
-                    <button type="button" className="lines-btn" data-lines="5">
-                      5
-                    </button>
-                  </div>
-                </div>
-                <div className="lines-container" id="linesContainer">
-                  <div className="line-item loading">Waiting for Stockfish...</div>
-                </div>
-              </div>
-
-              <div className="game-review-panel is-empty" id="gameReviewPanel">
-                <div className="gr-header">
-                  <span className="gr-title">&#9733; Game Review</span>
-                  <div className="gr-tabs" role="tablist" aria-label="Game review views">
-                    <button type="button" className="gr-tab active" id="grStatsTab" data-review-tab="stats">
-                      Stats
-                    </button>
-                    <button type="button" className="gr-tab" id="grAnalyzeTab" data-review-tab="analyze">
-                      Analyze
-                    </button>
-                  </div>
-                </div>
-
-                <div className="gr-tab-panel active" id="grStatsPanel">
-                  <div className="gr-coach-bar" id="grCoachTip">
-                    <div className="gr-coach-avatar" aria-hidden="true">
-                      <div className="gr-coach-face">
-                        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'100%',height:'100%'}}>
-                          <circle cx="32" cy="32" r="30" fill="#1a1a2e"/>
-                          <circle cx="32" cy="36" r="18" fill="#e8c170"/>
-                          <ellipse cx="32" cy="42" rx="10" ry="7" fill="#d4a555"/>
-                          <rect x="13" y="28" rx="3" width="38" height="8" fill="#111"/>
-                          <rect x="15" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
-                          <rect x="35" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
-                          <line x1="29" y1="32" x2="35" y2="32" stroke="#555" strokeWidth="1.5"/>
-                          <path d="M26 44 Q32 50 38 44" stroke="#1a1a2e" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-                          <path d="M10 24 Q32 10 54 24 L52 28 Q32 16 12 28 Z" fill="#2d2d5e"/>
-                          <circle cx="48" cy="26" r="2" fill="#f7c948"/>
-                        </svg>
-                      </div>
-                      <span className="gr-coach-badge">Coach</span>
-                    </div>
-                    <div className="gr-coach-copy">
-                      <div className="gr-coach-name" id="grCoachTitle">Coach Ramp</div>
-                      <div className="gr-coach-text" id="grCoachText">
-                        Run a full analysis to unlock personalized move-by-move coaching.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="gr-cpl-section">
-                    <div className="gr-cpl-header">
-                      <span className="gr-section-title" style={{margin:0}}>Centipawn Loss</span>
-                      <div className="gr-cpl-legend">
-                        <span className="gr-legend-item"><span className="gr-legend-dot accurate"></span>Accurate</span>
-                        <span className="gr-legend-item"><span className="gr-legend-dot inaccuracy"></span>Inaccuracy</span>
-                        <span className="gr-legend-item"><span className="gr-legend-dot mistake"></span>Mistake</span>
-                        <span className="gr-legend-item"><span className="gr-legend-dot blunder"></span>Blunder</span>
-                      </div>
-                    </div>
-                    <div className="gr-cpl-chart-wrap" id="cplChartWrap">
-                      <canvas id="cplChart" height="130"></canvas>
-                      <div className="cpl-tooltip" id="cplTooltip" style={{display:'none'}}></div>
-                    </div>
-                  </div>
-
-                  <div className="gr-graph-wrap gr-eval-graph-wrap">
-                    <canvas id="evalGraph" width="400" height="80"></canvas>
-                  </div>
-
-                  <div className="gr-section-title">Players</div>
-                  <div className="gr-players-row">
-                    <div className="gr-player-card" id="grWhiteCard">
-                      <div className="gr-player-card-top">
-                        <div className="gr-player-avatar">♙</div>
-                        <div className="gr-player-meta">
-                          <span className="gr-player-role">White</span>
-                          <span className="gr-player-name" id="grWhiteName">White</span>
-                          <span className="gr-player-rating" id="grWhiteElo">—</span>
-                        </div>
-                      </div>
-                      <div className="gr-player-accuracy">
-                        <span className="gr-acc-label">Accuracy</span>
-                        <span className="gr-acc-value" id="grWhiteAcc">--</span>
-                      </div>
-                    </div>
-                    <div className="gr-player-card" id="grBlackCard">
-                      <div className="gr-player-card-top">
-                        <div className="gr-player-avatar">♟</div>
-                        <div className="gr-player-meta">
-                          <span className="gr-player-role">Black</span>
-                          <span className="gr-player-name" id="grBlackName">Black</span>
-                          <span className="gr-player-rating" id="grBlackElo">—</span>
-                        </div>
-                      </div>
-                      <div className="gr-player-accuracy">
-                        <span className="gr-acc-label">Accuracy</span>
-                        <span className="gr-acc-value" id="grBlackAcc">--</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="gr-divider"></div>
-
-                  <div className="gr-classify-table" id="grClassifyTable"></div>
-
-                  <div className="gr-divider"></div>
-
-                  <div className="gr-section-row">
-                    <div className="gr-label">Game Rating</div>
-                    <div className="gr-val gr-rating-box" id="grWhiteGameRating">?</div>
-                    <div className="gr-val gr-rating-box" id="grBlackGameRating">?</div>
-                  </div>
-
-                  <div className="gr-section-row">
-                    <div className="gr-label">Opening</div>
-                    <div className="gr-val" id="grPhaseOpW"><span className="gr-phase-icon">--</span></div>
-                    <div className="gr-val" id="grPhaseOpB"><span className="gr-phase-icon">--</span></div>
-                  </div>
-                  <div className="gr-section-row">
-                    <div className="gr-label">Middlegame</div>
-                    <div className="gr-val" id="grPhaseMidW"><span className="gr-phase-icon">--</span></div>
-                    <div className="gr-val" id="grPhaseMidB"><span className="gr-phase-icon">--</span></div>
-                  </div>
-                  <div className="gr-section-row">
-                    <div className="gr-label">Endgame</div>
-                    <div className="gr-val" id="grPhaseEndW"><span className="gr-phase-icon">--</span></div>
-                    <div className="gr-val" id="grPhaseEndB"><span className="gr-phase-icon">--</span></div>
-                  </div>
-                </div>
-
-                <div className="gr-tab-panel gr-analyze-panel" id="grAnalyzePanel" style={{ display: 'none' }}>
-                  <div className="gr-live-section">
-                    <div className="gr-live-header">
-                      <span className="gr-section-title">Live Engine Analysis</span>
-                      <span className="gr-live-badge">Live</span>
-                    </div>
-                    <div className="gr-live-candidates" id="grLiveCandidates">
-                      <div className="gr-analysis-empty">Start analyzing a position to see engine candidates.</div>
-                    </div>
-                  </div>
-                  <div className="gr-divider"></div>
-                  <div className="gr-analysis-head">
-                    <div>
-                      <div className="gr-section-title">Review Candidates</div>
-                      <div className="gr-analysis-position" id="grAnalysisPositionLabel">
-                        Select a move after running full analysis.
-                      </div>
-                    </div>
-                  </div>
-                  <div className="gr-analysis-list" id="grAnalysisCandidates">
-                    <div className="gr-analysis-empty">Run full analysis to see better moves in this position.</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="moves-section">
-                <div className="moves-header">
-                  <span>Moves &amp; Analysis</span>
-                  <div className="moves-actions">
-                    <button type="button" className="btn-sm" id="copyPGN">
-                      Copy PGN
-                    </button>
-                    <button type="button" className="btn-sm" id="analyzeFullGame">
-                      Full Analysis
-                    </button>
-                  </div>
-                </div>
-                <div className="move-quality-banner" id="moveQualityBanner">
-                  <div className="mq-label">Move Quality</div>
-                  <div className="mq-pill">
-                    <span className="qi" id="moveQualityIcon">?</span>
-                    <div className="mq-details">
-                      <div className="mq-grade" id="moveQualityGrade">Awaiting analysis</div>
-                      <div className="mq-desc" id="moveQualityDesc">
-                        Run a full game review to see brilliance, inaccuracies, and more for each move.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="moves-list" id="movesList"></div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-        </div>
+        <GameReviewLayout />
 
         <div className="tab-content" id="tab-import">
           <div className="import-layout">
@@ -1449,114 +1621,99 @@ function App() {
           </div>
 
           {/* --- Practice View --- */}
-          <div id="openingPracticeView" className="opening-practice-view" style={{ display: 'none' }}>
-            <div className="practice-left-panel">
+          <div id="openingPracticeView" className="opn-practice-root" style={{ display: 'none' }}>
+
+            {/* ── LEFT: Board column ── */}
+            <div className="opn-board-col">
               <div className="practice-nav-row">
-                <button type="button" className="btn-back" id="backToDetailBtn">
-                  &#8592; Variations
-                </button>
-                <button type="button" className="btn-back" id="backToDetailBtn2" style={{ marginLeft: '8px' }}>
-                  &#8592; All Openings
-                </button>
+                <button type="button" className="btn-back" id="backToDetailBtn">&#8592; Variations</button>
+                <button type="button" className="btn-back" id="backToDetailBtn2" style={{ marginLeft: '8px' }}>&#8592; All Openings</button>
               </div>
 
-              <div className="practice-info-bar">
-                <div className="practice-opening-name" id="practiceOpeningName">Opening</div>
-                <div className="practice-var-name" id="practiceVarName">Variation</div>
-                <div className="practice-side-row">
-                  <span className="opening-side-badge white-badge" id="practiceOpeningSide">White</span>
-                  <span className="practice-side-copy" id="practiceSideCopy">Train this opening as White.</span>
-                </div>
+              {/* Hidden legacy elements kept for JS data-binding */}
+              <div style={{ display: 'none' }} aria-hidden="true">
+                <div id="practiceOpeningName"></div>
+                <div id="practiceVarName"></div>
+                <span id="practiceOpeningSide"></span>
+                <span id="practiceSideCopy"></span>
               </div>
 
-              <div className="practice-board-wrapper">
-                <div className="practice-board-main">
-                  <canvas id="practiceChessBoard" width="640" height="640"></canvas>
-                  <div id="practiceBoardOverlay" className="board-overlay"></div>
-                </div>
+              <div className="opn-board-frame">
+                <canvas id="practiceChessBoard" width="640" height="640"></canvas>
+                <div id="practiceBoardOverlay" className="board-overlay"></div>
               </div>
 
               <div id="practiceStatus" className="practice-status" style={{ display: 'none' }}></div>
 
-              <div className="practice-controls">
-                <button type="button" className="practice-ctrl-btn" id="practicePrevBtn" title="Previous move">
-                  &#8592; Prev
-                </button>
-                <button type="button" className="practice-ctrl-btn hint-btn" id="practiceHintBtn" title="Show hint">
-                  &#128161; Hint
-                </button>
-                <button type="button" className="practice-ctrl-btn" id="practiceResetBtn" title="Reset">
-                  &#8635; Reset
-                </button>
-                <button type="button" className="practice-ctrl-btn" id="practiceFlipBtn" title="Flip board">
-                  &#8645; Flip
-                </button>
+              {/* Bottom control bar */}
+              <div className="opn-bottom-bar">
+                <button type="button" className="opn-ctrl-btn opn-ctrl-icon" id="practiceFlipBtn" title="Flip board">&#8645;</button>
+                <button type="button" className="opn-ctrl-btn opn-ctrl-hint" id="practiceHintBtn" title="Show hint">&#128161; Hint</button>
+                <button type="button" className="opn-ctrl-btn opn-ctrl-mode" id="practiceModeBtn" title="Switch mode">Mode</button>
+                <button type="button" className="opn-ctrl-btn opn-ctrl-nav" id="practicePrevBtn" title="Previous move">&#8249;</button>
+                <button type="button" className="opn-ctrl-btn opn-ctrl-nav" id="practiceNextBtn" title="Next move">&#8250;</button>
               </div>
 
+              {/* Hidden reset button (wired by controller) */}
+              <button type="button" id="practiceResetBtn" style={{ display: 'none' }}></button>
+            </div>
+
+            {/* ── RIGHT: Training panel ── */}
+            <div className="opn-train-col">
+
+              {/* Header row */}
+              <div className="opn-train-header">
+                <span className="opn-mode-badge" id="opnModeBadge">&#128218; Learn</span>
+                <span className="opn-train-name" id="opnTrainName">Select an Opening</span>
+                <span className="opn-train-step" id="opnTrainStep">#1</span>
+              </div>
+
+              {/* Coach bubble */}
+              <div className="opn-coach-bubble" id="coachExplanation">
+                <div className="opn-coach-head">
+                  <span className="opn-coach-icon">&#9822;</span>
+                  <span className="opn-coach-label">Coach</span>
+                </div>
+                <div className="opn-coach-body" id="opnCoachBody">
+                  Select a variation to begin. Use <strong>›</strong> to step through moves in Learn mode.
+                </div>
+              </div>
+
+              {/* Mode cards — rendered by JS */}
+              <div className="opn-mode-grid" id="opnModeGrid"></div>
+
+              {/* Lines discovered counter */}
+              <div className="opn-lines-row" id="opnLinesRow" style={{ display: 'none' }}>
+                <span className="opn-lines-icon">&#128218;</span>
+                <span className="opn-lines-text" id="opnLinesText">0 / 0 lines discovered</span>
+              </div>
+
+              {/* Move progress bar */}
               <div className="practice-progress">
                 <div className="practice-progress-bar">
                   <div className="practice-progress-fill" id="practiceProgressBar"></div>
                 </div>
                 <div className="practice-progress-text" id="practiceProgressText">0 / 0 moves</div>
               </div>
-            </div>
 
-            <div className="practice-right-panel">
-              <div className="practice-mode-panel">
-                <div className="practice-mode-header">Mode</div>
-                <div className="practice-mode-grid">
-                  <button
-                    type="button"
-                    className="practice-mode-card active"
-                    id="practiceModePracticeBtn"
-                    data-mode="practice"
-                    aria-pressed="true"
-                  >
-                    <span className="practice-mode-card-icon">&#127919;</span>
-                    <span className="practice-mode-card-copy">
-                      <span className="practice-mode-card-title">Practice</span>
-                      <span className="practice-mode-card-desc">Guided line training with hints and move explanations.</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="practice-mode-card"
-                    id="practiceModeDrillBtn"
-                    data-mode="drill"
-                    aria-pressed="false"
-                  >
-                    <span className="practice-mode-card-icon">&#128293;</span>
-                    <span className="practice-mode-card-copy">
-                      <span className="practice-mode-card-title">Drill</span>
-                      <span className="practice-mode-card-desc">Replay the line from memory with no hints or full line preview.</span>
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="coach-panel" id="coachExplanation">
-                <div className="coach-header"><span className="coach-icon">&#127891;</span> Coach</div>
-                <div className="coach-text">Select an opening to begin practicing.</div>
-              </div>
-
-              {/* SRS rating panel — shown after variation completion */}
+              {/* SRS rating panel */}
               <div id="srsRatingPanel" className="srs-rating-panel" style={{ display: 'none' }}></div>
 
+              {/* Move list */}
               <div className="practice-moves-panel">
                 <div className="practice-moves-header" id="practiceMovesHeader">Moves</div>
                 <div className="practice-pgn-line" id="practiceMovePgn"></div>
-                <div className="practice-move-list" id="practiceMoveList">
-                  {/* Moves rendered by JS */}
-                </div>
+                <div className="practice-move-list" id="practiceMoveList"></div>
               </div>
 
-              {/* Related Lines — variation branching */}
+              {/* Related lines */}
               <div className="practice-moves-panel related-lines-panel">
                 <div className="practice-moves-header">Related Lines</div>
                 <div id="relatedLinesList">
                   <div className="related-empty">Select a variation to see related lines.</div>
                 </div>
               </div>
+
             </div>
           </div>
         </div>
@@ -2149,9 +2306,6 @@ function App() {
 
               {/* Summary bar */}
               <div id="paSummaryBar" className="pa-summary-bar"></div>
-
-              {/* Accuracy and quality recap */}
-              <div id="paAccuracyRecap" className="pa-card pa-mt"></div>
 
               {/* Performance Insights */}
               <div id="paInsights" className="pa-insights-card pa-card pa-mt"></div>

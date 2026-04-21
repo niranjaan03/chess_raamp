@@ -138,7 +138,7 @@ const ChessBoard = (function() {
 
   function resize() {
     var container = canvas.parentElement;
-    var maxSize = Math.min(container.offsetWidth || 640, 640);
+    var maxSize = Math.min(container.offsetWidth || 640, 760);
     boardSize = maxSize;
     canvas.width = boardSize;
     canvas.height = boardSize;

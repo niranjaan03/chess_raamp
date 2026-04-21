@@ -16,11 +16,12 @@ import { escapeAttr, escapeHtml, setText } from '../utils/dom.js';
 
 const EngineController = (function() {
   var REVIEW_MULTI_PV = 5;
+  var MAX_LIVE_LINES = 5;
   var currentLines = {};
   var currentAnalysisFen = null;
   var isAnalyzing = false;
   var analysisTimer = null;
-  var numLines = 3;
+  var numLines = MAX_LIVE_LINES;
   var analysisDepth = 20;
   var fullGameAnalysis = [];
   var gameAnalysisToken = 0;
@@ -92,7 +93,7 @@ const EngineController = (function() {
     currentAnalysisFen = fen || null;
     isAnalyzing = true;
     onBestMoveCallback = onBestMove;
-    numLines = lines || 3;
+    numLines = Math.max(1, Math.min(MAX_LIVE_LINES, parseInt(lines, 10) || MAX_LIVE_LINES));
     analysisDepth = depth || 20;
 
     updateLinesDisplay([]);
@@ -112,11 +113,7 @@ const EngineController = (function() {
         currentLines[data.line] = data;
         updateDisplay(data, fen);
 
-        var lineArray = [];
-        for (var i = 1; i <= numLines; i++) {
-          if (currentLines[i]) lineArray.push(currentLines[i]);
-        }
-        updateLinesDisplay(lineArray, fen);
+        updateLinesDisplay(getAvailableLines(), fen);
 
       } else if (data.type === 'bestmove') {
         isAnalyzing = false;
@@ -192,6 +189,7 @@ const EngineController = (function() {
   function updateLinesDisplay(lines, fen) {
     var container = document.getElementById('linesContainer');
     if (!container) return;
+    updateLinesSummary(lines ? lines.length : 0);
 
     if (!lines || lines.length === 0) {
       container.innerHTML =
@@ -203,7 +201,7 @@ const EngineController = (function() {
       return;
     }
 
-    container.innerHTML = lines.map(function(line, idx) {
+    container.innerHTML = lines.map(function(line) {
       var evalStr = line.eval;
       var evalNum = parseFloat(evalStr);
       var isMate = evalStr && evalStr.toString().indexOf('M') !== -1;
@@ -212,14 +210,27 @@ const EngineController = (function() {
 
       var pvFormatted = formatPV(line.pv, fen);
 
-      return `<div class="line-item" data-pv="${escapeAttr(line.pv || '')}" onclick="EngineController.loadLine(this)">
+      return `<button type="button" class="line-item" data-pv="${escapeAttr(line.pv || '')}" onclick="EngineController.loadLine(this)">
         <span class="${evalClass}">${escapeHtml(evalDisplay)}</span>
         <span class="line-moves">${escapeHtml(pvFormatted)}</span>
         <span class="line-depth-badge">d${line.depth}</span>
-      </div>`;
+      </button>`;
     }).join('');
 
     renderLiveCandidates();
+  }
+
+  function getAvailableLines() {
+    return Object.keys(currentLines)
+      .map(function(key) { return currentLines[key]; })
+      .filter(Boolean)
+      .sort(function(a, b) { return (a.line || 0) - (b.line || 0); });
+  }
+
+  function updateLinesSummary(count) {
+    var summary = document.getElementById('engineLinesSummary');
+    if (!summary) return;
+    summary.textContent = count ? (count + ' available') : 'All available';
   }
 
   function formatPV(pv, fen) {
@@ -277,6 +288,10 @@ const EngineController = (function() {
   function loadLine(el) {
     var pv = el.getAttribute('data-pv');
     if (!pv || !window.AppController) return;
+    document.querySelectorAll('#linesContainer .line-item').forEach(function(item) {
+      item.classList.remove('is-playing');
+    });
+    el.classList.add('is-playing');
     AppController.loadEngineLine(pv);
   }
 
@@ -284,10 +299,7 @@ const EngineController = (function() {
     var container = document.getElementById('grLiveCandidates');
     if (!container) return;
 
-    var lines = [];
-    for (var i = 1; i <= numLines; i++) {
-      if (currentLines[i]) lines.push(currentLines[i]);
-    }
+    var lines = getAvailableLines();
 
     if (!lines.length) {
       container.innerHTML = '<div class="gr-analysis-empty">Start analyzing a position to see engine candidates.</div>';
@@ -398,7 +410,8 @@ const EngineController = (function() {
     renderLiveCandidates: renderLiveCandidates,
     loadLine: loadLine,
     stop: stop,
-    setNumLines: function(n) { numLines = n; },
+    getMaxLines: function() { return MAX_LIVE_LINES; },
+    setNumLines: function(n) { numLines = Math.max(1, Math.min(MAX_LIVE_LINES, parseInt(n, 10) || MAX_LIVE_LINES)); },
     setDepth: function(d) { analysisDepth = d; },
     setOption: function(name, value) { EngineManager.setOption(name, value); },
     centipawnsToWinPercent: centipawnsToWinPercent,

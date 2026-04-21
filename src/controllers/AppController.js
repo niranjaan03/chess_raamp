@@ -16,6 +16,9 @@ import { bind, bindClick, escapeAttr, escapeHtml, getEl, setText } from '../util
 const RAW_GOOGLE_CLIENT_ID = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID)
   ? import.meta.env.VITE_GOOGLE_CLIENT_ID
   : '';
+const APP_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL)
+  ? import.meta.env.BASE_URL
+  : '/';
 const DEFAULT_ENGINE_ID = 'sf18';
 const DEFAULT_ENGINE_LABEL = 'Stockfish 18';
 
@@ -26,19 +29,24 @@ const AppController = (function() {
   var currentGame = null;
   var autoPlayInterval = null;
   var autoPlayActive = false;
+  var autoPlayDelay = 1200;
   var profile = {};
   var authSession = null;
   var gameDatabase = [];
   var analysisMode = true;
   var lastAnalysisHistory = null;
   var lastAnalysisCounts = null;
-  var activeReviewTab = 'stats';
+  var activeReviewTab = 'report';
   var currentReviewCandidates = [];
   var feedbackCategory = 'feature';
   var authMode = 'signin';
   var DEFAULT_MOVE_DESC = 'Run a full game review to see brilliance, inaccuracies, and more for each move.';
   var DEFAULT_COACH_TEXT = 'Run a full analysis to unlock personalized move-by-move coaching.';
+  var COACH_COMMENTARY_URL = APP_BASE_URL.replace(/\/?$/, '/') + 'data/chess_commentary_cleaned_combined.json';
   var lastCoachSummary = DEFAULT_COACH_TEXT;
+  var coachCommentaryPromise = null;
+  var coachCommentaryStore = null;
+  var coachCommentaryRequestId = 0;
   var AUTH_ACCOUNTS_KEY = 'kv_auth_accounts';
   var AUTH_SESSION_KEY = 'kv_auth_session';
   var GOOGLE_AUTH_STATE_KEY = 'kv_google_auth_state';
@@ -844,17 +852,6 @@ const AppController = (function() {
     bindClick('analyzeFullGame', analyzeFullGame);
     setupReviewTabs();
 
-    // Lines count
-    document.querySelectorAll('.lines-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        document.querySelectorAll('.lines-btn').forEach(function(b) { b.classList.remove('active'); });
-        this.classList.add('active');
-        var n = parseInt(this.getAttribute('data-lines'));
-        EngineController.setNumLines(n);
-        startAnalysis();
-      });
-    });
-
     // Board appearance
     bind('boardTheme', 'change', function() {
       applyBoardThemeSelection(this.value);
@@ -900,6 +897,33 @@ const AppController = (function() {
     });
     bind('settingsMoveSound', 'change', function() {
       applyMoveSoundSelection(this.checked, true);
+    });
+    bind('reviewBoardTheme', 'change', function() {
+      applyBoardThemeSelection(this.value);
+    });
+    bind('reviewPieceStyle', 'change', function() {
+      applyPieceStyleSelection(this.value);
+    });
+    bind('reviewShowArrows', 'change', function() {
+      ChessBoard.setOptions({showArrows: this.checked});
+    });
+    bind('reviewShowCoords', 'change', function() {
+      ChessBoard.setOptions({showCoordinates: this.checked});
+    });
+    bind('reviewHighlightLast', 'change', function() {
+      ChessBoard.setOptions({highlightLast: this.checked});
+    });
+    bind('reviewMoveSound', 'change', function() {
+      applyMoveSoundSelection(this.checked, true);
+    });
+    bindClick('reviewFlipBoard', flipBoard);
+    bind('reviewAutoplaySpeed', 'input', function() {
+      autoPlayDelay = parseInt(this.value, 10) || 1200;
+      setText('reviewAutoplaySpeedVal', (autoPlayDelay / 1000).toFixed(1) + 's');
+      if (autoPlayActive) {
+        stopAutoPlay();
+        startAutoPlay();
+      }
     });
 
     // Copy PGN / FEN
@@ -1175,18 +1199,19 @@ const AppController = (function() {
       }
       var savedBoardTheme = localStorage.getItem('kv_board_theme');
       if (savedBoardTheme) {
-        syncSelectValue(['boardTheme', 'settingsBoardTheme'], savedBoardTheme);
+        syncSelectValue(['boardTheme', 'settingsBoardTheme', 'reviewBoardTheme'], savedBoardTheme);
         ChessBoard.setTheme(savedBoardTheme);
       } else {
-        syncSelectValue(['boardTheme', 'settingsBoardTheme'], 'blue');
+        syncSelectValue(['boardTheme', 'settingsBoardTheme', 'reviewBoardTheme'], 'blue');
         ChessBoard.setTheme('blue');
       }
       var savedPieceStyle = localStorage.getItem('kv_piece_style');
       if (savedPieceStyle) {
-        syncSelectValue(['pieceStyle', 'settingsPieceStyle'], savedPieceStyle);
+        syncSelectValue(['pieceStyle', 'settingsPieceStyle', 'reviewPieceStyle'], savedPieceStyle);
         ChessBoard.setPieceStyle(savedPieceStyle);
       }
       syncToggleValue('settingsMoveSound', SoundController.isEnabled());
+      syncToggleValue('reviewMoveSound', SoundController.isEnabled());
     } catch { /* corrupt settings – use defaults */ }
   }
 
@@ -1218,7 +1243,7 @@ const AppController = (function() {
   }
 
   function applyBoardThemeSelection(value) {
-    syncSelectValue(['boardTheme', 'settingsBoardTheme'], value);
+    syncSelectValue(['boardTheme', 'settingsBoardTheme', 'reviewBoardTheme'], value);
     ChessBoard.setTheme(value);
     try { localStorage.setItem('kv_board_theme', value); } catch { /* storage full */ }
   }
@@ -1231,7 +1256,7 @@ const AppController = (function() {
   }
 
   function applyPieceStyleSelection(value) {
-    syncSelectValue(['pieceStyle', 'settingsPieceStyle'], value);
+    syncSelectValue(['pieceStyle', 'settingsPieceStyle', 'reviewPieceStyle'], value);
     ChessBoard.setPieceStyle(value);
     try { localStorage.setItem('kv_piece_style', value); } catch { /* storage full */ }
   }
@@ -1239,6 +1264,7 @@ const AppController = (function() {
   function applyMoveSoundSelection(enabled, preview) {
     var nextValue = enabled !== false;
     syncToggleValue('settingsMoveSound', nextValue);
+    syncToggleValue('reviewMoveSound', nextValue);
     SoundController.setEnabled(nextValue);
     if (preview && nextValue) SoundController.playMove();
   }
@@ -1261,6 +1287,7 @@ const AppController = (function() {
     var sourceGame = opts.sourceGame || null;
     var sourcePlatform = opts.sourcePlatform || '';
     var savedSourceAccuracies = opts.sourceAccuracies || null;
+    var sourceUsername = normalizeReviewUsername(opts.sourceUsername || opts.reviewUsername || '');
     var reviewAccuracies = extractChesscomReviewAccuracies(sourceGame) || savedSourceAccuracies || null;
 
     if (sourcePlatform) {
@@ -1281,6 +1308,10 @@ const AppController = (function() {
         black: reviewAccuracies.black,
         source: reviewAccuracies.source || ''
       };
+    }
+
+    if (sourceUsername) {
+      game.reviewUsername = sourceUsername;
     }
   }
 
@@ -1623,6 +1654,7 @@ const AppController = (function() {
 
     fetchTextWithFallback(proxyUrl, directUrl, { Accept: 'application/x-ndjson' })
       .then(function(text) {
+        window._lichessFetchedUsername = username;
         var lines = text.trim().split('\n').filter(function(l) { return l.trim(); });
         var games = [];
         
@@ -1875,7 +1907,14 @@ const AppController = (function() {
       var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(id) + '?clocks=false&evals=false';
       fetchTextWithFallback(proxyUrl, directUrl)
         .then(function(pgn) {
-          if (pgn) { loadPGNGame(pgn); switchTab('analyze'); triggerAutoReview(); }
+          if (pgn) {
+            loadPGNGame(pgn, {
+              sourcePlatform: 'lichess',
+              sourceUsername: readStoredProfile().lichessUsername || window._lichessFetchedUsername || ''
+            });
+            switchTab('analyze');
+            triggerAutoReview();
+          }
         });
     }
   }
@@ -1959,24 +1998,46 @@ const AppController = (function() {
   }
 
   function startAutoPlay() {
+    if (!gamePositions || gamePositions.length <= 1) return;
+    if (currentMoveIndex >= gamePositions.length - 1) {
+      currentMoveIndex = 0;
+      reloadPosition();
+    }
     autoPlayActive = true;
-    document.getElementById('btnPlay').textContent = '⏸';
+    setPlayButtonState(true);
+    stepAutoPlay();
     autoPlayInterval = setInterval(function() {
-      if (currentMoveIndex >= gamePositions.length - 1) {
-        stopAutoPlay();
-        return;
-      }
-      goNext();
-    }, 1200);
+      stepAutoPlay();
+    }, autoPlayDelay);
+  }
+
+  function stepAutoPlay() {
+    if (!autoPlayActive || !gamePositions || currentMoveIndex >= gamePositions.length - 1) {
+      stopAutoPlay();
+      return;
+    }
+    currentMoveIndex++;
+    reloadPosition();
+    if (currentMoveIndex >= gamePositions.length - 1) {
+      stopAutoPlay();
+    }
   }
 
   function stopAutoPlay() {
     autoPlayActive = false;
-    document.getElementById('btnPlay').textContent = '▶';
+    setPlayButtonState(false);
     if (autoPlayInterval) {
       clearInterval(autoPlayInterval);
       autoPlayInterval = null;
     }
+  }
+
+  function setPlayButtonState(isPlaying) {
+    var playBtn = document.getElementById('btnPlay');
+    if (!playBtn) return;
+    playBtn.textContent = isPlaying ? '⏸' : '▶';
+    playBtn.classList.toggle('is-playing', !!isPlaying);
+    playBtn.setAttribute('aria-label', isPlaying ? 'Pause game playback' : 'Play game');
   }
 
   // ===== BOARD EVENTS =====
@@ -2017,7 +2078,7 @@ const AppController = (function() {
     if (!analysisMode || !chess) return;
     
     var depth = parseInt(document.getElementById('depthSlider').value) || 20;
-    var numLines = parseInt(document.querySelector('.lines-btn.active')?.getAttribute('data-lines')) || 3;
+    var numLines = EngineController.getMaxLines ? EngineController.getMaxLines() : 5;
     
     EngineController.analyzeFen(chess.fen(), depth, numLines, function(bestMove) {
       // Best move received
@@ -2084,22 +2145,24 @@ const AppController = (function() {
   function setupReviewTabs() {
     document.querySelectorAll('.gr-tab[data-review-tab]').forEach(function(tab) {
       tab.addEventListener('click', function() {
-        switchReviewTab(this.getAttribute('data-review-tab') || 'stats');
+        switchReviewTab(this.getAttribute('data-review-tab') || 'report');
       });
     });
   }
 
   function switchReviewTab(tab) {
-    activeReviewTab = tab === 'analyze' ? 'analyze' : 'stats';
+    activeReviewTab = (tab === 'analyze' || tab === 'settings') ? tab : 'report';
 
     document.querySelectorAll('.gr-tab[data-review-tab]').forEach(function(btn) {
       btn.classList.toggle('active', btn.getAttribute('data-review-tab') === activeReviewTab);
     });
 
-    var statsPanel = document.getElementById('grStatsPanel');
+    var reportPanel = document.getElementById('grReportPanel');
     var analyzePanel = document.getElementById('grAnalyzePanel');
-    if (statsPanel) statsPanel.style.display = activeReviewTab === 'stats' ? '' : 'none';
+    var settingsPanel = document.getElementById('grSettingsPanel');
+    if (reportPanel) reportPanel.style.display = activeReviewTab === 'report' ? '' : 'none';
     if (analyzePanel) analyzePanel.style.display = activeReviewTab === 'analyze' ? '' : 'none';
+    if (settingsPanel) settingsPanel.style.display = activeReviewTab === 'settings' ? '' : 'none';
 
     if (activeReviewTab === 'analyze') {
       var selected = getSelectedReviewMove();
@@ -2242,16 +2305,9 @@ const AppController = (function() {
     // Classification table
     var table = document.getElementById('grClassifyTable');
     if (table) {
-      table.innerHTML = allQualities.map(function(q) {
-        var meta = QUALITY_META[q] || {label: q, icon: '?', iconClass: ''};
-        return '<div class="gr-classify-row">' +
-          '<div class="gr-cl-label">' + meta.label + '</div>' +
-          '<div class="gr-cl-wval">' + counts.w[q] + '</div>' +
-          '<div class="gr-cl-icon"><span class="qi ' + meta.iconClass + '">' + meta.icon + '</span></div>' +
-          '<div class="gr-cl-bval">' + counts.b[q] + '</div>' +
-          '</div>';
-      }).join('');
+      table.innerHTML = buildMoveQualityBreakdownHTML(counts);
     }
+    renderCriticalMoments(history, counts);
 
     // Phase ratings
     var phases = computePhaseRatings(history);
@@ -2269,6 +2325,157 @@ const AppController = (function() {
     updateCoachTip(wAcc, bAcc, counts);
     drawCentipawnLossChart(history, currentMoveIndex - 1);
     updateMoveQualityBanner();
+  }
+
+  function buildMoveQualityBreakdownHTML(counts) {
+    var groups = [
+      {
+        title: 'Good',
+        className: 'is-good',
+        keys: ['brilliant', 'great', 'best', 'excellent', 'good', 'book']
+      },
+      {
+        title: 'Bad',
+        className: 'is-bad',
+        keys: ['inaccuracy', 'mistake', 'miss', 'blunder']
+      }
+    ];
+
+    return '<div class="gr-quality-grid">' + groups.map(function(group) {
+      return '<div class="gr-quality-card ' + group.className + '">' +
+        '<div class="gr-quality-card-head">' +
+          '<span class="gr-quality-dot"></span>' +
+          '<span>' + group.title + '</span>' +
+          '<span class="gr-quality-side-pill">W</span>' +
+          '<span class="gr-quality-side-pill is-black">B</span>' +
+        '</div>' +
+        group.keys.map(function(q) {
+          var meta = QUALITY_META[q] || {label: q, icon: '?', iconClass: ''};
+          return '<div class="gr-classify-row">' +
+            '<div class="gr-cl-icon"><span class="qi ' + meta.iconClass + '">' + meta.icon + '</span></div>' +
+            '<div class="gr-cl-label">' + meta.label + '</div>' +
+            '<div class="gr-cl-wval">' + (counts.w[q] || 0) + '</div>' +
+            '<div class="gr-cl-bval">' + (counts.b[q] || 0) + '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function normalizeReviewUsername(raw) {
+    return String(raw || '').trim().replace(/^@+/, '');
+  }
+
+  function readStoredProfile() {
+    try { return JSON.parse(localStorage.getItem('kv_profile') || '{}'); } catch { return {}; }
+  }
+
+  function normalizePlayerLookupName(raw) {
+    return normalizeReviewUsername(raw).toLowerCase();
+  }
+
+  function getKnownReviewUsernames(game) {
+    var names = [];
+    var storedProfile = readStoredProfile();
+    var sessionProfile = profile || {};
+
+    function pushName(value) {
+      var name = normalizePlayerLookupName(value);
+      if (name && names.indexOf(name) === -1) names.push(name);
+    }
+
+    pushName(game && game.reviewUsername);
+    pushName(game && game.sourceUsername);
+    pushName(storedProfile.chesscomUsername);
+    pushName(storedProfile.lichessUsername);
+    pushName(sessionProfile.chesscomUsername);
+    pushName(sessionProfile.lichessUsername);
+
+    if (typeof window !== 'undefined') {
+      pushName(window._ccFetchedUsername);
+      pushName(window._lichessFetchedUsername);
+    }
+
+    ['gamesTabUser', 'chesscomLinkedName', 'lichessLinkedName', 'chesscomUsername', 'lichessUsername'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      pushName(el.value || el.textContent);
+    });
+
+    return names;
+  }
+
+  function getReviewUserColor(game) {
+    if (!game) return null;
+    if (game.reviewUserColor === 'w' || game.reviewUserColor === 'b') return game.reviewUserColor;
+
+    var white = normalizePlayerLookupName(game.white);
+    var black = normalizePlayerLookupName(game.black);
+    var names = getKnownReviewUsernames(game);
+
+    if (white && names.indexOf(white) !== -1) return 'w';
+    if (black && names.indexOf(black) !== -1) return 'b';
+    return null;
+  }
+
+  function renderCriticalMoments(history, counts) {
+    var container = document.getElementById('grCriticalMoments');
+    if (!container) return;
+
+    var criticalKeys = ['inaccuracy', 'mistake', 'miss', 'blunder'];
+    var userColor = getReviewUserColor(currentGame);
+
+    if (!userColor) {
+      container.innerHTML = '<div class="critical-empty">Set your Chess.com or Lichess username in profile to show only your mistakes for this game.</div>';
+      return;
+    }
+
+    var userCounts = counts[userColor] || {};
+    var totals = criticalKeys.reduce(function(acc, key) {
+      acc[key] = userCounts[key] || 0;
+      return acc;
+    }, {});
+    var totalCritical = criticalKeys.reduce(function(sum, key) { return sum + totals[key]; }, 0);
+    var severityRank = { blunder: 5, miss: 4, mistake: 3, inaccuracy: 2 };
+    var moments = (history || []).map(function(move, idx) {
+      return { move: move, idx: idx, cpl: getMoveCentipawnLoss(move) };
+    }).filter(function(item) {
+      return item.move.color === userColor && criticalKeys.indexOf(item.move.quality) !== -1;
+    }).sort(function(a, b) {
+      var rankDiff = (severityRank[b.move.quality] || 0) - (severityRank[a.move.quality] || 0);
+      return rankDiff || b.cpl - a.cpl;
+    }).slice(0, 6);
+
+    if (!totalCritical) {
+      container.innerHTML = '<div class="critical-empty">No major mistakes found in this review. Keep stepping through the game to study smaller improvements.</div>';
+      return;
+    }
+
+    var summary = '<div class="critical-summary">' +
+      '<div><strong>' + totalCritical + '</strong><span>your critical moments</span></div>' +
+      '<div><strong>' + totals.inaccuracy + '</strong><span>inaccuracies</span></div>' +
+      '<div><strong>' + totals.mistake + '</strong><span>mistakes</span></div>' +
+      '<div><strong>' + (totals.miss + totals.blunder) + '</strong><span>misses/blunders</span></div>' +
+    '</div>';
+
+    var cards = moments.map(function(item) {
+      var move = item.move;
+      var meta = getQualityMeta(move.quality);
+      var side = move.color === 'w' ? 'White' : 'Black';
+      var moveLabel = buildMoveLabel(move, item.idx);
+      var bestMove = formatBestMoveHint(move.bestMove, item.idx);
+      var best = bestMove ? '<span class="critical-best">Best: ' + escapeHtml(bestMove) + '</span>' : '';
+      return '<button type="button" class="critical-moment ' + escapeAttr(move.quality || '') + '" onclick="AppController.openCriticalMoment(' + item.idx + ')">' +
+        '<span class="critical-icon qi ' + escapeAttr(meta.iconClass || '') + '">' + meta.icon + '</span>' +
+        '<span class="critical-main">' +
+          '<span class="critical-move">' + escapeHtml(moveLabel) + '</span>' +
+          '<span class="critical-meta">' + escapeHtml(side + ' · ' + meta.label + ' · ' + Math.round(item.cpl) + ' cpl') + '</span>' +
+          best +
+        '</span>' +
+      '</button>';
+    }).join('');
+
+    container.innerHTML = summary + '<div class="critical-list">' + cards + '</div>';
   }
 
   function calculateAccuracyFromCPL(moves, color, history) {
@@ -2413,6 +2620,9 @@ const AppController = (function() {
       excellent: '#6abf40', book: '#c8a03f',
       inaccuracy: '#e8bd58', mistake: '#d48b2a', miss: '#ef5350', blunder: '#c93030'
     };
+    var hitAreas = points.map(function(point, idx) {
+      return { x: toX(idx), y: toY(point.eval), index: idx, point: point };
+    });
     for (var d = 1; d < points.length; d++) {
       var q = points[d].quality;
       if (q && q !== 'good' && dotColors[q]) {
@@ -2445,6 +2655,45 @@ const AppController = (function() {
         ctx.stroke();
       }
     }
+    canvas._evalHitAreas = hitAreas;
+    bindEvalGraphInteractions(canvas);
+  }
+
+  function findNearestEvalPoint(canvas, event) {
+    if (!canvas || !canvas._evalHitAreas) return null;
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = canvas.width / Math.max(rect.width, 1);
+    var scaleY = canvas.height / Math.max(rect.height, 1);
+    var x = (event.clientX - rect.left) * scaleX;
+    var y = (event.clientY - rect.top) * scaleY;
+    var nearest = null;
+    var bestDist = Infinity;
+    canvas._evalHitAreas.forEach(function(area) {
+      var dx = area.x - x;
+      var dy = area.y - y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        nearest = area;
+      }
+    });
+    return bestDist <= 28 ? nearest : null;
+  }
+
+  function bindEvalGraphInteractions(canvas) {
+    if (!canvas || canvas._evalGraphBound) return;
+    canvas._evalGraphBound = true;
+    canvas.addEventListener('mousemove', function(event) {
+      canvas.style.cursor = findNearestEvalPoint(canvas, event) ? 'pointer' : 'default';
+    });
+    canvas.addEventListener('mouseleave', function() {
+      canvas.style.cursor = 'default';
+    });
+    canvas.addEventListener('click', function(event) {
+      var nearest = findNearestEvalPoint(canvas, event);
+      if (!nearest) return;
+      goToMove(nearest.index);
+    });
   }
 
   function getMoveCentipawnLoss(move) {
@@ -2616,19 +2865,39 @@ const AppController = (function() {
       var tooltip = document.getElementById('cplTooltip');
       if (tooltip) tooltip.style.display = 'none';
     });
+    canvas.addEventListener('click', function(event) {
+      var rect = canvas.getBoundingClientRect();
+      var x = event.clientX - rect.left;
+      var nearest = null;
+      var bestDist = Infinity;
+      (canvas._cplHitAreas || []).forEach(function(area) {
+        var mid = area.x + area.w / 2;
+        var dist = Math.abs(x - mid);
+        if (dist < bestDist) {
+          bestDist = dist;
+          nearest = area;
+        }
+      });
+      if (nearest && bestDist <= 18) {
+        goToMove(nearest.index + 1);
+      }
+    });
   }
 
   function resetGameReviewUI() {
     lastAnalysisHistory = null;
     lastAnalysisCounts = null;
     lastCoachSummary = DEFAULT_COACH_TEXT;
+    coachCommentaryRequestId++;
     currentReviewCandidates = [];
-    switchReviewTab('stats');
+    switchReviewTab('report');
     var panel = document.getElementById('gameReviewPanel');
     if (panel) panel.classList.add('is-empty');
     setCoachMessage('Coach Ramp', DEFAULT_COACH_TEXT);
     var table = document.getElementById('grClassifyTable');
     if (table) table.innerHTML = '';
+    var critical = document.getElementById('grCriticalMoments');
+    if (critical) critical.innerHTML = '<div class="gr-analysis-empty">Run full analysis to see critical positions.</div>';
     var wRating = document.getElementById('grWhiteGameRating');
     var bRating = document.getElementById('grBlackGameRating');
     if (wRating) wRating.textContent = '?';
@@ -2686,6 +2955,7 @@ const AppController = (function() {
     if (!moveInfo) {
       iconEl.textContent = '?';
       iconEl.className = 'qi';
+      if (ChessBoard && typeof ChessBoard.clearMarkers === 'function') ChessBoard.clearMarkers();
       var label = (typeof moveIndex === 'number' && moveIndex >= 0)
         ? 'Move ' + (Math.floor(moveIndex / 2) + 1) + ' not analyzed yet'
         : 'Awaiting analysis';
@@ -2700,6 +2970,14 @@ const AppController = (function() {
     iconEl.className = 'qi ' + (meta.iconClass || '');
     gradeEl.textContent = meta.label + ' · ' + buildMoveLabel(moveInfo, moveIndex);
     descEl.textContent = meta.tip + ' ' + describeMoveSwing(moveInfo);
+    if (ChessBoard && typeof ChessBoard.setMarkers === 'function' && moveInfo.to) {
+      ChessBoard.setMarkers([{
+        square: moveInfo.to,
+        text: meta.icon,
+        className: 'qi ' + (meta.iconClass || ''),
+        title: meta.label
+      }]);
+    }
     updateCoachForMove(moveInfo, moveIndex);
   }
 
@@ -2753,8 +3031,255 @@ const AppController = (function() {
     if (textEl) textEl.textContent = text || DEFAULT_COACH_TEXT;
   }
 
+  function loadCoachCommentaryData() {
+    if (coachCommentaryStore) return Promise.resolve(coachCommentaryStore);
+    if (coachCommentaryPromise) return coachCommentaryPromise;
+    if (typeof fetch !== 'function') return Promise.resolve(null);
+
+    coachCommentaryPromise = fetch(COACH_COMMENTARY_URL, { cache: 'force-cache' })
+      .then(function(response) {
+        if (!response.ok) throw new Error('Coach commentary data unavailable');
+        return response.json();
+      })
+      .then(function(rows) {
+        coachCommentaryStore = buildCoachCommentaryStore(rows);
+        return coachCommentaryStore;
+      })
+      .catch(function() {
+        coachCommentaryStore = { byExactMove: Object.create(null), byBaseMove: Object.create(null), count: 0 };
+        return coachCommentaryStore;
+      });
+
+    return coachCommentaryPromise;
+  }
+
+  function buildCoachCommentaryStore(rows) {
+    var store = {
+      byExactMove: Object.create(null),
+      byBaseMove: Object.create(null),
+      count: 0
+    };
+    if (!Array.isArray(rows)) return store;
+
+    rows.forEach(function(row) {
+      var entry = normalizeCoachCommentaryEntry(row);
+      if (!entry) return;
+      addCoachCommentaryIndex(store.byExactMove, entry.exactMoveKey, entry);
+      addCoachCommentaryIndex(store.byBaseMove, entry.baseMoveKey, entry);
+      store.count++;
+    });
+
+    return store;
+  }
+
+  function addCoachCommentaryIndex(index, key, entry) {
+    if (!key) return;
+    if (!index[key]) index[key] = [];
+    index[key].push(entry);
+  }
+
+  function normalizeCoachCommentaryEntry(row) {
+    if (!row || !row.output) return null;
+    var meta = parseCoachCommentaryInput(row.input || '');
+    var move = meta.move || '';
+    var exactMoveKey = normalizeCoachMoveKey(move, true);
+    var baseMoveKey = normalizeCoachMoveKey(move, false);
+    if (!exactMoveKey && !baseMoveKey) return null;
+
+    return {
+      output: normalizeCoachOutput(row.output),
+      exactMoveKey: exactMoveKey,
+      baseMoveKey: baseMoveKey,
+      moveNumber: parseInt(meta.movenumber, 10) || 0,
+      player: normalizeCoachPlayer(meta.currentplayer),
+      phase: normalizeCoachPhase(meta.phase),
+      quality: normalizeCoachQuality(meta.classification),
+      moveType: normalizeCoachMoveType(meta.movetype),
+      check: /^yes$/i.test(meta.check || ''),
+      checkmate: /^yes$/i.test(meta.checkmate || ''),
+      winner: normalizeCoachPlayer(meta.winner)
+    };
+  }
+
+  function parseCoachCommentaryInput(input) {
+    var meta = {};
+    String(input || '').split('|').forEach(function(part) {
+      var sep = part.indexOf(':');
+      if (sep === -1) return;
+      var key = part.slice(0, sep).trim().toLowerCase().replace(/\s+/g, '');
+      meta[key] = part.slice(sep + 1).trim();
+    });
+    return meta;
+  }
+
+  function normalizeCoachOutput(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function normalizeCoachMoveKey(move, keepCheckMarks) {
+    var key = String(move || '')
+      .replace(/\s+/g, '')
+      .replace(/0/g, 'O')
+      .replace(/[!?]+/g, '')
+      .trim();
+    if (!keepCheckMarks) key = key.replace(/[+#]+/g, '');
+    return key;
+  }
+
+  function normalizeCoachPlayer(value) {
+    var text = String(value || '').toLowerCase();
+    if (text.indexOf('white') !== -1) return 'white';
+    if (text.indexOf('black') !== -1) return 'black';
+    return 'none';
+  }
+
+  function normalizeCoachPhase(value) {
+    var text = String(value || '').toLowerCase();
+    if (text.indexOf('opening') !== -1) return 'opening';
+    if (text.indexOf('end') !== -1) return 'endgame';
+    if (text.indexOf('middle') !== -1) return 'middlegame';
+    return '';
+  }
+
+  function normalizeCoachQuality(value) {
+    var text = String(value || '').toLowerCase();
+    if (text.indexOf('brilliant') !== -1) return 'brilliant';
+    if (text.indexOf('great') !== -1) return 'great';
+    if (text.indexOf('book') !== -1) return 'book';
+    if (text.indexOf('best') !== -1) return 'best';
+    if (text.indexOf('excellent') !== -1) return 'excellent';
+    if (text.indexOf('inaccuracy') !== -1 || text.indexOf('inaccurate') !== -1) return 'inaccuracy';
+    if (text.indexOf('mistake') !== -1) return 'mistake';
+    if (text.indexOf('miss') !== -1) return 'miss';
+    if (text.indexOf('blunder') !== -1) return 'blunder';
+    if (text.indexOf('good') !== -1) return 'good';
+    return '';
+  }
+
+  function normalizeCoachMoveType(value) {
+    var text = String(value || '').toLowerCase();
+    if (text.indexOf('capture') !== -1) return 'capture';
+    if (text.indexOf('castle') !== -1) return 'castle';
+    if (text.indexOf('promotion') !== -1) return 'promotion';
+    if (text.indexOf('check') !== -1) return 'check';
+    return text || '';
+  }
+
+  function buildCoachCommentaryTarget(moveInfo, moveIndex) {
+    var san = moveInfo.san || moveInfo.move || moveInfo.playedMove || '';
+    var moveNumber = moveInfo.moveNumber || (typeof moveIndex === 'number' ? Math.floor(moveIndex / 2) + 1 : 0);
+    var checkmate = san.indexOf('#') !== -1 || !!(moveInfo.terminal && moveInfo.terminal.type === 'checkmate');
+    var check = checkmate || san.indexOf('+') !== -1;
+    return {
+      exactMoveKey: normalizeCoachMoveKey(san, true),
+      baseMoveKey: normalizeCoachMoveKey(san, false),
+      moveNumber: moveNumber,
+      player: moveInfo.color === 'b' ? 'black' : 'white',
+      phase: getCoachPhaseForMove(moveNumber),
+      quality: normalizeCoachQuality(moveInfo.quality),
+      moveType: inferCoachMoveType(moveInfo, san, check),
+      check: check,
+      checkmate: checkmate,
+      winner: checkmate ? (moveInfo.color === 'b' ? 'black' : 'white') : 'none'
+    };
+  }
+
+  function getCoachPhaseForMove(moveNumber) {
+    var num = parseInt(moveNumber, 10) || 0;
+    if (num && num <= 10) return 'opening';
+    if (num && num >= 36) return 'endgame';
+    return 'middlegame';
+  }
+
+  function inferCoachMoveType(moveInfo, san, check) {
+    if (san.indexOf('O-O') === 0) return 'castle';
+    if (moveInfo.promotion || san.indexOf('=') !== -1) return 'promotion';
+    if (moveInfo.captured || san.indexOf('x') !== -1) return 'capture';
+    if (check) return 'check';
+    return 'quiet';
+  }
+
+  function qualityFamily(quality) {
+    if (quality === 'blunder' || quality === 'mistake' || quality === 'miss' || quality === 'inaccuracy') {
+      return 'error';
+    }
+    if (quality === 'brilliant' || quality === 'great' || quality === 'best') return 'strong';
+    return 'steady';
+  }
+
+  function scoreCoachCommentaryEntry(entry, target) {
+    var score = 0;
+    if (entry.exactMoveKey && entry.exactMoveKey === target.exactMoveKey) score += 42;
+    else if (entry.baseMoveKey && entry.baseMoveKey === target.baseMoveKey) score += 28;
+
+    if (entry.quality && entry.quality === target.quality) score += 24;
+    else if (entry.quality && target.quality && qualityFamily(entry.quality) === qualityFamily(target.quality)) score += 9;
+    else if (entry.quality && target.quality) score -= 7;
+
+    if (entry.player === target.player) score += 10;
+    if (entry.phase && entry.phase === target.phase) score += 7;
+    if (entry.moveType && entry.moveType === target.moveType) score += 5;
+    if (entry.checkmate === target.checkmate) score += target.checkmate ? 14 : 2;
+    else score -= 18;
+    if (entry.check === target.check) score += target.check ? 7 : 1;
+    else if (target.check || entry.check) score -= 6;
+    if (entry.winner === target.winner) score += target.winner !== 'none' ? 7 : 1;
+    if (entry.moveNumber && target.moveNumber) {
+      var diff = Math.abs(entry.moveNumber - target.moveNumber);
+      if (diff === 0) score += 4;
+      else if (diff <= 3) score += 2;
+    }
+    return score;
+  }
+
+  function hashCoachSeed(value) {
+    var str = String(value || '');
+    var hash = 0;
+    for (var i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash);
+  }
+
+  function findCoachCommentaryExample(store, moveInfo, moveIndex) {
+    if (!store || !moveInfo) return '';
+    var target = buildCoachCommentaryTarget(moveInfo, moveIndex);
+    var candidates = store.byExactMove[target.exactMoveKey] || store.byBaseMove[target.baseMoveKey] || [];
+    if (!candidates.length) return '';
+
+    var scored = candidates.map(function(entry) {
+      return { entry: entry, score: scoreCoachCommentaryEntry(entry, target) };
+    }).sort(function(a, b) {
+      return b.score - a.score;
+    });
+
+    var bestScore = scored.length ? scored[0].score : 0;
+    if (bestScore < 34) return '';
+    var pool = scored.filter(function(item) {
+      return item.score >= bestScore - 5;
+    }).slice(0, 12);
+    var seed = hashCoachSeed(target.exactMoveKey + target.quality + target.player + moveIndex);
+    return pool[seed % pool.length].entry.output;
+  }
+
+  function applyDatasetCoachCommentary(moveInfo, moveIndex, title, tacticText, swingText) {
+    var requestId = ++coachCommentaryRequestId;
+    loadCoachCommentaryData().then(function(store) {
+      if (requestId !== coachCommentaryRequestId) return;
+      var selected = getSelectedReviewMove();
+      if (selected.moveIndex !== moveIndex) return;
+      var exampleText = findCoachCommentaryExample(store, moveInfo, moveIndex);
+      if (!exampleText) return;
+      var extra = '';
+      if (tacticText && exampleText.indexOf(tacticText) === -1) extra += ' ' + tacticText;
+      if (swingText && exampleText.indexOf('eval swing') === -1) extra += swingText;
+      setCoachMessage(title, exampleText + extra);
+    });
+  }
+
   function updateCoachForMove(moveInfo, moveIndex) {
     if (!moveInfo) {
+      coachCommentaryRequestId++;
       setCoachMessage('Coach Ramp', lastCoachSummary || DEFAULT_COACH_TEXT);
       return;
     }
@@ -2810,6 +3335,7 @@ const AppController = (function() {
 
     var tacticText = inferCoachTactic(moveInfo, moveIndex);
     setCoachMessage(title, text + (tacticText ? ' ' + tacticText : '') + swingText);
+    applyDatasetCoachCommentary(moveInfo, moveIndex, title, tacticText, swingText);
   }
 
   function inferCoachTactic(moveInfo, moveIndex) {
@@ -3020,7 +3546,16 @@ const AppController = (function() {
       return;
     }
 
-    var candidates = Array.isArray(moveInfo.candidateMoves) ? moveInfo.candidateMoves : [];
+    var candidates = Array.isArray(moveInfo.candidateMoves) ? moveInfo.candidateMoves.slice() : [];
+    if (!candidates.length && moveInfo.bestMove) {
+      candidates = [{
+        rank: 1,
+        move: moveInfo.bestMove,
+        pv: [moveInfo.bestMove],
+        isBest: true,
+        isPlayed: moveInfo.bestMove === moveInfo.playedMove
+      }];
+    }
     if (!candidates.length) {
       listEl.innerHTML = '<div class="gr-analysis-empty">No alternate engine moves were saved for this position.</div>';
       return;
@@ -3249,6 +3784,24 @@ const AppController = (function() {
     goToMove(index);
   }
 
+  function openCriticalMoment(moveIndex) {
+    var idx = parseInt(moveIndex, 10);
+    if (isNaN(idx)) return;
+
+    // `gamePositions[n]` is the board after history move n - 1, so jump one
+    // ply past the mistake while keeping Analysis focused on that move.
+    goToMove(idx + 1);
+    switchReviewTab('analyze');
+
+    var selected = getSelectedReviewMove();
+    updateReviewAnalyzePanel(selected.moveInfo, selected.moveIndex);
+
+    var analysisPanel = document.getElementById('grAnalyzePanel');
+    if (analysisPanel && analysisPanel.scrollIntoView) {
+      analysisPanel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
   // ===== FEN / OPENING DISPLAY =====
   function updateFenDisplay() {
     var fenInput = document.getElementById('fenInput');
@@ -3268,23 +3821,29 @@ const AppController = (function() {
   function loadEngineLine(pv) {
     if (!pv || !chess) return;
     var moves = pv.split(' ');
+    var baseIndex = currentMoveIndex;
     var tempChess = new Chess();
     tempChess.load(chess.fen());
-    
-    var newPositions = [].concat(gamePositions.slice(0, currentMoveIndex + 1));
+    stopAutoPlay();
+
+    var newPositions = [].concat(gamePositions.slice(0, baseIndex + 1));
+    var addedMoves = 0;
     
     moves.forEach(function(uciMove) {
       if (!uciMove || uciMove.length < 4) return;
       var result = tempChess.move({from: uciMove.slice(0,2), to: uciMove.slice(2,4), promotion: uciMove[4] || 'q'});
       if (result) {
         newPositions.push({fen: tempChess.fen(), move: result, san: result.san, moveNum: newPositions.length});
+        addedMoves++;
       }
     });
+
+    if (!addedMoves) return;
     
     gamePositions = newPositions;
-    currentMoveIndex++;
-    reloadPosition();
+    currentMoveIndex = baseIndex;
     updateMovesList();
+    startAutoPlay();
   }
 
   // ===== PROFILE =====
@@ -3360,6 +3919,7 @@ const AppController = (function() {
     summary.analyzedAt = new Date().toISOString();
     if (game.sourcePlatform) summary.sourcePlatform = game.sourcePlatform;
     if (game.sourceUrl) summary.sourceUrl = game.sourceUrl;
+    if (game.reviewUsername) summary.reviewUsername = game.reviewUsername;
     if (game.reviewAccuracies) {
       summary.sourceAccuracies = {
         white: game.reviewAccuracies.white,
@@ -3437,6 +3997,7 @@ const AppController = (function() {
       loadPGNGame(game.pgn, {
         sourcePlatform: game.sourcePlatform || '',
         sourceUrl: game.sourceUrl || '',
+        sourceUsername: game.reviewUsername || '',
         sourceAccuracies: game.sourceAccuracies || null
       });
       switchTab('analyze');
@@ -3484,6 +4045,7 @@ const AppController = (function() {
   return {
     init: init,
     goToMoveByIndex: goToMoveByIndex,
+    openCriticalMoment: openCriticalMoment,
     loadEngineLine: loadEngineLine,
     loadReviewCandidateLine: loadReviewCandidateLine,
     loadFetchedGame: loadFetchedGame,
@@ -4377,6 +4939,7 @@ const HomeController = (function() {
       var directUrl = 'https://lichess.org/api/games/user/' + encodedUser + '?max=8&clocks=false&evals=false&opening=true';
       AppController.fetchTextWithFallback(proxyUrl, directUrl, { Accept: 'application/x-ndjson' })
         .then(function(text) {
+          window._lichessFetchedUsername = username;
           var lines = text.trim().split('\n').filter(function(l) { return l.trim(); });
           var games = [];
           lines.forEach(function(line) { try { games.push(JSON.parse(line)); } catch { /* skip malformed NDJSON line */ } });
@@ -4412,12 +4975,22 @@ const HomeController = (function() {
     var pgn = el.getAttribute('data-pgn');
     var id = el.getAttribute('data-id');
     if (pgn) {
-      AppController.loadPGNAndReviewExternal(decodeURIComponent(pgn));
+      AppController.loadPGNAndReviewExternal(decodeURIComponent(pgn), {
+        sourcePlatform: platform || '',
+        sourceUsername: platform === 'lichess' ? (getProfile().lichessUsername || window._lichessFetchedUsername || '') : ''
+      });
     } else if (id && platform === 'lichess') {
       var proxyUrl = '/api/lichess/game/' + encodeURIComponent(id) + '/export?clocks=false&evals=false';
       var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(id) + '?clocks=false&evals=false';
       AppController.fetchTextWithFallback(proxyUrl, directUrl)
-        .then(function(p) { if (p) AppController.loadPGNAndReviewExternal(p); });
+        .then(function(p) {
+          if (p) {
+            AppController.loadPGNAndReviewExternal(p, {
+              sourcePlatform: 'lichess',
+              sourceUsername: getProfile().lichessUsername || window._lichessFetchedUsername || ''
+            });
+          }
+        });
     }
   }
 
@@ -4427,9 +5000,11 @@ const HomeController = (function() {
     var game = games[idx];
     var pgn = game.pgn || '';
     if (pgn) {
+      var reviewUsername = window._ccFetchedUsername || (getProfile().chesscomUsername || '');
       AppController.loadPGNAndReviewExternal(pgn, {
         sourceGame: game,
-        sourcePlatform: 'chesscom'
+        sourcePlatform: 'chesscom',
+        sourceUsername: reviewUsername
       });
       // Mark as reviewed in the list
       var item = document.querySelector('.gt-game-row[data-cc-idx="' + idx + '"]');
@@ -4439,9 +5014,8 @@ const HomeController = (function() {
         if (icon) icon.innerHTML = '&#10003;';
       }
       var container = document.getElementById('gamesTabList');
-      var username = window._ccFetchedUsername || (getProfile().chesscomUsername || '');
-      if (container && username) {
-        renderGamesTab(container, games, username);
+      if (container && reviewUsername) {
+        renderGamesTab(container, games, reviewUsername);
       }
     }
   }

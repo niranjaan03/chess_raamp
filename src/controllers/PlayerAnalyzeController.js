@@ -531,16 +531,6 @@ function showState(s) {
 }
 
 function winColor(pct) { return pct>=55?'#4caf7d':pct>=45?'#d4af37':'#ef5350'; }
-function clamp(num, min, max) { return Math.max(min, Math.min(max, num)); }
-function toFiniteNumber(value) {
-  const num = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(num) ? num : null;
-}
-function isFiniteNumber(value) { return toFiniteNumber(value) !== null; }
-function meanNumber(values) {
-  const nums = values.map(toFiniteNumber).filter(value => value !== null);
-  return nums.length ? nums.reduce((sum, value) => sum + value, 0) / nums.length : null;
-}
 
 function safeImageUrl(value) {
   try {
@@ -630,174 +620,6 @@ function renderSummaryBar(games) {
       <span class="pa-sum-item">STREAK: <strong style="color:${sc}">${streak} ${sl}</strong></span>
       <span class="pa-sum-sep">&#9679;</span>
       <span class="pa-sum-item">GAMES: <strong>${total}</strong></span>`;
-  });
-}
-
-// ─── RENDER: ACCURACY + QUALITY RECAP ────────────────────────────────────────
-
-const PA_QUALITY_ROWS = [
-  { key: 'brilliant', label: 'Brilliant', icon: '!!', className: 'pa-q-brilliant' },
-  { key: 'great', label: 'Great', icon: '!', className: 'pa-q-great' },
-  { key: 'book', label: 'Book', icon: '&#128214;', className: 'pa-q-book' },
-  { key: 'best', label: 'Best', icon: '&#9733;', className: 'pa-q-best' },
-  { key: 'excellent', label: 'Excellent', icon: '&#128077;', className: 'pa-q-excellent' },
-  { key: 'good', label: 'Good', icon: '&#10003;', className: 'pa-q-good' },
-  { key: 'inaccuracy', label: 'Inaccuracy', icon: '?!', className: 'pa-q-inaccuracy' },
-  { key: 'mistake', label: 'Mistake', icon: '?', className: 'pa-q-mistake' },
-  { key: 'miss', label: 'Miss', icon: '&#215;', className: 'pa-q-miss' },
-  { key: 'blunder', label: 'Blunder', icon: '??', className: 'pa-q-blunder' },
-];
-
-function emptyQualityCounts() {
-  return PA_QUALITY_ROWS.reduce((acc, row) => {
-    acc[row.key] = 0;
-    return acc;
-  }, {});
-}
-
-function allocateQualityCounts(weights, total) {
-  const keys = Object.keys(weights);
-  const weightTotal = keys.reduce((sum, key) => sum + Math.max(weights[key], 0), 0) || 1;
-  const raw = keys.map(key => {
-    const exact = Math.max(total, 0) * Math.max(weights[key], 0) / weightTotal;
-    return { key, floor: Math.floor(exact), remainder: exact - Math.floor(exact) };
-  });
-  let assigned = raw.reduce((sum, item) => sum + item.floor, 0);
-  raw.sort((a, b) => b.remainder - a.remainder);
-  for (let i = 0; assigned < total && i < raw.length; i++, assigned++) {
-    raw[i].floor += 1;
-  }
-  return raw.reduce((acc, item) => {
-    acc[item.key] = item.floor;
-    return acc;
-  }, {});
-}
-
-function estimateQualityCounts(game, side) {
-  const accuracy = toFiniteNumber(side === 'player' ? game.accuracy : game.oppAccuracy);
-  if (accuracy === null) return null;
-
-  const sideMoves = clamp(Math.round(game.moveCount || 28), 6, 90);
-  const book = clamp(Math.round(sideMoves * 0.14), 1, 5);
-  const remaining = Math.max(sideMoves - book, 0);
-  const won = side === 'player' ? game.won : game.lost;
-  const lost = side === 'player' ? game.lost : game.won;
-  const error = clamp((100 - accuracy) / 100, 0.01, 0.6);
-  const sharpBonus = clamp((accuracy - 88) / 18, 0, 1);
-  const lowError = clamp((accuracy - 75) / 25, 0, 1);
-
-  const weights = {
-    brilliant: accuracy >= 94 ? 0.012 + (won ? 0.004 : 0) : accuracy >= 90 && won ? 0.005 : 0,
-    great: 0.018 + sharpBonus * 0.028,
-    best: 0.24 + (accuracy / 100) * 0.24,
-    excellent: 0.18 + lowError * 0.09,
-    good: 0.18 + lowError * 0.05,
-    inaccuracy: 0.04 + error * 0.38,
-    mistake: 0.012 + error * 0.24,
-    miss: 0.006 + error * 0.09 + (lost ? 0.008 : 0),
-    blunder: 0.006 + error * 0.12 + (lost ? 0.018 : 0),
-  };
-
-  if (won) {
-    weights.mistake *= 0.75;
-    weights.blunder *= 0.7;
-    weights.best *= 1.08;
-  }
-
-  const counts = emptyQualityCounts();
-  Object.assign(counts, allocateQualityCounts(weights, remaining));
-  counts.book = book;
-  return counts;
-}
-
-function buildQualitySummary(games, side) {
-  const reviewed = games.filter(game => isFiniteNumber(side === 'player' ? game.accuracy : game.oppAccuracy));
-  const counts = emptyQualityCounts();
-  reviewed.forEach(game => {
-    const next = estimateQualityCounts(game, side);
-    if (!next) return;
-    PA_QUALITY_ROWS.forEach(row => { counts[row.key] += next[row.key] || 0; });
-  });
-  const avgAccuracy = meanNumber(reviewed.map(game => side === 'player' ? game.accuracy : game.oppAccuracy));
-  const avgRating = meanNumber(reviewed.map(game => side === 'player' ? game.rating : game.oppRating));
-  const gameRating = avgAccuracy === null
-    ? null
-    : Math.round(clamp((avgAccuracy * 22.5) + 70 + (((avgRating || 1400) - 1400) * 0.08), 400, 3000));
-  return {
-    reviewed: reviewed.length,
-    counts,
-    avgAccuracy,
-    avgRating,
-    gameRating,
-  };
-}
-
-function renderAccuracyRecap(games) {
-  renderInto('paAccuracyRecap', e => {
-    if (!games.length) {
-      e.innerHTML = '';
-      return;
-    }
-
-    const player = buildQualitySummary(games, 'player');
-    const opponent = buildQualitySummary(games, 'opponent');
-    if (!player.reviewed && !opponent.reviewed) {
-      e.innerHTML = '<p class="pa-no-data">No Chess.com accuracy data is available for this filter.</p>';
-      return;
-    }
-
-    const playerName = escapeHtml((_state.profile && _state.profile.username) || _state.username || 'Player');
-    const playerAvg = player.avgRating === null ? '—' : Math.round(player.avgRating).toLocaleString();
-    const opponentAvg = opponent.avgRating === null ? '—' : Math.round(opponent.avgRating).toLocaleString();
-    const playerAcc = player.avgAccuracy === null ? '—' : player.avgAccuracy.toFixed(1) + '%';
-    const opponentAcc = opponent.avgAccuracy === null ? '—' : opponent.avgAccuracy.toFixed(1) + '%';
-    const playerRating = player.gameRating === null ? '—' : player.gameRating.toLocaleString();
-    const opponentRating = opponent.gameRating === null ? '—' : opponent.gameRating.toLocaleString();
-
-    const rows = PA_QUALITY_ROWS.map(row => `<div class="pa-quality-row">
-      <div class="pa-quality-label">${row.label}</div>
-      <div class="pa-quality-count">${player.counts[row.key] || 0}</div>
-      <div class="pa-quality-icon ${row.className}">${row.icon}</div>
-      <div class="pa-quality-count">${opponent.counts[row.key] || 0}</div>
-    </div>`).join('');
-
-    e.innerHTML = `<div class="pa-quality-players">
-      <div class="pa-quality-player is-player">
-        <div class="pa-quality-piece">&#9817;</div>
-        <div class="pa-quality-player-main">
-          <div class="pa-quality-side">Player</div>
-          <div class="pa-quality-name">${playerName}</div>
-          <div class="pa-quality-elo">${playerAvg} Elo</div>
-        </div>
-        <div class="pa-quality-accuracy">
-          <span>Accuracy</span>
-          <strong>${playerAcc}</strong>
-        </div>
-      </div>
-      <div class="pa-quality-player">
-        <div class="pa-quality-piece">&#9823;</div>
-        <div class="pa-quality-player-main">
-          <div class="pa-quality-side">Opponents</div>
-          <div class="pa-quality-name">Field average</div>
-          <div class="pa-quality-elo">${opponentAvg} Elo</div>
-        </div>
-        <div class="pa-quality-accuracy">
-          <span>Accuracy</span>
-          <strong>${opponentAcc}</strong>
-        </div>
-      </div>
-    </div>
-    <div class="pa-quality-table">${rows}</div>
-    <div class="pa-quality-footer">
-      <div class="pa-quality-rating">
-        <span>Game Rating</span>
-        <strong>${playerRating}</strong>
-      </div>
-      <div class="pa-quality-rating">
-        <span>Opponent Rating</span>
-        <strong>${opponentRating}</strong>
-      </div>
-    </div>`;
   });
 }
 
@@ -1528,7 +1350,6 @@ function refreshRender() {
 
   renderKeyMetrics(filtered, stats);
   renderSummaryBar(filtered);
-  renderAccuracyRecap(filtered);
   renderPerformanceSummary(filtered, allPeriod);
   renderGameResults(filtered);
 
