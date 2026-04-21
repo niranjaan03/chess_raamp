@@ -1659,8 +1659,7 @@ function App() {
                 <div className="detail-opening-title-row">
                   <h2 className="detail-opening-name" id="detailOpeningName">Opening</h2>
                   <button type="button" className="opening-favorite-btn detail-favorite-btn" id="detailFavoriteBtn" aria-pressed="false" title="Save to favorites">
-                    <span className="opening-favorite-btn-icon" aria-hidden="true">&#9734;</span>
-                    <span>Favorite</span>
+                    <span className="opening-favorite-btn-icon" aria-hidden="true">&#9825;</span>
                   </button>
                 </div>
                 <div className="detail-opening-meta">

@@ -1069,13 +1069,12 @@ const OpeningPracticeController = (function () {
     btn.classList.toggle('is-active', isActive);
     btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     btn.title = isActive ? 'Remove from favorites' : 'Save to favorites';
-    btn.innerHTML = '<span class="opening-favorite-btn-icon" aria-hidden="true">' + (isActive ? '&#9733;' : '&#9734;') + '</span>' +
-      '<span>' + (isActive ? 'Saved' : 'Favorite') + '</span>';
+    btn.innerHTML = '<span class="opening-favorite-btn-icon" aria-hidden="true">' + (isActive ? '&#9829;' : '&#9825;') + '</span>';
   }
 
   function buildOpeningCardStatusMarkup(state) {
     var parts = [];
-    if (state.favorite) parts.push('<span class="opening-card-chip is-favorite">&#9733; Favorite</span>');
+    if (state.favorite) parts.push('<span class="opening-card-chip is-favorite">&#9829; Favorite</span>');
     if (state.srs.due > 0) parts.push('<span class="opening-card-chip is-due">' + escapeHtml(state.srs.due + ' due') + '</span>');
     if (state.mastered) parts.push('<span class="opening-card-chip is-mastered">Mastered</span>');
     else if (state.inProgress) parts.push('<span class="opening-card-chip is-progress">In Progress</span>');
@@ -1146,7 +1145,7 @@ const OpeningPracticeController = (function () {
         '<div class="opening-card-topline">' +
         '<span class="opening-side-badge ' + getColorBadgeClass(practiceColor) + '">' + colorLabel + '</span>' +
         '<button class="opening-favorite-btn opening-card-favorite' + (favoriteActive ? ' is-active' : '') + '" data-favorite="' + encodeURIComponent(openingKey) + '" aria-pressed="' + (favoriteActive ? 'true' : 'false') + '" title="' + (favoriteActive ? 'Remove from favorites' : 'Save to favorites') + '">' +
-        '<span class="opening-favorite-btn-icon" aria-hidden="true">' + (favoriteActive ? '&#9733;' : '&#9734;') + '</span>' +
+        '<span class="opening-favorite-btn-icon" aria-hidden="true">' + (favoriteActive ? '&#9829;' : '&#9825;') + '</span>' +
         '</button>' +
         '</div>' +
         '<div class="opening-card-name">' + op.name + '</div>' +

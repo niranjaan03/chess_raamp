@@ -3165,34 +3165,31 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
+  min-height: 68px;
+  min-width: 68px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: 1.14rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s;
 }
 .opening-favorite-btn:hover {
-  border-color: var(--accent);
-  color: var(--text-primary);
+  color: #ef4444;
 }
 .opening-favorite-btn.is-active {
-  color: var(--accent2);
-  border-color: rgba(212, 175, 55, 0.38);
-  background: rgba(212, 175, 55, 0.12);
+  color: #ef4444;
+  background: transparent;
 }
 .opening-card-favorite {
-  min-width: 34px;
+  min-width: 68px;
   padding: 0;
 }
 .opening-favorite-btn-icon {
-  font-size: 0.96rem;
+  font-size: 1.92rem;
   line-height: 1;
 }
 .opening-card-eco {
@@ -3262,9 +3259,9 @@ body {
   border: 1px solid transparent;
 }
 .opening-card-chip.is-favorite {
-  color: var(--accent2);
-  background: rgba(212, 175, 55, 0.12);
-  border-color: rgba(212, 175, 55, 0.22);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.24);
 }
 .opening-card-chip.is-due {
   color: #ef9a9a;
@@ -3562,6 +3559,16 @@ body {
   background: rgba(147, 197, 253, 0.18);
   color: #bfdbfe;
   border-color: rgba(147, 197, 253, 0.38);
+}
+.btn-start-arena {
+  background: rgba(239, 68, 68, 0.13);
+  color: #fecaca;
+  border: 1px solid rgba(239, 68, 68, 0.34);
+}
+.btn-start-arena:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fff1f2;
+  border-color: rgba(239, 68, 68, 0.5);
 }
 .btn-start-drill:hover {
   background: rgba(255, 255, 255, 0.06);
@@ -9271,6 +9278,45 @@ body::after {
   background:
     linear-gradient(180deg, #ffecaa 0%, #e4bb55 52%, #a8771d 100%);
   transform: translateY(-1px);
+}
+
+.var-item-actions .btn-start-practice.btn-start-time {
+  background: rgba(147, 197, 253, 0.12);
+  color: var(--info);
+  border: 1px solid rgba(147, 197, 253, 0.26);
+  box-shadow: none;
+}
+
+.var-item-actions .btn-start-practice.btn-start-time:hover {
+  background: rgba(147, 197, 253, 0.18);
+  color: #bfdbfe;
+  border-color: rgba(147, 197, 253, 0.38);
+}
+
+.var-item-actions .btn-start-practice.btn-start-arena {
+  background: rgba(239, 68, 68, 0.13);
+  color: #fecaca;
+  border: 1px solid rgba(239, 68, 68, 0.34);
+  box-shadow: none;
+}
+
+.var-item-actions .btn-start-practice.btn-start-arena:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fff1f2;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.var-item-actions .btn-start-practice.btn-start-drill {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  box-shadow: none;
+}
+
+.var-item-actions .btn-start-practice.btn-start-drill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .hero-btn.secondary,
