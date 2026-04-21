@@ -1776,6 +1776,38 @@ function App() {
                 </div>
               </div>
 
+              <div id="arenaModePanel" className="time-mode-panel arena-mode-panel" style={{ display: 'none' }}>
+                <div className="time-mode-head">
+                  <div>
+                    <div className="time-mode-title">Arena Gauntlet</div>
+                    <div className="time-mode-sub" id="arenaModeSub">Random lines until your first mistake.</div>
+                  </div>
+                  <div className="time-mode-medal arena-mode-badge" id="arenaModeBadge">Ready</div>
+                </div>
+                <div className="time-mode-grid">
+                  <div className="time-mode-stat">
+                    <span className="time-mode-stat-label">Streak</span>
+                    <span className="time-mode-stat-value" id="arenaModeStreak">0</span>
+                  </div>
+                  <div className="time-mode-stat">
+                    <span className="time-mode-stat-label">Score</span>
+                    <span className="time-mode-stat-value" id="arenaModeScore">0</span>
+                  </div>
+                  <div className="time-mode-stat">
+                    <span className="time-mode-stat-label">Rating</span>
+                    <span className="time-mode-stat-value" id="arenaModeRating">1200</span>
+                  </div>
+                  <div className="time-mode-stat">
+                    <span className="time-mode-stat-label">Line Elo</span>
+                    <span className="time-mode-stat-value" id="arenaModeLine">—</span>
+                  </div>
+                  <div className="time-mode-stat arena-mode-best">
+                    <span className="time-mode-stat-label">Best</span>
+                    <span className="time-mode-stat-value" id="arenaModeBest">0 / 0</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Move progress bar */}
               <div className="practice-progress">
                 <div className="practice-progress-bar">

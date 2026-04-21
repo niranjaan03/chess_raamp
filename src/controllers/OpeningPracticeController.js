@@ -13,6 +13,7 @@ const FAVORITES_KEY = 'kv_opening_favorites';
 const PROGRESS_KEY = 'kv_opening_progress';
 const LEARN_PROGRESS_KEY = 'kv_learn_progress_v1';
 const TIME_BESTS_KEY = 'kv_opening_time_bests_v1';
+const ARENA_STATS_KEY = 'kv_opening_arena_stats_v1';
 
 const MODE_UNLOCK = { learn: 0, practice: 0, drill: 0, time: 0, puzzles: 0, arena: 0 };
 
@@ -22,7 +23,7 @@ const MODE_META = {
   drill:    { icon: '🔥', title: 'Drill',    desc: 'Replay the line from memory, no hints.' },
   time:     { icon: '⏱',  title: 'Time',     desc: 'Race the clock through the opening.' },
   puzzles:  { icon: '🧩', title: 'Puzzles',  desc: 'Solve positions from this opening.' },
-  arena:    { icon: '⚔',  title: 'Arena',    desc: 'Compete with others in this opening.' },
+  arena:    { icon: '⚔',  title: 'Arena',    desc: 'Random-line gauntlet. One mistake ends the run.' },
 };
 const RAW_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL)
   ? import.meta.env.BASE_URL
@@ -177,6 +178,8 @@ const OpeningPracticeController = (function () {
   var variationIndex = null;
   var timeModeBests = loadTimeModeBests();
   var timeModeState = createInitialTimeModeState();
+  var arenaStats = loadArenaStats();
+  var arenaState = createInitialArenaState();
 
   // ── Opening puzzles state ─────────────────────────────────────────────────
   // Puzzles are served from the shared Lichess dataset and filtered by the
@@ -528,6 +531,49 @@ const OpeningPracticeController = (function () {
       medal: null,
       best: null,
       result: null
+    };
+  }
+
+  function loadArenaStats() {
+    if (typeof window === 'undefined') return {};
+    try {
+      return JSON.parse(localStorage.getItem(ARENA_STATS_KEY) || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveArenaStats() {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(ARENA_STATS_KEY, JSON.stringify(arenaStats || {}));
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function createInitialArenaState() {
+    return {
+      active: false,
+      finished: false,
+      openingId: '',
+      challengeNo: 0,
+      streak: 0,
+      score: 0,
+      rating: 1200,
+      startRating: 1200,
+      ratingDelta: 0,
+      peakRating: 1200,
+      bestScore: 0,
+      bestStreak: 0,
+      lineRating: 1200,
+      lineUserMoves: 0,
+      lineId: '',
+      lineName: '',
+      recentLineIds: [],
+      completedLineIds: [],
+      advanceTimerId: null,
+      lastResult: null
     };
   }
 
@@ -1204,6 +1250,9 @@ const OpeningPracticeController = (function () {
           '<button class="btn-start-practice btn-start-time" data-idx="' + idx + '" data-mode="time" title="Race the clock through this line with penalties for hints and mistakes">' +
             '<span class="var-item-action-icon">&#9201;</span>Time' +
           '</button>' +
+          '<button class="btn-start-practice btn-start-arena" data-idx="' + idx + '" data-mode="arena" title="Start a random-line Arena gauntlet for this opening">' +
+            '<span class="var-item-action-icon">&#9876;</span>Arena' +
+          '</button>' +
           '<button class="btn-start-practice btn-start-drill" data-idx="' + idx + '" data-mode="drill" title="Replay the line from memory — no hints">' +
             '<span class="var-item-action-icon">&#128293;</span>Drill' +
           '</button>' +
@@ -1241,6 +1290,7 @@ const OpeningPracticeController = (function () {
     if (practiceMode === 'drill') return 'Drill complete! You replayed the full line from memory.';
     if (practiceMode === 'learn') return 'Line complete! You\'ve walked through every move.';
     if (practiceMode === 'time') return 'Timed run complete!';
+    if (practiceMode === 'arena') return 'Arena run complete.';
     return 'Excellent! You completed this variation!';
   }
 
@@ -1283,7 +1333,11 @@ const OpeningPracticeController = (function () {
         nameEl.textContent = 'Select an Opening';
       }
     }
-    if (stepEl) stepEl.textContent = currentVariation ? ('#' + (currentMoveIndex + 1)) : '';
+    if (stepEl) {
+      stepEl.textContent = practiceMode === 'arena' && arenaState.challengeNo
+        ? ('Arena #' + arenaState.challengeNo)
+        : currentVariation ? ('#' + (currentMoveIndex + 1)) : '';
+    }
   }
 
   function updateLinesCounter() {
@@ -1539,6 +1593,347 @@ const OpeningPracticeController = (function () {
     }
   }
 
+  function getArenaOpeningId() {
+    return currentOpening ? getOpeningId(currentOpening) : '';
+  }
+
+  function getArenaRecord() {
+    var key = getArenaOpeningId();
+    var record = key && arenaStats ? arenaStats[key] : null;
+    return record || {};
+  }
+
+  function persistArenaRecord(patch) {
+    var key = getArenaOpeningId();
+    if (!key) return;
+    var existing = arenaStats[key] || {};
+    arenaStats[key] = Object.assign({}, existing, patch || {}, { updatedAt: Date.now() });
+    saveArenaStats();
+  }
+
+  function clampArenaRating(rating) {
+    return Math.max(400, Math.min(3200, Math.round(rating || 1200)));
+  }
+
+  function getArenaLineId(variation, idx) {
+    var base = getCanonicalVariationId(currentOpening, variation) || (getArenaOpeningId() + '::line');
+    return base + '::' + (variation && variation.pgn ? variation.pgn : idx);
+  }
+
+  function countUserMovesForLine(moves) {
+    return (moves || []).filter(function (_, idx) {
+      return ((idx % 2 === 0) ? 'w' : 'b') === userColor;
+    }).length;
+  }
+
+  function getArenaLineRating(variation) {
+    var moves = parsePGNMoves((variation && variation.pgn) || '');
+    var userMoves = countUserMovesForLine(moves);
+    var tactics = moves.filter(function (move) {
+      return /[x+#=]/.test(move);
+    }).length;
+    var castles = moves.filter(function (move) {
+      return move === 'O-O' || move === 'O-O-O';
+    }).length;
+    var base = 780 + (moves.length * 24) + (userMoves * 76) + (tactics * 18) + (castles * 10);
+    return Math.max(800, Math.min(2600, Math.round(base)));
+  }
+
+  function getArenaChallengeCandidates() {
+    if (!currentOpening || !currentOpening.variations) return [];
+    return currentOpening.variations.map(function(variation, idx) {
+      var moves = parsePGNMoves((variation && variation.pgn) || '');
+      var userMoves = countUserMovesForLine(moves);
+      if (!variation || !moves.length || !userMoves) return null;
+      return {
+        variation: variation,
+        idx: idx,
+        id: getArenaLineId(variation, idx),
+        rating: getArenaLineRating(variation),
+        userMoves: userMoves
+      };
+    }).filter(Boolean);
+  }
+
+  function selectArenaChallenge() {
+    var candidates = getArenaChallengeCandidates();
+    if (!candidates.length) return null;
+
+    var recent = {};
+    (arenaState.recentLineIds || []).forEach(function(id) { recent[id] = true; });
+    var pool = candidates.filter(function(candidate) {
+      return !recent[candidate.id] && candidate.id !== arenaState.lineId;
+    });
+    if (!pool.length) pool = candidates.filter(function(candidate) {
+      return candidate.id !== arenaState.lineId;
+    });
+    if (!pool.length) pool = candidates;
+
+    var target = (arenaState.rating || 1200) + Math.min(500, (arenaState.streak || 0) * 55);
+    pool.sort(function(a, b) {
+      return Math.abs(a.rating - target) - Math.abs(b.rating - target);
+    });
+    var bandSize = Math.min(pool.length, Math.max(6, Math.ceil(pool.length * 0.18)));
+    var band = pool.slice(0, bandSize);
+    return band[Math.floor(Math.random() * band.length)];
+  }
+
+  function rememberArenaLine(id) {
+    if (!id) return;
+    arenaState.recentLineIds = (arenaState.recentLineIds || []).filter(function(existing) {
+      return existing !== id;
+    });
+    arenaState.recentLineIds.push(id);
+    if (arenaState.recentLineIds.length > 8) arenaState.recentLineIds.shift();
+  }
+
+  function applyArenaChallenge(challenge) {
+    if (!challenge) return false;
+    currentVariation = challenge.variation;
+    expectedMoves = parsePGNMoves(currentVariation.pgn);
+    currentMoveIndex = 0;
+    learnMoveIndex = 0;
+    wrongMove = false;
+    practiceChess = new Chess();
+    isPracticing = true;
+
+    arenaState.challengeNo += 1;
+    arenaState.lineId = challenge.id;
+    arenaState.lineRating = challenge.rating;
+    arenaState.lineUserMoves = challenge.userMoves;
+    arenaState.lineName = currentVariation.name || currentVariation.fullName || 'Random Line';
+    arenaState.lastResult = null;
+    rememberArenaLine(challenge.id);
+
+    ChessBoard.init('practiceChessBoard', 'practiceBoardOverlay', onPracticeMove);
+    ChessBoard.setPosition(practiceChess);
+    ChessBoard.setLastMove(null, null);
+    ChessBoard.clearArrows();
+    ChessBoard.clearMarkers();
+    ChessBoard.setFlipped(userColor === 'b');
+    ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [] });
+
+    updatePracticeModeUI();
+    updatePracticeMeta();
+    updatePracticeProgress();
+    renderPracticeMoveList();
+    updateTrainingHeader();
+    updateArenaModePanel();
+    updateCoachPanel(true);
+    renderRelatedLines();
+
+    if (currentMoveIndex < expectedMoves.length && practiceChess.turn() !== userColor) {
+      setTimeout(function () { autoPlayOpponentMove(); }, 250);
+    }
+    return true;
+  }
+
+  function clearArenaAdvanceTimer() {
+    if (!arenaState || !arenaState.advanceTimerId) return;
+    clearTimeout(arenaState.advanceTimerId);
+    arenaState.advanceTimerId = null;
+  }
+
+  function startArenaSessionState() {
+    clearArenaAdvanceTimer();
+    var record = getArenaRecord();
+    var rating = clampArenaRating(record.rating || 1200);
+    arenaState = createInitialArenaState();
+    arenaState.active = true;
+    arenaState.openingId = getArenaOpeningId();
+    arenaState.rating = rating;
+    arenaState.startRating = rating;
+    arenaState.peakRating = clampArenaRating(record.peakRating || rating);
+    arenaState.bestScore = Math.max(0, record.bestScore || 0);
+    arenaState.bestStreak = Math.max(0, record.bestStreak || 0);
+    persistArenaRecord({
+      rating: rating,
+      peakRating: arenaState.peakRating,
+      bestScore: arenaState.bestScore,
+      bestStreak: arenaState.bestStreak,
+      runs: (record.runs || 0) + 1,
+      linesCleared: record.linesCleared || 0
+    });
+  }
+
+  function updateArenaModePanel() {
+    var panel = document.getElementById('arenaModePanel');
+    if (!panel) return;
+    var isVisible = practiceMode === 'arena' && !!currentOpening;
+    panel.style.display = isVisible ? '' : 'none';
+    if (!isVisible) return;
+
+    var sub = document.getElementById('arenaModeSub');
+    var badge = document.getElementById('arenaModeBadge');
+    var streakEl = document.getElementById('arenaModeStreak');
+    var scoreEl = document.getElementById('arenaModeScore');
+    var ratingEl = document.getElementById('arenaModeRating');
+    var lineEl = document.getElementById('arenaModeLine');
+    var bestEl = document.getElementById('arenaModeBest');
+
+    if (sub) {
+      if (arenaState.finished && arenaState.lastResult && arenaState.lastResult.failed) {
+        sub.textContent = 'Arena over on challenge #' + arenaState.challengeNo + '. First mistake ends the run.';
+      } else if (arenaState.active) {
+        sub.textContent = 'Challenge #' + Math.max(1, arenaState.challengeNo) + ' · survive this random line without a mistake.';
+      } else {
+        sub.textContent = 'Start a run to face random lines until your first mistake.';
+      }
+    }
+    if (badge) {
+      var failed = arenaState.finished && arenaState.lastResult && arenaState.lastResult.failed;
+      badge.textContent = failed ? 'Run Ended' : (arenaState.active ? 'Live Run' : 'Ready');
+      badge.className = 'time-mode-medal arena-mode-badge ' + (failed ? 'is-failed' : (arenaState.active ? 'is-live' : ''));
+    }
+    if (streakEl) streakEl.textContent = String(arenaState.streak || 0);
+    if (scoreEl) scoreEl.textContent = String(Math.max(0, Math.round(arenaState.score || 0)));
+    if (ratingEl) {
+      var delta = arenaState.ratingDelta || 0;
+      ratingEl.textContent = String(clampArenaRating(arenaState.rating)) + (delta ? ' ' + (delta > 0 ? '+' : '') + delta : '');
+    }
+    if (lineEl) lineEl.textContent = String(arenaState.lineRating || '—');
+    if (bestEl) bestEl.textContent = (arenaState.bestStreak || 0) + ' / ' + (arenaState.bestScore || 0);
+  }
+
+  function getArenaExpectedScore(playerRating, lineRating) {
+    return 1 / (1 + Math.pow(10, ((lineRating || 1200) - (playerRating || 1200)) / 400));
+  }
+
+  function applyArenaRatingResult(resultScore) {
+    var before = clampArenaRating(arenaState.rating);
+    var expected = getArenaExpectedScore(before, arenaState.lineRating);
+    var delta = Math.round(32 * ((resultScore || 0) - expected));
+    arenaState.rating = clampArenaRating(before + delta);
+    arenaState.ratingDelta += delta;
+    arenaState.peakRating = Math.max(arenaState.peakRating || arenaState.rating, arenaState.rating);
+    return delta;
+  }
+
+  function persistArenaProgress() {
+    var record = getArenaRecord();
+    var bestScore = Math.max(record.bestScore || 0, Math.round(arenaState.score || 0), arenaState.bestScore || 0);
+    var bestStreak = Math.max(record.bestStreak || 0, arenaState.streak || 0, arenaState.bestStreak || 0);
+    var linesCleared = (record.linesCleared || 0) + (arenaState.completedLineIds || []).length;
+    arenaState.bestScore = bestScore;
+    arenaState.bestStreak = bestStreak;
+    persistArenaRecord({
+      rating: clampArenaRating(arenaState.rating),
+      peakRating: Math.max(record.peakRating || 0, arenaState.peakRating || arenaState.rating),
+      bestScore: bestScore,
+      bestStreak: bestStreak,
+      linesCleared: linesCleared
+    });
+    arenaState.completedLineIds = [];
+  }
+
+  function awardArenaMoveScore() {
+    if (!arenaState.active) return;
+    var moveScore = 75 + Math.round((arenaState.lineRating || 1200) / 45) + Math.min(100, (arenaState.streak || 0) * 7);
+    arenaState.score += moveScore;
+    updateArenaModePanel();
+  }
+
+  function completeArenaChallenge() {
+    if (!arenaState.active) return;
+
+    arenaState.streak += 1;
+    arenaState.score += 220 + Math.round((arenaState.lineRating || 1200) / 8) + (arenaState.streak * 70);
+    arenaState.completedLineIds.push(arenaState.lineId);
+    applyArenaRatingResult(1);
+    markLineDiscovered(currentOpening, currentVariation);
+    markVariationComplete(currentOpening, currentVariation);
+    persistArenaProgress();
+
+    isPracticing = false;
+    updateArenaModePanel();
+    updatePracticeProgress();
+    renderPracticeMoveList();
+    updateCoachPanel(false);
+    showPracticeStatus('success', 'Line cleared. Streak ' + arenaState.streak + ' — loading the next random line.');
+
+    clearArenaAdvanceTimer();
+    arenaState.advanceTimerId = setTimeout(function() {
+      arenaState.advanceTimerId = null;
+      if (!arenaState.active || practiceMode !== 'arena') return;
+      var next = selectArenaChallenge();
+      if (!next || !applyArenaChallenge(next)) {
+        failArenaSession(null, '');
+      } else {
+        clearPracticeStatus();
+      }
+    }, 850);
+  }
+
+  function failArenaSession(moveResult, expectedSAN) {
+    if (!arenaState.active) return;
+    clearArenaAdvanceTimer();
+
+    if (practiceChess && moveResult) {
+      practiceChess.undo();
+      ChessBoard.setPosition(practiceChess);
+      var history = practiceChess.history({ verbose: true });
+      var last = history.length ? history[history.length - 1] : null;
+      ChessBoard.setLastMove(last ? last.from : null, last ? last.to : null);
+    }
+
+    applyArenaRatingResult(0);
+    arenaState.active = false;
+    arenaState.finished = true;
+    arenaState.lastResult = {
+      failed: true,
+      playedSAN: moveResult && moveResult.san ? moveResult.san : '',
+      expectedSAN: expectedSAN || ''
+    };
+    isPracticing = false;
+    ChessBoard.setOptions({ interactionColor: null, allowedMoves: [] });
+    if (expectedSAN) {
+      var preview = new Chess();
+      preview.load(practiceChess.fen());
+      var expectedMove = preview.move(expectedSAN);
+      if (expectedMove) {
+        ChessBoard.setArrows([{ from: expectedMove.from, to: expectedMove.to, color: 'rgba(239, 83, 80, 0.84)' }]);
+      }
+    }
+    persistArenaProgress();
+    updateArenaModePanel();
+    updatePracticeProgress();
+    renderPracticeMoveList();
+    updateCoachPanel(false);
+    hideSRSPanel();
+    showPracticeStatus('error', 'Arena over. First mistake: ' + (moveResult && moveResult.san ? moveResult.san : 'wrong move') + (expectedSAN ? '. Correct move was ' + expectedSAN + '.' : '.'));
+  }
+
+  function enterArenaMode(options) {
+    options = options || {};
+    if (!currentOpening) {
+      showPracticeStatus('hint', 'Select an opening to start Arena mode.');
+      return;
+    }
+    if (!options.fromStartPractice) {
+      var idx = currentVariation && currentOpening.variations ? currentOpening.variations.indexOf(currentVariation) : 0;
+      startPractice(idx >= 0 ? idx : 0, 'arena');
+      return;
+    }
+    updateArenaModePanel();
+    updateCoachPanel(currentMoveIndex === 0);
+  }
+
+  function exitArenaMode() {
+    clearArenaAdvanceTimer();
+    if (arenaState.active || arenaState.finished) {
+      persistArenaProgress();
+    }
+    arenaState = createInitialArenaState();
+    updateArenaModePanel();
+    if (currentOpening && currentVariation) {
+      var idx = currentOpening.variations.indexOf(currentVariation);
+      if (idx >= 0) {
+        startPractice(idx, practiceMode);
+        return;
+      }
+    }
+  }
+
   function goToNextLearnMove() {
     if (practiceMode === 'puzzles') {
       clearOpeningPuzzleAdvanceTimer();
@@ -1571,7 +1966,7 @@ const OpeningPracticeController = (function () {
 
     var hintBtn = document.getElementById('practiceHintBtn');
     if (hintBtn) {
-      var hintDisabled = practiceMode === 'drill' || practiceMode === 'learn';
+      var hintDisabled = practiceMode === 'drill' || practiceMode === 'learn' || practiceMode === 'arena';
       hintBtn.disabled = hintDisabled;
       hintBtn.classList.toggle('is-disabled', hintDisabled);
       hintBtn.title = hintDisabled ? 'Hints are disabled in this mode' : 'Show hint';
@@ -1584,10 +1979,10 @@ const OpeningPracticeController = (function () {
 
     var prevBtn = document.getElementById('practicePrevBtn');
     if (prevBtn) {
-      var prevDisabled = practiceMode === 'time';
+      var prevDisabled = practiceMode === 'time' || practiceMode === 'arena';
       prevBtn.disabled = prevDisabled;
       prevBtn.classList.toggle('is-disabled', prevDisabled);
-      prevBtn.title = prevDisabled ? 'Back is disabled in Time mode' : 'Previous move';
+      prevBtn.title = prevDisabled ? 'Back is disabled in this mode' : 'Previous move';
     }
 
     var modeBtn = document.getElementById('practiceModeBtn');
@@ -1598,6 +1993,7 @@ const OpeningPracticeController = (function () {
     }
 
     updateTimeModePanel();
+    updateArenaModePanel();
   }
 
   function updatePracticeMeta() {
@@ -1623,6 +2019,8 @@ const OpeningPracticeController = (function () {
         practiceSideCopy.textContent = 'Drill this opening as ' + getColorLabel(userColor) + ' from memory.';
       } else if (practiceMode === 'time') {
         practiceSideCopy.textContent = 'Race the clock as ' + getColorLabel(userColor) + '. Hints and mistakes cost time.';
+      } else if (practiceMode === 'arena') {
+        practiceSideCopy.textContent = 'Arena run as ' + getColorLabel(userColor) + '. Random lines continue until your first mistake.';
       } else if (practiceMode === 'learn') {
         practiceSideCopy.textContent = 'Step through this line as ' + getColorLabel(userColor) + ' with coach explanations.';
       } else {
@@ -1632,10 +2030,12 @@ const OpeningPracticeController = (function () {
 
     var pgnLine = document.getElementById('practiceMovePgn');
     if (pgnLine) {
-      if (practiceMode === 'drill' || practiceMode === 'time') {
+      if (practiceMode === 'drill' || practiceMode === 'time' || practiceMode === 'arena') {
         pgnLine.textContent = practiceMode === 'time'
           ? 'Time mode hides the full line. Recall the moves under pressure.'
-          : 'Drill mode hides the full line. Play the moves from memory.';
+          : practiceMode === 'arena'
+            ? 'Arena hides the line. One wrong legal move ends the run.'
+            : 'Drill mode hides the full line. Play the moves from memory.';
         pgnLine.classList.add('is-concealed');
       } else {
         pgnLine.textContent = currentVariation ? currentVariation.pgn : '';
@@ -1645,7 +2045,9 @@ const OpeningPracticeController = (function () {
 
     var movesHeader = document.getElementById('practiceMovesHeader');
     if (movesHeader) {
-      movesHeader.textContent = (practiceMode === 'drill' || practiceMode === 'time') ? 'Revealed Moves' : 'Moves';
+      movesHeader.textContent = practiceMode === 'arena'
+        ? 'Arena Line'
+        : (practiceMode === 'drill' || practiceMode === 'time') ? 'Revealed Moves' : 'Moves';
     }
   }
 
@@ -1661,6 +2063,11 @@ const OpeningPracticeController = (function () {
 
     if (previousMode === 'time' && practiceMode !== 'time') {
       exitTimeMode();
+      return;
+    }
+
+    if (previousMode === 'arena' && practiceMode !== 'arena') {
+      exitArenaMode();
       return;
     }
 
@@ -1684,6 +2091,14 @@ const OpeningPracticeController = (function () {
       return;
     }
 
+    if (practiceMode === 'arena') {
+      enterArenaMode(options);
+      if (!options.silent && currentOpening) {
+        showPracticeStatus('hint', 'Arena mode — random lines, Elo rating, and survival until your first mistake.');
+      }
+      return;
+    }
+
     if (currentOpening && currentVariation) {
       updateCoachPanel(currentMoveIndex === 0);
     }
@@ -1692,7 +2107,6 @@ const OpeningPracticeController = (function () {
       var statusMsg;
       if (practiceMode === 'drill') statusMsg = 'Drill mode — play from memory. Hints disabled.';
       else if (practiceMode === 'learn') statusMsg = 'Learn mode — press › to step through the line.';
-      else if (practiceMode === 'arena') statusMsg = 'Arena mode is not live yet. Practice mode rules are active for now.';
       else statusMsg = 'Practice mode — play the moves with guided feedback.';
       showPracticeStatus('hint', statusMsg);
     }
@@ -1701,12 +2115,32 @@ const OpeningPracticeController = (function () {
   // ===== PRACTICE MODE =====
   function startPractice(variationIdx, requestedMode) {
     if (!currentOpening) return;
-    currentVariation = currentOpening.variations[variationIdx];
-    if (!currentVariation) return;
 
     if (requestedMode !== undefined) {
       practiceMode = normalizePracticeMode(requestedMode);
     }
+
+    userColor = getOpeningPracticeColor(currentOpening);
+    clearArenaAdvanceTimer();
+    if (practiceMode === 'arena') {
+      startArenaSessionState();
+      var arenaChallenge = selectArenaChallenge();
+      if (!arenaChallenge) {
+        showPracticeStatus('error', 'Arena needs at least one playable line in this opening.');
+        arenaState = createInitialArenaState();
+        return;
+      }
+      currentVariation = arenaChallenge.variation;
+      arenaState.challengeNo = 0;
+      arenaState.lineId = arenaChallenge.id;
+      arenaState.lineRating = arenaChallenge.rating;
+      arenaState.lineUserMoves = arenaChallenge.userMoves;
+      arenaState.lineName = currentVariation.name || currentVariation.fullName || 'Random Line';
+    } else {
+      arenaState = createInitialArenaState();
+      currentVariation = currentOpening.variations[variationIdx];
+    }
+    if (!currentVariation) return;
 
     isPracticing = true;
     wrongMove = false;
@@ -1721,7 +2155,11 @@ const OpeningPracticeController = (function () {
     // Parse PGN into move list
     expectedMoves = parsePGNMoves(currentVariation.pgn);
 
-    userColor = getOpeningPracticeColor(currentOpening);
+    if (practiceMode === 'arena') {
+      arenaState.challengeNo = 1;
+      arenaState.lastResult = null;
+      rememberArenaLine(arenaState.lineId);
+    }
 
     // Initialize chess
     practiceChess = new Chess();
@@ -1789,6 +2227,8 @@ const OpeningPracticeController = (function () {
       wrongMove = false;
       if (practiceMode === 'time') {
         awardTimeModeMoveScore();
+      } else if (practiceMode === 'arena') {
+        awardArenaMoveScore();
       }
       currentMoveIndex++;
       SoundController.playMove();
@@ -1807,6 +2247,10 @@ const OpeningPracticeController = (function () {
         autoPlayOpponentMove();
       }, 400);
     } else {
+      if (practiceMode === 'arena') {
+        failArenaSession(moveResult, expectedSAN);
+        return;
+      }
       // Wrong move — undo it
       sessionErrors++;
       practiceChess.undo();
@@ -1858,6 +2302,10 @@ const OpeningPracticeController = (function () {
       return;
     }
     if (!isPracticing || currentMoveIndex >= expectedMoves.length) return;
+    if (practiceMode === 'arena') {
+      showPracticeStatus('hint', 'Hints are disabled in Arena. One clean memory run at a time.');
+      return;
+    }
     if (practiceMode === 'drill') {
       showPracticeStatus('hint', 'Hints are disabled in Drill mode. Switch back to Practice for guided help.');
       return;
@@ -1886,7 +2334,7 @@ const OpeningPracticeController = (function () {
       loadOpeningPuzzle();
       return;
     }
-    if (practiceMode === 'time') return;
+    if (practiceMode === 'time' || practiceMode === 'arena') return;
     if (currentMoveIndex <= 0) return;
 
     // Undo the last two moves (opponent + user) or one if at start
@@ -2335,7 +2783,11 @@ const OpeningPracticeController = (function () {
     var text = document.getElementById('practiceProgressText');
     if (bar) bar.style.width = pct + '%';
     if (text) {
-      text.textContent = current + ' / ' + total + ((practiceMode === 'drill' || practiceMode === 'time') ? ' moves recalled' : ' moves');
+      if (practiceMode === 'arena') {
+        text.textContent = 'Arena #' + Math.max(1, arenaState.challengeNo || 1) + ' · ' + current + ' / ' + total + ' recalled · streak ' + (arenaState.streak || 0);
+      } else {
+        text.textContent = current + ' / ' + total + ((practiceMode === 'drill' || practiceMode === 'time') ? ' moves recalled' : ' moves');
+      }
     }
   }
 
@@ -2344,7 +2796,7 @@ const OpeningPracticeController = (function () {
     if (!container) return;
 
     var html = '';
-    if (practiceMode === 'drill' || practiceMode === 'time') {
+    if (practiceMode === 'drill' || practiceMode === 'time' || practiceMode === 'arena') {
       for (var i = 0; i < expectedMoves.length; i++) {
         var hiddenMoveNum = Math.floor(i / 2) + 1;
         var hiddenIsWhite = i % 2 === 0;
@@ -2367,7 +2819,13 @@ const OpeningPracticeController = (function () {
       }
 
       if (!html) {
-        html = '<span class="pmove pmove-hidden">' + (practiceMode === 'time' ? 'Timed line hidden. Start playing.' : 'Line hidden. Start playing.') + '</span>';
+        html = '<span class="pmove pmove-hidden">' + (
+          practiceMode === 'time'
+            ? 'Timed line hidden. Start playing.'
+            : practiceMode === 'arena'
+              ? 'Arena line hidden. Survive the first move.'
+              : 'Line hidden. Start playing.'
+        ) + '</span>';
       }
     } else {
       for (var j = 0; j < expectedMoves.length; j++) {
@@ -2452,6 +2910,24 @@ const OpeningPracticeController = (function () {
         timeHtml += '<p style="margin-top:8px"><strong>' + escapeHtml(timeModeState.result.medal.label) + ' finish.</strong></p>';
       }
       body.innerHTML = timeHtml;
+      return;
+    }
+
+    if (practiceMode === 'arena') {
+      var arenaHtml =
+        '<p><strong>Arena Gauntlet</strong> — ' + escapeHtml(currentOpening.name) + '</p>' +
+        '<p style="margin-top:8px">Challenge <strong>#' + Math.max(1, arenaState.challengeNo || 1) + '</strong>: ' + escapeHtml(arenaState.lineName || (currentVariation && currentVariation.name) || 'Random line') + '</p>' +
+        '<p style="margin-top:8px">Streak <strong>' + (arenaState.streak || 0) + '</strong> · Score <strong>' + Math.max(0, Math.round(arenaState.score || 0)) + '</strong> · Arena rating <strong>' + clampArenaRating(arenaState.rating) + '</strong></p>' +
+        '<p style="margin-top:8px">Line Elo <strong>' + (arenaState.lineRating || '—') + '</strong>. No hints, no takebacks — the first wrong legal move ends the run.</p>';
+      if (arenaState.finished && arenaState.lastResult && arenaState.lastResult.failed) {
+        arenaHtml += '<p style="margin-top:8px"><strong>Run ended.</strong> ' +
+          (arenaState.lastResult.playedSAN ? 'You played ' + escapeHtml(arenaState.lastResult.playedSAN) + '. ' : '') +
+          (arenaState.lastResult.expectedSAN ? 'Correct was <strong>' + escapeHtml(arenaState.lastResult.expectedSAN) + '</strong>.' : '') +
+          '</p>';
+      } else if (!isStart && currentMoveIndex < expectedMoves.length) {
+        arenaHtml += '<p style="margin-top:8px"><strong>' + ((currentMoveIndex % 2 === 0 ? 'w' : 'b') === userColor ? 'Your move.' : 'Opponent reply incoming.') + '</strong></p>';
+      }
+      body.innerHTML = arenaHtml;
       return;
     }
 
@@ -2653,6 +3129,10 @@ const OpeningPracticeController = (function () {
   // ===== SRS COMPLETION PANEL =====
 
   function onVariationComplete() {
+    if (practiceMode === 'arena') {
+      completeArenaChallenge();
+      return;
+    }
     isPracticing = false;
     if (practiceMode === 'time') {
       finishTimeModeSession(true);
@@ -2759,11 +3239,15 @@ const OpeningPracticeController = (function () {
   function backToGallery() {
     isPracticing = false;
     stopTimeModeTimer();
+    clearArenaAdvanceTimer();
+    if (arenaState.active || arenaState.finished) persistArenaProgress();
     timeModeState = createInitialTimeModeState();
+    arenaState = createInitialArenaState();
     currentOpening = null;
     currentVariation = null;
     clearPracticeStatus();
     updateTimeModePanel();
+    updateArenaModePanel();
     document.getElementById('openingGalleryView').style.display = 'block';
     document.getElementById('openingDetailView').style.display = 'none';
     document.getElementById('openingPracticeView').style.display = 'none';
@@ -2773,10 +3257,14 @@ const OpeningPracticeController = (function () {
   function backToDetail() {
     isPracticing = false;
     stopTimeModeTimer();
+    clearArenaAdvanceTimer();
+    if (arenaState.active || arenaState.finished) persistArenaProgress();
     timeModeState = createInitialTimeModeState();
+    arenaState = createInitialArenaState();
     currentVariation = null;
     clearPracticeStatus();
     updateTimeModePanel();
+    updateArenaModePanel();
     document.getElementById('openingGalleryView').style.display = 'none';
     document.getElementById('openingDetailView').style.display = 'block';
     document.getElementById('openingPracticeView').style.display = 'none';
@@ -2909,7 +3397,7 @@ const OpeningPracticeController = (function () {
           showPracticeStatus('hint', 'Select a variation to switch modes.');
           return;
         }
-        var cycle = ['learn', 'practice', 'drill', 'time', 'puzzles'];
+        var cycle = ['learn', 'practice', 'drill', 'time', 'arena', 'puzzles'];
         var nextMode = cycle[(cycle.indexOf(practiceMode) + 1 + cycle.length) % cycle.length];
         setPracticeMode(nextMode);
       });

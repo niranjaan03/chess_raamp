@@ -4279,6 +4279,12 @@ body {
   border-radius: var(--radius);
   padding: 12px 14px;
 }
+.arena-mode-panel {
+  background:
+    radial-gradient(circle at top right, rgba(239, 83, 80, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  border-color: rgba(239, 83, 80, 0.22);
+}
 .time-mode-head {
   display: flex;
   align-items: flex-start;
@@ -4324,11 +4330,24 @@ body {
   border-color: rgba(217, 119, 6, 0.24);
   background: rgba(217, 119, 6, 0.12);
 }
+.arena-mode-badge.is-live {
+  color: #fca5a5;
+  border-color: rgba(239, 83, 80, 0.3);
+  background: rgba(239, 83, 80, 0.14);
+}
+.arena-mode-badge.is-failed {
+  color: #fecaca;
+  border-color: rgba(239, 83, 80, 0.42);
+  background: rgba(127, 29, 29, 0.36);
+}
 .time-mode-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-top: 12px;
+}
+.arena-mode-panel .time-mode-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .time-mode-stat {
   padding: 10px 10px 9px;
@@ -4416,6 +4435,9 @@ body {
     flex-direction: column;
   }
   .time-mode-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .arena-mode-panel .time-mode-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
