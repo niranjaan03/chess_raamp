@@ -15,7 +15,7 @@ import { MoveClassification } from '../lib/chesskit/enums.js';
 import { escapeAttr, escapeHtml, setText } from '../utils/dom.js';
 
 const EngineController = (function() {
-  var REVIEW_MULTI_PV = 5;
+  var REVIEW_MULTI_PV = 3;
   var MAX_LIVE_LINES = 5;
   var currentLines = {};
   var currentAnalysisFen = null;
@@ -55,11 +55,11 @@ const EngineController = (function() {
   }
 
   function getReviewProfile(totalPositions) {
-    if (totalPositions > 140) return { depth: 9, chunkSize: 96 };
-    if (totalPositions > 100) return { depth: 10, chunkSize: 80 };
-    if (totalPositions > 70)  return { depth: 11, chunkSize: 72 };
-    if (totalPositions > 45)  return { depth: 12, chunkSize: 64 };
-    return { depth: 13, chunkSize: 48 };
+    if (totalPositions > 140) return { depth: 8, chunkSize: 96, initialChunkSize: 1 };
+    if (totalPositions > 100) return { depth: 9, chunkSize: 80, initialChunkSize: 1 };
+    if (totalPositions > 70)  return { depth: 10, chunkSize: 72, initialChunkSize: 1 };
+    if (totalPositions > 45)  return { depth: 11, chunkSize: 64, initialChunkSize: 1 };
+    return { depth: 12, chunkSize: 48, initialChunkSize: 1 };
   }
 
   // ---------- Live analysis (single FEN) ----------
@@ -370,8 +370,8 @@ const EngineController = (function() {
     var profile = getReviewProfile(positions.length);
     var totalUnits = positions.length;
 
-    // Chess kit needs at least two lines for classification. Keeping five
-    // lets the review Analyze panel explain viable alternatives per move.
+    // Chess kit needs at least two lines for classification. Three keeps the
+    // review responsive while still showing viable alternatives per move.
     EngineManager.analyzeBatch(positions, profile.depth, REVIEW_MULTI_PV, function(done) {
       if (reviewToken !== gameAnalysisToken) return;
       if (typeof onProgress === 'function') onProgress(done, totalUnits);
@@ -399,7 +399,7 @@ const EngineController = (function() {
           onComplete(reviewedHistory, reviewedHistory);
         }
       });
-    }, { chunkSize: profile.chunkSize });
+    }, { chunkSize: profile.chunkSize, initialChunkSize: profile.initialChunkSize });
   }
 
   return {

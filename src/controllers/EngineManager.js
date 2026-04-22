@@ -123,6 +123,7 @@ const EngineManager = (function() {
     var controller = activeController;
     var signal = controller.signal;
     var chunkSize = Math.max(1, Math.min(128, parseInt(options && options.chunkSize, 10) || 32));
+    var initialChunkSize = Math.max(1, Math.min(chunkSize, parseInt(options && options.initialChunkSize, 10) || chunkSize));
     var results = new Array(positions.length);
     var cursor = 0;
 
@@ -151,7 +152,8 @@ const EngineManager = (function() {
       }
 
       var start = cursor;
-      var chunk = positions.slice(start, start + chunkSize);
+      var nextChunkSize = cursor === 0 ? initialChunkSize : chunkSize;
+      var chunk = positions.slice(start, start + nextChunkSize);
       if (!chunk.length) {
         finish(results);
         return;

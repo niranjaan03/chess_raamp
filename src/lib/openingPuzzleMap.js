@@ -74,7 +74,7 @@ export function openingNameToPuzzleTag(name) {
     .replace(/&/g, 'and')
     .replace(/\./g, '')
     .replace(/\s+/g, '_')
-    .replace(/[^A-Za-z0-9_\-]/g, '');
+    .replace(/[^A-Za-z0-9_-]/g, '');
   return BASE_NAME_OVERRIDES[cleaned] || cleaned;
 }
 

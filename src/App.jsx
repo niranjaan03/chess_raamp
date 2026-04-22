@@ -162,6 +162,81 @@ function CriticalMomentsPanel() {
   );
 }
 
+function CoachRampPanel() {
+  return (
+    <section className="coach-ramp-hero" id="grCoachTip" data-mood="idle">
+      <div className="coach-ramp-stage">
+        <div className="coach-ramp-avatar" aria-hidden="true">
+          <svg className="coach-ramp-portrait" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <clipPath id="crClip"><circle cx="70" cy="70" r="68" /></clipPath>
+              <linearGradient id="crBg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#25313a" />
+                <stop offset="100%" stopColor="#1b242c" />
+              </linearGradient>
+            </defs>
+            <g clipPath="url(#crClip)">
+              <rect width="140" height="140" fill="url(#crBg)" />
+              <path d="M70 30 C54 30 44 42 44 58 L44 64 C44 66 45 68 47 68 L93 68 C95 68 96 66 96 64 L96 58 C96 42 86 30 70 30 Z" fill="#4a3326" />
+              <path d="M70 28 C78 28 85 31 90 36 C88 33 82 28 70 28 Z" fill="#3a281c" />
+              <ellipse cx="70" cy="72" rx="22" ry="24" fill="#f2caa6" />
+              <path d="M48 70 C48 88 56 104 70 104 C84 104 92 88 92 70 C92 72 88 90 70 92 C52 90 48 72 48 70 Z" fill="#4a3326" />
+              <path d="M50 62 C50 56 56 52 62 54 L62 58 C58 57 54 60 54 64 Z" fill="#4a3326" />
+              <path d="M90 62 C90 56 84 52 78 54 L78 58 C82 57 86 60 86 64 Z" fill="#4a3326" />
+              <rect x="51" y="62" width="14" height="12" rx="3.5" fill="rgba(255,255,255,0.12)" stroke="#1b1b1b" strokeWidth="1.8" />
+              <rect x="75" y="62" width="14" height="12" rx="3.5" fill="rgba(255,255,255,0.12)" stroke="#1b1b1b" strokeWidth="1.8" />
+              <line x1="65" y1="68" x2="75" y2="68" stroke="#1b1b1b" strokeWidth="1.6" />
+              <circle cx="58" cy="68" r="2.2" fill="#1b1b1b" />
+              <circle cx="82" cy="68" r="2.2" fill="#1b1b1b" />
+              <path d="M62 86 Q70 90 78 86" stroke="#b57657" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+              <path d="M44 96 C50 110 60 116 70 116 C80 116 90 110 96 96 L108 140 L32 140 Z" fill="#3b5261" />
+              <path d="M60 102 L60 140 L80 140 L80 102 L70 108 Z" fill="#f6f6f6" />
+              <path d="M64 102 L70 108 L76 102 L70 100 Z" fill="#2e404b" />
+            </g>
+            <circle cx="70" cy="70" r="68" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="2" />
+          </svg>
+          <span className="coach-ramp-avatar-badge">
+            <span className="crab-dot"></span>
+            Coach Ramp
+          </span>
+        </div>
+
+        <div className="coach-ramp-bubble" id="grCoachBubble">
+          <span className="coach-ramp-tail" aria-hidden="true"></span>
+          <div className="coach-ramp-bubble-head">
+            <span className="coach-ramp-quality-pill" id="grCoachQuality">
+              <span className="crqp-icon" id="grCoachQualityIcon">&#9826;</span>
+              <span className="crqp-label" id="grCoachTitle">Coach Ramp</span>
+            </span>
+            <span className="coach-ramp-move-label" id="grCoachMoveLabel"></span>
+          </div>
+          <p className="coach-ramp-headline" id="grCoachHeadline">
+            Welcome! I&apos;m Coach Ramp.
+          </p>
+          <p className="coach-ramp-text" id="grCoachText">
+            Run a full analysis to unlock personalized move-by-move coaching.
+          </p>
+          <div className="coach-ramp-tips" id="grCoachTips"></div>
+        </div>
+      </div>
+
+      <div className="coach-ramp-timeline" id="grCoachTimeline">
+        <div className="crt-rail" id="grCoachTimelineRail">
+          <canvas className="crt-graph" id="grCoachTimelineGraph" width="1000" height="92"></canvas>
+          <div className="crt-midline"></div>
+          <div className="crt-dots" id="grCoachTimelineDots"></div>
+          <div className="crt-cursor" id="grCoachTimelineCursor"></div>
+        </div>
+        <div className="crt-players">
+          <span className="crt-player-name" id="grCoachTlWhite">White Player</span>
+          <span className="crt-player-hint" id="grCoachTlHint">Step through moves to hear the coach</span>
+          <span className="crt-player-name is-black" id="grCoachTlBlack">Black Player</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AnalysisPanel() {
   return (
     <div className="gr-tab-panel gr-analyze-panel" id="grAnalyzePanel" style={{ display: 'none' }}>
@@ -207,32 +282,6 @@ function AnalysisPanel() {
                 Run a full game review to see brilliance, inaccuracies, and more for each move.
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="gr-coach-bar review-card" id="grCoachTip">
-        <div className="gr-coach-avatar" aria-hidden="true">
-          <div className="gr-coach-face">
-            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'100%',height:'100%'}}>
-              <circle cx="32" cy="32" r="30" fill="#1a1a2e"/>
-              <circle cx="32" cy="36" r="18" fill="#e8c170"/>
-              <ellipse cx="32" cy="42" rx="10" ry="7" fill="#d4a555"/>
-              <rect x="13" y="28" rx="3" width="38" height="8" fill="#111"/>
-              <rect x="15" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
-              <rect x="35" y="29" rx="2" width="14" height="6" fill="#333" opacity="0.7"/>
-              <line x1="29" y1="32" x2="35" y2="32" stroke="#555" strokeWidth="1.5"/>
-              <path d="M26 44 Q32 50 38 44" stroke="#1a1a2e" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-              <path d="M10 24 Q32 10 54 24 L52 28 Q32 16 12 28 Z" fill="#2d2d5e"/>
-              <circle cx="48" cy="26" r="2" fill="#f7c948"/>
-            </svg>
-          </div>
-          <span className="gr-coach-badge">Coach</span>
-        </div>
-        <div className="gr-coach-copy">
-          <div className="gr-coach-name" id="grCoachTitle">Coach Ramp</div>
-          <div className="gr-coach-text" id="grCoachText">
-            Run a full analysis to unlock personalized move-by-move coaching.
           </div>
         </div>
       </section>
@@ -454,6 +503,7 @@ function GameReviewLayout() {
               <ReviewTabs />
 
               <div className="gr-tab-panel active" id="grReportPanel">
+                <CoachRampPanel />
                 <AccuracySummary />
                 <EvalGraphCard />
                 <MoveQualityBreakdown />

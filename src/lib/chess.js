@@ -32,7 +32,7 @@ const Chess = (function() {
 
   function clone(obj){
     var newObj={};
-    for(var key in obj){if(obj.hasOwnProperty(key)){newObj[key]=obj[key];}}
+    for(var key in obj){if(Object.prototype.hasOwnProperty.call(obj,key)){newObj[key]=obj[key];}}
     return newObj;
   }
 
@@ -515,7 +515,7 @@ const Chess = (function() {
 
   function load_pgn(pgn,options){
     function mask(str){return str.replace(/\\/g,'\\');}
-    function has_keys(object){for(var key in object){if(object.hasOwnProperty(key)){return true;}}return false;}
+    function has_keys(object){for(var key in object){if(Object.prototype.hasOwnProperty.call(object,key)){return true;}}return false;}
     function parse_pgn_header(header_string,options){
       var newline_char=(options&&typeof options.newline_char!=='undefined')?options.newline_char:'\r?\n',header_obj={},headers=header_string.split(new RegExp(mask(newline_char))),i,key,value;
       for(i=0;i<headers.length;i++){key=headers[i].replace(/^\[([A-Z][A-Za-z]*)\s.*\]$/,'$1');value=headers[i].replace(/^\[[A-Za-z]+\s"(.*)"\]$/,'$1');if(key.trim().length>0){header_obj[key]=value;}}

@@ -5,13 +5,18 @@
  * into your existing Express server setup.
  */
 
+import express from 'express';
+import cors from 'cors';
+import { createReviewRoutes, reviewGame } from './chessReviewApiV2.js';
+import { createReviewRoutes as createV1Routes } from './existingApi.js';
+
+let fullIntegrationExampleApp = null;
+
 // ============================================================
 // OPTION 1: Add to Existing Express App
 // ============================================================
 
-import express from 'express';
-import { createReviewRoutes } from './chessReviewApiV2.js';
-
+{
 const app = express();
 
 // Middleware
@@ -28,20 +33,19 @@ app.get('/api/puzzles', (req, res) => {
 app.listen(3000, () => {
   console.log('Server with Chess API V2 running on :3000');
 });
+}
 
 
 // ============================================================
 // OPTION 2: Modular with Route Mounting
 // ============================================================
 
-import express from 'express';
-import { createReviewRoutes } from './chessReviewApiV2.js';
-
+{
 const app = express();
 app.use(express.json());
 
 // Create a router for chess endpoints
-const chessRouter = express.Router();
+const _chessRouter = express.Router();
 createReviewRoutes(app); // This adds routes directly
 
 // Alternatively, mount chess routes under /chess prefix
@@ -50,16 +54,14 @@ createReviewRoutes(app); // This adds routes directly
 // app.use('/chess', chessRouter);
 
 app.listen(3000);
+}
 
 
 // ============================================================
 // OPTION 3: With Middleware Chain
 // ============================================================
 
-import express from 'express';
-import cors from 'cors';
-import { createReviewRoutes } from './chessReviewApiV2.js';
-
+{
 const app = express();
 
 // Middleware
@@ -82,15 +84,14 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(3000);
+}
 
 
 // ============================================================
 // OPTION 4: With Route Prefix
 // ============================================================
 
-import express from 'express';
-import { createReviewRoutes } from './chessReviewApiV2.js';
-
+{
 const app = express();
 app.use(express.json());
 
@@ -105,16 +106,14 @@ app.use('/api/v2', apiRouter);
 // GET  /api/v2/status
 
 app.listen(3000);
+}
 
 
 // ============================================================
 // OPTION 5: Microservice Architecture
 // ============================================================
 
-import express from 'express';
-import { createReviewRoutes } from './chessReviewApiV2.js';
-import { createReviewRoutes as createV1Routes } from './existingApi.js';
-
+{
 const app = express();
 app.use(express.json());
 
@@ -130,15 +129,14 @@ app.use('/api/v2', v2Router);
 
 // Allows coexistence of both versions
 app.listen(3000);
+}
 
 
 // ============================================================
 // OPTION 6: With Custom Analysis Handler
 // ============================================================
 
-import express from 'express';
-import { reviewGame, analyzePosition, createReviewRoutes } from './chessReviewApiV2.js';
-
+{
 const app = express();
 app.use(express.json());
 
@@ -166,15 +164,14 @@ app.post('/custom/analyze-with-cache', async (req, res) => {
 });
 
 app.listen(3000);
+}
 
 
 // ============================================================
 // OPTION 7: With Streaming Response (Long Analysis)
 // ============================================================
 
-import express from 'express';
-import { reviewGame } from './chessReviewApiV2.js';
-
+{
 const app = express();
 app.use(express.json());
 
@@ -206,15 +203,14 @@ app.post('/api/v2/review-stream', async (req, res) => {
 });
 
 app.listen(3000);
+}
 
 
 // ============================================================
 // OPTION 8: With Authentication
 // ============================================================
 
-import express from 'express';
-import { createReviewRoutes } from './chessReviewApiV2.js';
-
+{
 const app = express();
 app.use(express.json());
 
@@ -232,16 +228,14 @@ app.use('/api/v2', authMiddleware, express.Router());
 createReviewRoutes(app);
 
 app.listen(3000);
+}
 
 
 // ============================================================
 // OPTION 9: Full Integration Example
 // ============================================================
 
-import express from 'express';
-import cors from 'cors';
-import { createReviewRoutes } from './chessReviewApiV2.js';
-
+{
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -289,7 +283,8 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-export default app;
+fullIntegrationExampleApp = app;
+}
 
 
 // ============================================================
@@ -426,3 +421,6 @@ export const examples = {
   documentation: 'Check API_V2_INTEGRATION.md',
   component: 'Check src/components/GameAnalyzer.jsx'
 };
+
+export { fullIntegrationExampleApp };
+export default fullIntegrationExampleApp;

@@ -20,12 +20,15 @@ const ChessBoard = (function() {
   var lastMove = null;
   var arrows = [];
   var markers = [];
+  var reviewQualityLayer = null;
+  var reviewQualityAnimationFrame = null;
   var showArrows = true;
   var showCoordinates = true;
   var highlightLast = true;
   var lastMoveMode = 'both';
   var interactionColor = '';
   var allowedMoves = [];
+  var interactive = true;
   var onMoveCallback = null;
   var dragging = false;
   var dragPiece = null;
@@ -61,6 +64,126 @@ const ChessBoard = (function() {
     red:    { light: '#f8d0c0', dark: '#c0503a', highlight: 'rgba(255,255,100,0.5)', lastmove: 'rgba(210,150,100,0.4)', selected: 'rgba(50,200,50,0.5)', possible: 'rgba(0,0,0,0.15)' }
   };
   var currentTheme = THEMES.blue;
+
+  var MOVE_QUALITY_VISUALS = {
+    brilliant: {
+      label: 'Brilliant',
+      icon: 'sparkle',
+      badgeColor: '#1fc7d4',
+      pieceTint: 'rgba(31, 199, 212, 0.68)',
+      tintAlpha: 0.96,
+      glow: 'rgba(31, 199, 212, 0.78)',
+      squareHighlight: 'rgba(31, 199, 212, 0.34)'
+    },
+    great: {
+      label: 'Great',
+      icon: 'bang',
+      badgeColor: '#13a897',
+      pieceTint: 'rgba(19, 168, 151, 0.64)',
+      tintAlpha: 0.94,
+      glow: 'rgba(19, 168, 151, 0.74)',
+      squareHighlight: 'rgba(19, 168, 151, 0.30)'
+    },
+    best: {
+      label: 'Best',
+      icon: 'star',
+      badgeColor: '#86b957',
+      pieceTint: 'rgba(134, 185, 87, 0.66)',
+      tintAlpha: 0.96,
+      glow: 'rgba(134, 185, 87, 0.76)',
+      squareHighlight: 'rgba(134, 185, 87, 0.33)'
+    },
+    excellent: {
+      label: 'Excellent',
+      icon: 'thumb',
+      badgeColor: '#82b457',
+      pieceTint: 'rgba(130, 180, 87, 0.62)',
+      tintAlpha: 0.92,
+      glow: 'rgba(130, 180, 87, 0.70)',
+      squareHighlight: 'rgba(130, 180, 87, 0.30)'
+    },
+    good: {
+      label: 'Good',
+      icon: 'check',
+      badgeColor: '#93ad68',
+      pieceTint: 'rgba(147, 173, 104, 0.58)',
+      tintAlpha: 0.90,
+      glow: 'rgba(147, 173, 104, 0.62)',
+      squareHighlight: 'rgba(147, 173, 104, 0.27)'
+    },
+    book: {
+      label: 'Book',
+      icon: 'book',
+      badgeColor: '#d79a71',
+      pieceTint: 'rgba(215, 154, 113, 0.64)',
+      tintAlpha: 0.94,
+      glow: 'rgba(215, 154, 113, 0.72)',
+      squareHighlight: 'rgba(215, 154, 113, 0.36)'
+    },
+    inaccuracy: {
+      label: 'Inaccuracy',
+      icon: 'inaccuracy',
+      badgeColor: '#f4bf2f',
+      pieceTint: 'rgba(244, 191, 47, 0.66)',
+      tintAlpha: 0.96,
+      glow: 'rgba(244, 191, 47, 0.76)',
+      squareHighlight: 'rgba(244, 191, 47, 0.38)'
+    },
+    mistake: {
+      label: 'Mistake',
+      icon: 'question',
+      badgeColor: '#ff9854',
+      pieceTint: 'rgba(255, 152, 84, 0.68)',
+      tintAlpha: 0.98,
+      glow: 'rgba(255, 152, 84, 0.80)',
+      squareHighlight: 'rgba(255, 152, 84, 0.38)'
+    },
+    miss: {
+      label: 'Miss',
+      icon: 'miss',
+      badgeColor: 'linear-gradient(135deg, #a855f7 0%, #fb923c 100%)',
+      pieceTint: 'rgba(168, 85, 247, 0.62)',
+      tintAlpha: 0.94,
+      glow: 'rgba(251, 146, 60, 0.78)',
+      squareHighlight: 'rgba(168, 85, 247, 0.34)'
+    },
+    blunder: {
+      label: 'Blunder',
+      icon: 'blunder',
+      badgeColor: '#f14e44',
+      pieceTint: 'rgba(241, 78, 68, 0.70)',
+      tintAlpha: 1,
+      glow: 'rgba(241, 78, 68, 0.84)',
+      squareHighlight: 'rgba(241, 78, 68, 0.42)'
+    },
+    forced: {
+      label: 'Forced',
+      icon: 'forced',
+      badgeColor: '#64748b',
+      pieceTint: 'rgba(100, 116, 139, 0.54)',
+      tintAlpha: 0.86,
+      glow: 'rgba(100, 116, 139, 0.50)',
+      squareHighlight: 'rgba(100, 116, 139, 0.28)'
+    },
+    interesting: {
+      label: 'Interesting',
+      icon: 'sparkle',
+      badgeColor: '#4f8df7',
+      pieceTint: 'rgba(79, 141, 247, 0.58)',
+      tintAlpha: 0.90,
+      glow: 'rgba(79, 141, 247, 0.58)',
+      squareHighlight: 'rgba(79, 141, 247, 0.30)'
+    },
+    dubious: {
+      label: 'Dubious',
+      icon: 'question',
+      badgeColor: '#f59e0b',
+      pieceTint: 'rgba(245, 158, 11, 0.62)',
+      tintAlpha: 0.92,
+      glow: 'rgba(245, 158, 11, 0.56)',
+      squareHighlight: 'rgba(245, 158, 11, 0.34)'
+    }
+  };
 
   // Unicode chess pieces
   var PIECE_UNICODE = {
@@ -115,6 +238,13 @@ const ChessBoard = (function() {
     ctx = canvas.getContext('2d');
     onMoveCallback = onMove;
     boundCanvas = canvas;
+    interactive = true;
+    selectedSquare = null;
+    possibleMoves = [];
+    dragging = false;
+    dragPiece = null;
+    dragFrom = null;
+    reviewQualityLayer = null;
     preloadPieceImages();
     
     // Set up responsive canvas
@@ -161,6 +291,50 @@ const ChessBoard = (function() {
       img.src = getPieceAssetUrl(PIECE_ASSET_PATHS[key]);
       pieceImageCache[key] = img;
     });
+  }
+
+  function getMoveQualityVisual(quality) {
+    var key = String(quality || '').toLowerCase();
+    return MOVE_QUALITY_VISUALS[key] || null;
+  }
+
+  function easeOutCubic(t) {
+    var x = Math.max(0, Math.min(1, t));
+    return 1 - Math.pow(1 - x, 3);
+  }
+
+  function getReviewLayerProgress() {
+    if (!reviewQualityLayer || !reviewQualityLayer.startedAt || typeof performance === 'undefined') return 1;
+    var elapsed = performance.now() - reviewQualityLayer.startedAt;
+    return easeOutCubic(elapsed / 230);
+  }
+
+  function scheduleReviewQualityAnimation() {
+    if (!reviewQualityLayer || reviewQualityAnimationFrame || typeof requestAnimationFrame !== 'function') return;
+    reviewQualityAnimationFrame = requestAnimationFrame(function tick() {
+      reviewQualityAnimationFrame = null;
+      if (!reviewQualityLayer || !currentPosition) return;
+      drawBoard(currentPosition);
+      if (getReviewLayerProgress() < 1) {
+        scheduleReviewQualityAnimation();
+      }
+    });
+  }
+
+  function normalizeReviewQualityLayer(layer) {
+    if (!layer || !layer.square) return null;
+    var quality = String(layer.quality || '').toLowerCase();
+    var visual = getMoveQualityVisual(quality);
+    if (!visual) return null;
+    return {
+      square: layer.square,
+      from: layer.from || '',
+      to: layer.to || layer.square,
+      quality: quality,
+      label: layer.label || visual.label,
+      visual: visual,
+      startedAt: typeof performance !== 'undefined' ? performance.now() : 0
+    };
   }
 
   var currentPosition = null;
@@ -231,6 +405,10 @@ const ChessBoard = (function() {
           ctx.fillStyle = currentTheme.lastmove;
           ctx.fillRect(x, y, squareSize, squareSize);
         }
+
+        if (reviewQualityLayer && reviewQualityLayer.square === sq) {
+          drawReviewQualitySquare(x, y, reviewQualityLayer.visual, getReviewLayerProgress());
+        }
         
         // Selected square
         if (selectedSquare === sq) {
@@ -271,6 +449,8 @@ const ChessBoard = (function() {
         }
       }
     }
+
+    drawReviewMoveArrow();
     
     // Draw pieces (skip dragged piece)
     for (var square in position) {
@@ -292,12 +472,13 @@ const ChessBoard = (function() {
   function drawPiece(piece, square) {
     var pos = squareToXY(square);
     if (!pos) return;
-    drawPieceAtXY(piece, pos.x, pos.y);
+    drawPieceAtXY(piece, pos.x, pos.y, square);
   }
 
-  function drawPieceAtXY(piece, x, y) {
+  function drawPieceAtXY(piece, x, y, square) {
     var style = PIECE_STYLES[currentPieceStyle] || PIECE_STYLES.classic;
     if (style.renderMode === 'svg' && drawPieceImage(piece, style, x, y)) {
+      drawReviewPieceTint(piece, style, x, y, square, 'svg');
       return;
     }
 
@@ -331,12 +512,27 @@ const ChessBoard = (function() {
     ctx.fillStyle = getPieceFillStyle(piece, style, x, y);
     ctx.fillText(unicode, centerX, centerY);
     ctx.restore();
+    drawReviewPieceTint(piece, style, x, y, square, 'text');
   }
 
   function drawPieceImage(piece, style, x, y) {
+    var metrics = getPieceImageMetrics(piece, style, x, y);
+    if (!metrics) return false;
+
+    ctx.save();
+    ctx.shadowColor = style.shadowColor || 'rgba(0,0,0,0.2)';
+    ctx.shadowBlur = style.shadowBlur || 0;
+    ctx.shadowOffsetX = style.shadowX || 0;
+    ctx.shadowOffsetY = style.shadowY || 0;
+    ctx.drawImage(metrics.img, metrics.x, metrics.y, metrics.size, metrics.size);
+    ctx.restore();
+    return true;
+  }
+
+  function getPieceImageMetrics(piece, style, x, y) {
     var key = piece.color + piece.type.toUpperCase();
     var img = pieceImageCache[key];
-    if (!img || !img.complete || !img.naturalWidth) return false;
+    if (!img || !img.complete || !img.naturalWidth) return null;
 
     var perTypeScale = style.typeScale && style.typeScale[piece.type] ? style.typeScale[piece.type] : 1;
     var baseDrawSize = squareSize * (style.pieceScale || 1) * perTypeScale * PIECE_SIZE_MULTIPLIER;
@@ -344,14 +540,153 @@ const ChessBoard = (function() {
     var offsetX = (squareSize - drawSize) / 2;
     var offsetY = (squareSize - drawSize) / 2 + ((style.yOffset || 0) * squareSize);
 
+    return {
+      img: img,
+      x: x + offsetX,
+      y: y + offsetY,
+      size: drawSize
+    };
+  }
+
+  function drawReviewQualitySquare(x, y, visual, progress) {
+    if (!visual) return;
+    var alpha = Math.max(0, Math.min(1, progress || 1));
     ctx.save();
-    ctx.shadowColor = style.shadowColor || 'rgba(0,0,0,0.2)';
-    ctx.shadowBlur = style.shadowBlur || 0;
-    ctx.shadowOffsetX = style.shadowX || 0;
-    ctx.shadowOffsetY = style.shadowY || 0;
-    ctx.drawImage(img, x + offsetX, y + offsetY, drawSize, drawSize);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = visual.squareHighlight;
+    ctx.fillRect(x, y, squareSize, squareSize);
+
+    var gradient = ctx.createRadialGradient(
+      x + squareSize * 0.62,
+      y + squareSize * 0.42,
+      squareSize * 0.06,
+      x + squareSize * 0.5,
+      y + squareSize * 0.5,
+      squareSize * 0.72
+    );
+    gradient.addColorStop(0, visual.glow);
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalAlpha = alpha * 0.22;
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, squareSize, squareSize);
+
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.strokeStyle = visual.glow;
+    ctx.lineWidth = Math.max(1.5, squareSize * 0.018);
+    ctx.strokeRect(x + 1, y + 1, squareSize - 2, squareSize - 2);
+    ctx.restore();
+  }
+
+  function drawReviewMoveArrow() {
+    if (!reviewQualityLayer || !reviewQualityLayer.from || !reviewQualityLayer.to || reviewQualityLayer.from === reviewQualityLayer.to) return;
+    var from = squareToXY(reviewQualityLayer.from);
+    var to = squareToXY(reviewQualityLayer.to);
+    var visual = reviewQualityLayer.visual;
+    if (!from || !to || !visual) return;
+
+    var progress = getReviewLayerProgress();
+    var startX = from.x + squareSize / 2;
+    var startY = from.y + squareSize / 2;
+    var endX = to.x + squareSize / 2;
+    var endY = to.y + squareSize / 2;
+    var dx = endX - startX;
+    var dy = endY - startY;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (!len) return;
+
+    var nx = dx / len;
+    var ny = dy / len;
+    var shortenedEndX = endX - nx * squareSize * 0.24;
+    var shortenedEndY = endY - ny * squareSize * 0.24;
+    var arrowWidth = Math.max(10, squareSize * 0.16);
+    var headLen = Math.max(22, squareSize * 0.34);
+    var headWidth = Math.max(26, squareSize * 0.42);
+    var baseX = shortenedEndX - nx * headLen;
+    var baseY = shortenedEndY - ny * headLen;
+    var px = -ny;
+    var py = nx;
+
+    ctx.save();
+    ctx.globalAlpha = 0.46 * progress;
+    ctx.strokeStyle = visual.glow;
+    ctx.lineWidth = arrowWidth;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(baseX, baseY);
+    ctx.stroke();
+
+    ctx.fillStyle = visual.glow;
+    ctx.beginPath();
+    ctx.moveTo(shortenedEndX, shortenedEndY);
+    ctx.lineTo(baseX + px * headWidth / 2, baseY + py * headWidth / 2);
+    ctx.lineTo(baseX - px * headWidth / 2, baseY - py * headWidth / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawReviewPieceTint(piece, style, x, y, square, mode) {
+    if (!reviewQualityLayer || square !== reviewQualityLayer.square) return;
+    var visual = reviewQualityLayer.visual;
+    if (!visual) return;
+    var progress = getReviewLayerProgress();
+    var alpha = (visual.tintAlpha || 0.75) * progress;
+
+    if (mode === 'svg') {
+      var metrics = getPieceImageMetrics(piece, style, x, y);
+      if (metrics && drawReviewImageTint(metrics, visual, alpha)) return;
+    }
+
+    drawReviewTextTint(piece, style, x, y, visual, alpha);
+  }
+
+  function drawReviewImageTint(metrics, visual, alpha) {
+    if (typeof document === 'undefined') return false;
+    var size = Math.max(1, Math.ceil(metrics.size));
+    var offscreen = document.createElement('canvas');
+    offscreen.width = size;
+    offscreen.height = size;
+    var offCtx = offscreen.getContext('2d');
+    if (!offCtx) return false;
+
+    offCtx.clearRect(0, 0, size, size);
+    offCtx.drawImage(metrics.img, 0, 0, size, size);
+    offCtx.globalCompositeOperation = 'source-atop';
+    offCtx.fillStyle = visual.pieceTint;
+    offCtx.fillRect(0, 0, size, size);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = visual.glow;
+    ctx.shadowBlur = squareSize * 0.12;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.drawImage(offscreen, metrics.x, metrics.y, metrics.size, metrics.size);
     ctx.restore();
     return true;
+  }
+
+  function drawReviewTextTint(piece, style, x, y, visual, alpha) {
+    var key = piece.color + piece.type.toUpperCase();
+    var unicode = PIECE_UNICODE[key] || PIECE_UNICODE[piece.color + piece.type.toUpperCase()];
+    if (!unicode) return;
+
+    var centerX = x + squareSize / 2;
+    var yOff = (style.yOffset || 0) * squareSize;
+    var centerY = y + squareSize / 2 + yOff;
+    var fontSize = squareSize * style.fontScale * PIECE_SIZE_MULTIPLIER;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = style.fontWeight + ' ' + fontSize + 'px ' + style.fontFamily;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = visual.glow;
+    ctx.shadowBlur = squareSize * 0.12;
+    ctx.fillStyle = visual.pieceTint;
+    ctx.fillText(unicode, centerX, centerY);
+    ctx.restore();
   }
 
   function getPieceFillStyle(piece, style, x, y) {
@@ -454,9 +789,95 @@ const ChessBoard = (function() {
     }).join('');
   }
 
+  function escapeAttr(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function buildReviewQualityBadgeHtml() {
+    if (!reviewQualityLayer || !reviewQualityLayer.square || !reviewQualityLayer.visual) return '';
+    var pos = squareToXY(reviewQualityLayer.square);
+    if (!pos) return '';
+
+    var visual = reviewQualityLayer.visual;
+    var badgeSize = squareSize * 0.58;
+    var left = pos.x + squareSize * 0.73;
+    var top = pos.y + squareSize * 0.13;
+    var inset = badgeSize * 0.5 + 2;
+    left = Math.max(inset, Math.min(boardSize - inset, left));
+    top = Math.max(inset, Math.min(boardSize - inset, top));
+
+    var leftPct = (left / boardSize) * 100;
+    var topPct = (top / boardSize) * 100;
+    var sizePct = (badgeSize / boardSize) * 100;
+    var title = escapeAttr(reviewQualityLayer.label || visual.label);
+    var quality = escapeAttr(reviewQualityLayer.quality || 'good');
+    var icon = buildMoveQualityBadgeIcon(visual.icon);
+
+    return '<div class="review-quality-badge review-quality-badge--' + quality + '"' +
+      ' style="left:' + leftPct.toFixed(3) + '%;top:' + topPct.toFixed(3) + '%;' +
+      '--mq-badge-size:' + sizePct.toFixed(3) + '%;' +
+      '--mq-badge-bg:' + escapeAttr(visual.badgeColor) + ';' +
+      '--mq-badge-glow:' + escapeAttr(visual.glow) + ';"' +
+      ' title="' + title + '" aria-label="' + title + '">' + icon + '</div>';
+  }
+
+  function svgTextIcon(text, size, weight) {
+    return '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">' +
+      '<text x="16" y="21.5" text-anchor="middle" font-family="Inter, system-ui, sans-serif" ' +
+      'font-size="' + (size || 18) + '" font-weight="' + (weight || 900) + '" fill="currentColor">' +
+      escapeAttr(text) + '</text></svg>';
+  }
+
+  function buildMoveQualityBadgeIcon(icon) {
+    switch (icon) {
+      case 'sparkle':
+        return '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">' +
+          '<path d="M16 3.5 18.9 12l8.6 3.1-8.6 3.1L16 26.5l-2.9-8.3-8.6-3.1 8.6-3.1L16 3.5Z" fill="currentColor"/>' +
+          '<path d="M25 3.8 26.1 7l3.1 1.1-3.1 1.1L25 12.5 23.9 9.2l-3.1-1.1L23.9 7 25 3.8Z" fill="currentColor" opacity=".72"/>' +
+          '</svg>';
+      case 'star':
+        return '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">' +
+          '<path d="m16 3.8 3.6 7.3 8.1 1.2-5.8 5.7 1.4 8-7.3-3.8L8.7 26l1.4-8-5.8-5.7 8.1-1.2L16 3.8Z" fill="currentColor"/>' +
+          '</svg>';
+      case 'thumb':
+        return '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">' +
+          '<path d="M7 14h5v13H7V14Zm7 12h9.5c1.5 0 2.8-1 3.1-2.5l1.6-7.3c.4-1.9-1-3.7-2.9-3.7h-6.1l.8-4.1c.2-1-.1-2-.8-2.7L18 4.5l-5.1 6.2c-.6.7-.9 1.6-.9 2.5V24c0 1.1.9 2 2 2Z" fill="currentColor"/>' +
+          '</svg>';
+      case 'check':
+        return '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">' +
+          '<path d="M12.8 22.5 6.4 16l2.9-2.8 3.5 3.6 9.9-10 2.9 2.8-12.8 12.9Z" fill="currentColor"/>' +
+          '</svg>';
+      case 'book':
+        return '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">' +
+          '<path d="M6 7.5c0-1.1.9-2 2-2h6.2c1.1 0 2.1.4 2.8 1.2.7-.8 1.7-1.2 2.8-1.2H26v19h-6.8c-.9 0-1.7.3-2.2.9-.6-.6-1.4-.9-2.2-.9H6v-17Z" fill="currentColor"/>' +
+          '<path d="M16 8.6v14.7M9.5 9.2h4.2M20.3 9.2h4.2" stroke="rgba(0,0,0,.28)" stroke-width="1.7" stroke-linecap="round"/>' +
+          '</svg>';
+      case 'bang':
+        return svgTextIcon('!', 24, 950);
+      case 'inaccuracy':
+        return svgTextIcon('?!', 15, 950);
+      case 'question':
+        return svgTextIcon('?', 22, 950);
+      case 'blunder':
+        return svgTextIcon('??', 15, 950);
+      case 'miss':
+        return svgTextIcon('!', 23, 950);
+      case 'forced':
+        return '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">' +
+          '<path d="M7 16h13.5l-5-5L18 8.5 27.5 18 18 27.5 15.5 25l5-5H7v-4Z" fill="currentColor"/>' +
+          '</svg>';
+      default:
+        return svgTextIcon('?', 22, 950);
+    }
+  }
+
   function renderOverlay() {
     if (!overlay) return;
-    var html = buildArrowSvg() + buildMarkerHtml();
+    var html = buildArrowSvg() + buildMarkerHtml() + buildReviewQualityBadgeHtml();
     overlay.innerHTML = html;
   }
 
@@ -480,6 +901,22 @@ const ChessBoard = (function() {
     renderOverlay();
   }
 
+  function setReviewMoveQuality(layer) {
+    reviewQualityLayer = normalizeReviewQualityLayer(layer);
+    if (currentPosition) drawBoard(currentPosition);
+    scheduleReviewQualityAnimation();
+  }
+
+  function clearReviewMoveQuality() {
+    reviewQualityLayer = null;
+    if (reviewQualityAnimationFrame && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(reviewQualityAnimationFrame);
+    }
+    reviewQualityAnimationFrame = null;
+    if (currentPosition) drawBoard(currentPosition);
+    else renderOverlay();
+  }
+
   // Mouse event handling
   var mouseDownSquare = null;
   var rightClickFrom = null;
@@ -497,6 +934,14 @@ const ChessBoard = (function() {
   function onMouseDown(e) {
     if (e.button === 2) {
       rightClickFrom = xyToSquare(getMousePos(e).x, getMousePos(e).y);
+      return;
+    }
+
+    if (!interactive) {
+      selectedSquare = null;
+      possibleMoves = [];
+      dragging = false;
+      drawBoard(currentPosition);
       return;
     }
     
@@ -580,7 +1025,7 @@ const ChessBoard = (function() {
   }
 
   function handleSquareClick(sq) {
-    if (!sq || !currentChess) return;
+    if (!interactive || !sq || !currentChess) return;
     var activeColor = interactionColor || currentChess.turn();
     
     if (selectedSquare && possibleMoves.indexOf(sq) !== -1) {
@@ -607,7 +1052,7 @@ const ChessBoard = (function() {
   }
 
   function attemptMove(from, to) {
-    if (!currentChess) return;
+    if (!interactive || !currentChess) return;
     if (interactionColor && currentChess.turn() !== interactionColor) {
       drawBoard(currentPosition);
       return;
@@ -685,6 +1130,8 @@ const ChessBoard = (function() {
     clearArrows: clearArrows,
     setMarkers: setMarkers,
     clearMarkers: clearMarkers,
+    setReviewMoveQuality: setReviewMoveQuality,
+    clearReviewMoveQuality: clearReviewMoveQuality,
     setLastMove: function(from, to) { lastMove = from ? {from:from, to:to} : null; if (currentPosition) drawBoard(currentPosition); },
     setOptions: function(opts) {
       if ('showArrows' in opts) showArrows = opts.showArrows;
@@ -693,6 +1140,16 @@ const ChessBoard = (function() {
       if ('lastMoveMode' in opts) lastMoveMode = opts.lastMoveMode || 'both';
       if ('interactionColor' in opts) interactionColor = opts.interactionColor || '';
       if ('allowedMoves' in opts) allowedMoves = Array.isArray(opts.allowedMoves) ? opts.allowedMoves : [];
+      if ('interactive' in opts) {
+        interactive = opts.interactive !== false;
+        if (!interactive) {
+          selectedSquare = null;
+          possibleMoves = [];
+          dragging = false;
+          dragPiece = null;
+          dragFrom = null;
+        }
+      }
       if (currentPosition) drawBoard(currentPosition);
     },
     redraw: function() { if (currentPosition) drawBoard(currentPosition); },

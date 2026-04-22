@@ -96,7 +96,7 @@ const AppController = (function() {
     
     ChessBoard.init('chessBoard', 'boardOverlay', onBoardMove);
     ChessBoard.setPosition(chess);
-    ChessBoard.setOptions({ interactionColor: '', allowedMoves: [] });
+    syncAnalyzeBoardInteraction();
     EngineController.init();
     SoundController.init();
     
@@ -105,6 +105,7 @@ const AppController = (function() {
     setupTabNavigation();
     setupBrowserTabHistory();
     setupCoordinates();
+    setupCoachTimelineInteractions();
     applyBoardPreferences();
     
     startAnalysis();
@@ -262,7 +263,7 @@ const AppController = (function() {
       setTimeout(function() {
         ChessBoard.init('chessBoard', 'boardOverlay', onBoardMove);
         if (chess) ChessBoard.setPosition(chess);
-        ChessBoard.setOptions({ interactionColor: '', allowedMoves: [] });
+        syncAnalyzeBoardInteraction();
         ChessBoard.redraw();
       }, 50);
     }
@@ -299,6 +300,15 @@ const AppController = (function() {
           showToast('Failed to load player analysis', 'error');
         });
     }
+  }
+
+  function syncAnalyzeBoardInteraction() {
+    var reviewIsLoaded = !!(currentGame && gamePositions && gamePositions.length > 1);
+    ChessBoard.setOptions({
+      interactionColor: '',
+      allowedMoves: [],
+      interactive: !reviewIsLoaded
+    });
   }
 
   function openDailyPuzzleCalendar() {
@@ -1225,17 +1235,16 @@ const AppController = (function() {
         ChessBoard.setPieceStyle(savedPieceStyle);
       }
       var savedSoundStyle = localStorage.getItem('kv_move_sound_style');
+      var soundButtons = document.querySelectorAll('[data-target="settingsSoundStyle"]');
       if (savedSoundStyle) {
         syncSelectValue(['settingsSoundStyle'], savedSoundStyle);
-        var buttons = document.querySelectorAll('[data-target="settingsSoundStyle"]');
-        buttons.forEach(function(btn) {
+        soundButtons.forEach(function(btn) {
           btn.classList.toggle('active', btn.getAttribute('data-value') === savedSoundStyle);
         });
         SoundController.setSoundStyle(savedSoundStyle);
       } else {
         syncSelectValue(['settingsSoundStyle'], 'classic');
-        var buttons = document.querySelectorAll('[data-target="settingsSoundStyle"]');
-        buttons.forEach(function(btn) {
+        soundButtons.forEach(function(btn) {
           btn.classList.toggle('active', btn.getAttribute('data-value') === 'classic');
         });
       }
@@ -1377,6 +1386,9 @@ const AppController = (function() {
     currentGame = game;
     gamePositions = PGNParser.buildPositions(game);
     chess = new Chess();
+    if (gamePositions[0] && gamePositions[0].fen) {
+      chess.load(gamePositions[0].fen);
+    }
     currentMoveIndex = 0;
     resetGameReviewUI();
 
@@ -1389,6 +1401,7 @@ const AppController = (function() {
 
     ChessBoard.setPosition(chess);
     ChessBoard.setLastMove(null, null);
+    syncAnalyzeBoardInteraction();
     updateMovesList();
     updateOpeningDisplay();
     startAnalysis();
@@ -1413,6 +1426,7 @@ const AppController = (function() {
       resetGameReviewUI();
       ChessBoard.setPosition(chess);
       ChessBoard.setLastMove(null, null);
+      syncAnalyzeBoardInteraction();
       updateMovesList();
       startAnalysis();
       document.getElementById('fenInput').value = fen;
@@ -1971,6 +1985,7 @@ const AppController = (function() {
     chess = new Chess();
     ChessBoard.setPosition(chess);
     ChessBoard.setLastMove(null, null);
+    syncAnalyzeBoardInteraction();
     updateActiveMoveHighlight();
     startAnalysis();
     updateMoveQualityBanner();
@@ -2011,6 +2026,7 @@ const AppController = (function() {
     chess = new Chess();
     chess.load(pos.fen);
     ChessBoard.setPosition(chess);
+    syncAnalyzeBoardInteraction();
     
     // Set last move highlight
     if (pos.move && currentMoveIndex > 0) {
@@ -2081,6 +2097,22 @@ const AppController = (function() {
 
   // ===== BOARD EVENTS =====
   function onBoardMove(move, fen) {
+    if (currentGame) {
+      var reviewPos = gamePositions && gamePositions[currentMoveIndex] ? gamePositions[currentMoveIndex] : null;
+      chess = new Chess();
+      if (reviewPos && reviewPos.fen) chess.load(reviewPos.fen);
+      ChessBoard.setPosition(chess);
+      if (reviewPos && reviewPos.move && currentMoveIndex > 0) {
+        ChessBoard.setLastMove(reviewPos.move.from, reviewPos.move.to);
+      } else {
+        ChessBoard.setLastMove(null, null);
+      }
+      syncAnalyzeBoardInteraction();
+      updateFenDisplay();
+      showToast('Game review is read-only. Use the move list or engine lines to explore.', 'error');
+      return;
+    }
+
     // User made a move on the board
     currentGame = null;
     resetGameReviewUI();
@@ -2146,7 +2178,7 @@ const AppController = (function() {
       return;
     }
 
-    setReviewBusyState(true, '0%');
+    setReviewBusyState(true, 'Starting');
 
     var reviewMeta = currentGame ? {
       whiteElo: parseInt(currentGame.whiteElo, 10) || undefined,
@@ -2154,7 +2186,11 @@ const AppController = (function() {
     } : null;
 
     EngineController.analyzeGame(pgn, reviewMeta, function(done, total) {
-      var pct = Math.round(done / total * 100);
+      if (!total || done <= 0) {
+        setReviewBusyState(true, 'Starting');
+        return;
+      }
+      var pct = Math.max(1, Math.round(done / total * 100));
       setReviewBusyState(true, pct + '%');
     }, function(results, history) {
       setReviewBusyState(false);
@@ -2202,6 +2238,11 @@ const AppController = (function() {
     if (reportPanel) reportPanel.style.display = activeReviewTab === 'report' ? '' : 'none';
     if (analyzePanel) analyzePanel.style.display = activeReviewTab === 'analyze' ? '' : 'none';
     if (settingsPanel) settingsPanel.style.display = activeReviewTab === 'settings' ? '' : 'none';
+
+    if (activeReviewTab === 'report' && lastAnalysisHistory) {
+      renderCoachTimeline(lastAnalysisHistory);
+      updateCoachTimelineCursor(currentMoveIndex - 1);
+    }
 
     if (activeReviewTab === 'analyze') {
       var selected = getSelectedReviewMove();
@@ -2363,6 +2404,8 @@ const AppController = (function() {
     highlightPlayerCards(wAcc, bAcc);
     updateCoachTip(wAcc, bAcc, counts);
     drawCentipawnLossChart(history, currentMoveIndex - 1);
+    updateCoachTimelinePlayers();
+    renderCoachTimeline(history);
     updateMoveQualityBanner();
   }
 
@@ -2946,6 +2989,7 @@ const AppController = (function() {
     if (whiteCard) whiteCard.classList.remove('active');
     if (blackCard) blackCard.classList.remove('active');
     setMoveQualityBanner(null);
+    resetCoachTimeline();
     var canvas = document.getElementById('evalGraph');
     if (canvas) {
       var ctx = canvas.getContext('2d');
@@ -2968,6 +3012,7 @@ const AppController = (function() {
     var moveIndex = selected.moveIndex;
     var moveInfo = selected.moveInfo;
     setMoveQualityBanner(moveInfo, moveIndex);
+    updateCoachTimelineCursor(moveIndex);
     refreshEvalGraphHighlight(moveIndex);
     refreshCentipawnLossHighlight(moveIndex);
     updateReviewAnalyzePanel(moveInfo, moveIndex);
@@ -2995,6 +3040,7 @@ const AppController = (function() {
       iconEl.textContent = '?';
       iconEl.className = 'qi';
       if (ChessBoard && typeof ChessBoard.clearMarkers === 'function') ChessBoard.clearMarkers();
+      if (ChessBoard && typeof ChessBoard.clearReviewMoveQuality === 'function') ChessBoard.clearReviewMoveQuality();
       var label = (typeof moveIndex === 'number' && moveIndex >= 0)
         ? 'Move ' + (Math.floor(moveIndex / 2) + 1) + ' not analyzed yet'
         : 'Awaiting analysis';
@@ -3009,7 +3055,18 @@ const AppController = (function() {
     iconEl.className = 'qi ' + (meta.iconClass || '');
     gradeEl.textContent = meta.label + ' · ' + buildMoveLabel(moveInfo, moveIndex);
     descEl.textContent = meta.tip + ' ' + describeMoveSwing(moveInfo);
-    if (ChessBoard && typeof ChessBoard.setMarkers === 'function' && moveInfo.to) {
+    if (ChessBoard && typeof ChessBoard.clearMarkers === 'function') {
+      ChessBoard.clearMarkers();
+    }
+    if (ChessBoard && typeof ChessBoard.setReviewMoveQuality === 'function' && moveInfo.to) {
+      ChessBoard.setReviewMoveQuality({
+        from: moveInfo.from,
+        to: moveInfo.to,
+        square: moveInfo.to,
+        quality: moveInfo.quality,
+        label: meta.label
+      });
+    } else if (ChessBoard && typeof ChessBoard.setMarkers === 'function' && moveInfo.to) {
       ChessBoard.setMarkers([{
         square: moveInfo.to,
         text: meta.icon,
@@ -3064,10 +3121,107 @@ const AppController = (function() {
   }
 
   function setCoachMessage(title, text) {
+    applyCoachNarrative({
+      title: title,
+      headline: null,
+      text: text,
+      moveLabel: '',
+      mood: inferCoachMoodFromTitle(title),
+      tips: []
+    });
+  }
+
+  var COACH_MOOD_BY_QUALITY = {
+    brilliant: 'brilliant',
+    great: 'good',
+    best: 'good',
+    excellent: 'good',
+    good: 'good',
+    book: 'book',
+    inaccuracy: 'warn',
+    mistake: 'bad',
+    miss: 'bad',
+    blunder: 'bad'
+  };
+
+  var COACH_ICON_BY_QUALITY = {
+    brilliant: '‼',
+    great: '!',
+    best: '★',
+    excellent: '✓',
+    good: '✓',
+    book: '\u{1F4D6}',
+    inaccuracy: '?!',
+    mistake: '?',
+    miss: '✖',
+    blunder: '??'
+  };
+
+  function inferCoachMoodFromTitle(title) {
+    if (!title || typeof title !== 'string') return 'idle';
+    var t = title.toLowerCase();
+    for (var q in COACH_MOOD_BY_QUALITY) {
+      if (t.indexOf(q) !== -1) return COACH_MOOD_BY_QUALITY[q];
+    }
+    return 'idle';
+  }
+
+  function applyCoachNarrative(payload) {
+    var hero = document.getElementById('grCoachTip');
     var titleEl = document.getElementById('grCoachTitle');
+    var iconEl = document.getElementById('grCoachQualityIcon');
+    var moveLabelEl = document.getElementById('grCoachMoveLabel');
+    var headlineEl = document.getElementById('grCoachHeadline');
     var textEl = document.getElementById('grCoachText');
-    if (titleEl) titleEl.textContent = title || 'Coach Ramp';
-    if (textEl) textEl.textContent = text || DEFAULT_COACH_TEXT;
+    var tipsEl = document.getElementById('grCoachTips');
+
+    var title = payload && payload.title ? String(payload.title) : 'Coach Ramp';
+    var quality = payload && payload.quality ? payload.quality : null;
+    var mood = payload && payload.mood ? payload.mood : (quality ? (COACH_MOOD_BY_QUALITY[quality] || 'idle') : 'idle');
+    var text = payload && typeof payload.text === 'string' ? payload.text : '';
+    var headline = payload && payload.headline ? String(payload.headline) : '';
+    var moveLabel = payload && payload.moveLabel ? String(payload.moveLabel) : '';
+    var tips = payload && Array.isArray(payload.tips) ? payload.tips : [];
+
+    var shortTitle = title.replace(/^Coach Ramp\s*[·•-]\s*/i, '');
+    if (!shortTitle) shortTitle = 'Coach Ramp';
+    if (titleEl) titleEl.textContent = shortTitle;
+    if (iconEl) iconEl.textContent = quality && COACH_ICON_BY_QUALITY[quality] ? COACH_ICON_BY_QUALITY[quality] : '♞';
+    if (moveLabelEl) moveLabelEl.textContent = moveLabel || '';
+
+    if (!headline && text) {
+      var firstStop = text.indexOf('. ');
+      if (firstStop > 0 && firstStop < 80) {
+        headline = text.slice(0, firstStop + 1);
+        text = text.slice(firstStop + 2).trim();
+      } else if (text.length < 110) {
+        headline = text;
+        text = '';
+      } else {
+        headline = 'Coach Ramp';
+      }
+    }
+    if (headlineEl) headlineEl.textContent = headline || 'Coach Ramp';
+    if (textEl) textEl.textContent = text || '';
+    if (textEl) textEl.style.display = text ? '' : 'none';
+
+    if (tipsEl) {
+      tipsEl.innerHTML = '';
+      tips.forEach(function(tip) {
+        if (!tip || !tip.text) return;
+        var pill = document.createElement('span');
+        pill.className = 'coach-ramp-tip' + (tip.kind ? ' is-' + tip.kind : '');
+        pill.textContent = tip.text;
+        tipsEl.appendChild(pill);
+      });
+    }
+
+    if (hero) {
+      hero.setAttribute('data-mood', mood || 'idle');
+      hero.classList.remove('is-speaking');
+      void hero.offsetWidth;
+      hero.classList.add('is-speaking');
+    }
   }
 
   function loadCoachCommentaryData() {
@@ -3230,6 +3384,57 @@ const AppController = (function() {
     return 'middlegame';
   }
 
+  function getCoachOpeningName(moveInfo, moveIndex) {
+    var opening = moveInfo && moveInfo.opening;
+    if (!opening && lastAnalysisHistory && typeof moveIndex === 'number') {
+      for (var i = moveIndex - 1; i >= 0; i--) {
+        if (lastAnalysisHistory[i] && lastAnalysisHistory[i].opening) {
+          opening = lastAnalysisHistory[i].opening;
+          break;
+        }
+      }
+    }
+    if (!opening && currentGame && currentGame.opening) opening = currentGame.opening;
+    if (!opening) return '';
+    if (typeof opening === 'object') return opening.name || opening.opening || opening.eco || '';
+    return String(opening).trim();
+  }
+
+  function didCoachMoveLeaveTheory(moveInfo, moveIndex) {
+    if (!moveInfo || moveInfo.quality === 'book' || typeof moveIndex !== 'number' || moveIndex <= 0) return false;
+    if (moveIndex > 22) return false;
+    var previous = lastAnalysisHistory && lastAnalysisHistory[moveIndex - 1];
+    return !!(previous && previous.quality === 'book');
+  }
+
+  function getCoachPlanTip(moveInfo, moveIndex, equalish) {
+    var moveNumber = moveInfo && moveInfo.moveNumber
+      ? moveInfo.moveNumber
+      : (typeof moveIndex === 'number' ? Math.floor(moveIndex / 2) + 1 : 0);
+    var phase = getCoachPhaseForMove(moveNumber);
+    if (phase === 'opening') {
+      return equalish
+        ? 'Keep developing pieces, fight for the center, and get the king safe.'
+        : 'Follow opening principles: develop, castle, and do not chase pawns without a reason.';
+    }
+    if (phase === 'endgame') {
+      return equalish
+        ? 'In equal endgames, activate the king and create a useful pawn break.'
+        : 'In the endgame, active pieces and passed pawns matter more than one-move threats.';
+    }
+    return equalish
+      ? 'With the game balanced, improve your worst piece and look for pawn breaks.'
+      : 'In the middlegame, ask what your opponent is threatening before starting your own plan.';
+  }
+
+  function isCoachCriticalMove(moveInfo, delta) {
+    if (!moveInfo) return false;
+    if (moveInfo.quality === 'brilliant' || moveInfo.quality === 'great') return true;
+    if (moveInfo.quality === 'blunder' || moveInfo.quality === 'mistake' || moveInfo.quality === 'miss') return true;
+    var cpl = getMoveCentipawnLoss(moveInfo);
+    return cpl >= 120 || (typeof delta === 'number' && Math.abs(delta) >= 1.25);
+  }
+
   function inferCoachMoveType(moveInfo, san, check) {
     if (san.indexOf('O-O') === 0) return 'castle';
     if (moveInfo.promotion || san.indexOf('=') !== -1) return 'promotion';
@@ -3301,7 +3506,7 @@ const AppController = (function() {
     return pool[seed % pool.length].entry.output;
   }
 
-  function applyDatasetCoachCommentary(moveInfo, moveIndex, title, tacticText, swingText) {
+  function applyDatasetCoachCommentary(moveInfo, moveIndex, narrative) {
     var requestId = ++coachCommentaryRequestId;
     loadCoachCommentaryData().then(function(store) {
       if (requestId !== coachCommentaryRequestId) return;
@@ -3309,144 +3514,359 @@ const AppController = (function() {
       if (selected.moveIndex !== moveIndex) return;
       var exampleText = findCoachCommentaryExample(store, moveInfo, moveIndex);
       if (!exampleText) return;
-      var extra = '';
-      if (tacticText && exampleText.indexOf(tacticText) === -1) extra += ' ' + tacticText;
-      if (swingText && exampleText.indexOf('eval swing') === -1) extra += swingText;
-      setCoachMessage(title, exampleText + extra);
+      var merged = Object.assign({}, narrative || {});
+      merged.headline = narrative && narrative.headline ? narrative.headline : 'Coach Ramp says:';
+      merged.text = exampleText;
+      applyCoachNarrative(merged);
     });
   }
 
   function updateCoachForMove(moveInfo, moveIndex) {
     if (!moveInfo) {
       coachCommentaryRequestId++;
-      setCoachMessage('Coach Ramp', lastCoachSummary || DEFAULT_COACH_TEXT);
+      applyCoachNarrative({
+        title: 'Coach Ramp',
+        mood: 'idle',
+        headline: 'Pick a move to review.',
+        text: lastCoachSummary && lastCoachSummary !== DEFAULT_COACH_TEXT
+          ? lastCoachSummary
+          : DEFAULT_COACH_TEXT,
+        tips: []
+      });
       return;
     }
-    var moveLabel = buildMoveLabel(moveInfo, moveIndex);
-    var player = moveInfo.color === 'w' ? 'White' : 'Black';
-    var before = parseFloat(moveInfo.evalBefore);
-    var after = parseFloat(moveInfo.evalAfter);
-    var delta = !isNaN(before) && !isNaN(after)
-      ? (moveInfo.color === 'w' ? (after - before) : (before - after))
-      : null;
-    var swingText = (delta === null || isNaN(delta))
-      ? ''
-      : ' ' + player + '\'s eval swing: ' + formatDeltaValue(delta) + '.';
 
-    var title = 'Coach Ramp · ' + getQualityMeta(moveInfo.quality).label;
-    var text = moveLabel + ' was played by ' + player + '. ';
-
-    switch (moveInfo.quality) {
-      case 'brilliant':
-        text += 'That is a brilliant resource. It finds a powerful idea and shifts the game in a big way.';
-        break;
-      case 'great':
-        text += 'That is a great move. Strong practical choice, clean calculation, and clear improvement.';
-        break;
-      case 'book':
-        text += 'This follows known opening theory. Solid, principled play with no need to reinvent the position.';
-        break;
-      case 'best':
-        text += 'That is Stockfish\'s top move here. You matched the engine and kept maximum pressure.';
-        break;
-      case 'excellent':
-        text += 'Very clean move. It keeps the position healthy and preserves your plans.';
-        break;
-      case 'good':
-        text += 'Good move. Not the absolute top line, but it keeps the game under control.';
-        break;
-      case 'inaccuracy':
-        text += 'Small slip. The position was still manageable, but there was a more accurate continuation.';
-        break;
-      case 'mistake':
-        text += 'This is a real mistake. It gives the opponent extra chances and weakens your position.';
-        break;
-      case 'miss':
-        text += 'Missed chance. There was a stronger tactic or conversion available in this moment.';
-        break;
-      case 'blunder':
-        text += 'That is a blunder. It changes the game sharply and likely hands over the advantage.';
-        break;
-      default:
-        text += 'Review this moment carefully.';
-        break;
-    }
-
-    var tacticText = inferCoachTactic(moveInfo, moveIndex);
-    setCoachMessage(title, text + (tacticText ? ' ' + tacticText : '') + swingText);
-    applyDatasetCoachCommentary(moveInfo, moveIndex, title, tacticText, swingText);
+    var narrative = buildCoachNarrative(moveInfo, moveIndex);
+    applyCoachNarrative(narrative);
+    applyDatasetCoachCommentary(moveInfo, moveIndex, narrative);
   }
 
-  function inferCoachTactic(moveInfo, moveIndex) {
-    var san = moveInfo.san || '';
+  function buildCoachNarrative(moveInfo, moveIndex) {
+    var quality = moveInfo.quality || 'good';
+    var meta = getQualityMeta(quality);
+    var moveLabel = buildMoveLabel(moveInfo, moveIndex);
+    var player = moveInfo.color === 'w' ? 'White' : 'Black';
+    var san = moveInfo.san || moveInfo.move || '';
+    var movedPiece = pieceLabel(moveInfo.piece);
+
     var nextMove = lastAnalysisHistory && typeof moveIndex === 'number'
       ? lastAnalysisHistory[moveIndex + 1]
       : null;
     var moverBefore = signedEvalForMover(moveInfo, moveInfo.evalBefore);
     var moverAfter = signedEvalForMover(moveInfo, moveInfo.evalAfter);
-    var movedPiece = pieceLabel(moveInfo.piece);
     var bestMoveText = formatBestMoveHint(moveInfo.bestMove, moveIndex);
+    var before = parseFloat(moveInfo.evalBefore);
+    var after = parseFloat(moveInfo.evalAfter);
+    var delta = !isNaN(before) && !isNaN(after)
+      ? (moveInfo.color === 'w' ? (after - before) : (before - after))
+      : null;
+    var equalish = !isNaN(after) && Math.abs(after) < 0.45;
+    var openingName = getCoachOpeningName(moveInfo, moveIndex);
+    var leavesTheory = didCoachMoveLeaveTheory(moveInfo, moveIndex);
+    var phasePlan = getCoachPlanTip(moveInfo, moveIndex, equalish);
+    var critical = isCoachCriticalMove(moveInfo, delta);
 
-    if (san.indexOf('#') !== -1) {
-      return 'It finishes the game with mate.';
+    var isMate = san.indexOf('#') !== -1;
+    var isCheck = san.indexOf('+') !== -1 && !isMate;
+    var isCastle = san.indexOf('O-O') === 0;
+    var isPromotion = !!moveInfo.promotion;
+    var wonPiece = moveInfo.captured ? pieceLabel(moveInfo.captured) : '';
+    var hangsPiece = nextMove && nextMove.captured && nextMove.color !== moveInfo.color
+      && (quality === 'blunder' || quality === 'mistake' || quality === 'miss');
+    var hangsOwnPieceLabel = hangsPiece ? pieceLabel(nextMove.captured) : '';
+    var hangsIsRecapture = hangsPiece && nextMove.to === moveInfo.to && movedPiece;
+    var missedMateThreat = quality === 'miss' && moverBefore >= 7 && moverAfter <= moverBefore - 2;
+    var allowsMate = (quality === 'blunder' || quality === 'mistake') && moverAfter <= -7;
+
+    var headline;
+    var detail;
+
+    if (isMate) {
+      headline = 'Checkmate — well played!';
+      detail = player + ' delivers mate with ' + san + '. Clean finish.';
+    } else if (quality === 'brilliant') {
+      headline = 'Brilliant! A move only the sharpest eyes see.';
+      detail = san + ' finds a hidden resource that shifts the game in ' + player + '\'s favour.';
+    } else if (quality === 'great') {
+      headline = 'Great move — you spotted the key idea.';
+      detail = san + ' keeps the initiative and improves the position clearly.';
+    } else if (quality === 'best') {
+      headline = wonPiece
+        ? 'Nicely done — you pounced on that free ' + wonPiece + '.'
+        : 'Top choice. That is exactly what the engine wanted.';
+      detail = isCheck
+        ? 'The check forces a reply and keeps you in the driver\'s seat.'
+        : 'Stay calm and keep finding moves like this — it is the strongest try.';
+    } else if (quality === 'excellent') {
+      headline = 'Excellent — the position stays healthy.';
+      detail = san + ' holds everything together and preserves your plans.';
+    } else if (quality === 'good') {
+      headline = 'Good move, position under control.';
+      detail = 'Not the sharpest line, but ' + san + ' keeps the balance and avoids risk.';
+    } else if (quality === 'book') {
+      headline = openingName
+        ? 'Still in book — this fits the ' + openingName + '.'
+        : 'Still in book — theory says this is fine.';
+      detail = 'A standard opening move. Keep developing smoothly and do not rush tactics that are not there yet.';
+    } else if (quality === 'inaccuracy') {
+      headline = 'A small slip, but nothing fatal.';
+      detail = bestMoveText
+        ? 'There was a sharper try with ' + bestMoveText + '. Remember it for next time.'
+        : 'The position is still very playable — just keep an eye on precision.';
+    } else if (quality === 'mistake') {
+      headline = hangsIsRecapture
+        ? 'Careful — the ' + movedPiece + ' ends up hanging.'
+        : 'That move gives the opponent something back.';
+      detail = bestMoveText
+        ? 'A cleaner path was ' + bestMoveText + '. Slow down before moving pieces into undefended squares.'
+        : 'Look for safer squares and double-check opponent replies next time.';
+    } else if (quality === 'miss') {
+      headline = missedMateThreat
+        ? 'You had a winning attack — one more precise move would have done it.'
+        : 'A stronger tactic was available here.';
+      detail = bestMoveText
+        ? 'Stockfish preferred ' + bestMoveText + '. When you feel a finish is near, slow down and count candidates.'
+        : 'Look for forcing moves first: checks, captures, and threats.';
+    } else if (quality === 'blunder') {
+      headline = hangsIsRecapture
+        ? 'Ouch — ' + san + ' hangs the ' + movedPiece + '.'
+        : allowsMate
+          ? 'Blunder — this allows a serious threat against your king.'
+          : 'Blunder. Let\'s learn from this one.';
+      detail = bestMoveText
+        ? 'A safer and stronger move was ' + bestMoveText + '. Before moving, ask: "what does my opponent do next?"'
+        : 'Before playing, always check: is this piece safe? Is my king safe? Is there a cleaner capture?';
+    } else {
+      headline = 'Let\'s look at this move.';
+      detail = 'Take a moment to study the position and the engine suggestions.';
     }
 
-    if (moveInfo.quality === 'miss' && moverBefore >= 7 && moverAfter <= moverBefore - 2) {
-      return 'This likely misses a mating attack or forced finish.';
+    if (leavesTheory) {
+      detail += openingName
+        ? ' This is where the game leaves known ' + openingName + ' theory, so simple principles matter now.'
+        : ' This is where the game leaves known theory, so simple principles matter now.';
     }
 
-    if ((moveInfo.quality === 'blunder' || moveInfo.quality === 'mistake') && moverAfter <= -7) {
-      return 'This appears to allow a major mate threat against the king.';
+    if (isPromotion) {
+      detail += ' The pawn promotes to a ' + pieceLabel(moveInfo.promotion) + ' — usually decisive.';
+    } else if (isCastle && (quality === 'best' || quality === 'excellent' || quality === 'good' || quality === 'book')) {
+      detail += ' Castling tucks the king away and connects the rooks.';
     }
 
-    if (nextMove && nextMove.captured && nextMove.color !== moveInfo.color &&
-        (moveInfo.quality === 'blunder' || moveInfo.quality === 'mistake' || moveInfo.quality === 'miss')) {
-      var lostPiece = pieceLabel(nextMove.captured);
-      if (nextMove.to === moveInfo.to && movedPiece) {
-        return 'It seems to hang the ' + movedPiece + '; the opponent wins it on the next move.';
-      }
-      return 'It allows the opponent to win a ' + lostPiece + ' on the next move.';
+    if (equalish && (quality === 'book' || quality === 'excellent' || quality === 'good')) {
+      detail += ' The position is close to equal, so the goal is steady improvement: ' + phasePlan;
     }
 
-    if (moveInfo.captured) {
-      var wonPiece = pieceLabel(moveInfo.captured);
-      if (san.indexOf('+') !== -1) {
-        return 'It wins a ' + wonPiece + ' with check.';
-      }
-      return 'It wins a ' + wonPiece + ' from the position.';
+    if (hangsPiece && !hangsIsRecapture) {
+      detail += ' It also lets the opponent win a ' + hangsOwnPieceLabel + ' on the next move.';
+    }
+    if (wonPiece && (quality === 'best' || quality === 'great' || quality === 'brilliant')) {
+      detail += ' Material gained: a ' + wonPiece + '.';
     }
 
-    if (moveInfo.promotion) {
-      return 'The pawn promotes to a ' + pieceLabel(moveInfo.promotion) + ', which is usually decisive.';
+    var tips = [];
+    if (bestMoveText && (quality === 'inaccuracy' || quality === 'mistake' || quality === 'miss' || quality === 'blunder')) {
+      tips.push({ kind: 'best', text: 'Best: ' + bestMoveText });
+    } else if (bestMoveText && quality === 'book') {
+      tips.push({ kind: 'idea', text: 'Main line: ' + bestMoveText });
+    } else if ((quality === 'best' || quality === 'great' || quality === 'brilliant') && san) {
+      tips.push({ kind: 'best', text: 'Engine approved ✓' });
+    }
+    if (hangsPiece) {
+      tips.push({ kind: 'threat', text: 'Threat: ' + hangsOwnPieceLabel + ' is loose' });
+    }
+    if (isCheck) tips.push({ kind: 'idea', text: 'Check — forces a reply' });
+    if (isCastle && (quality === 'book' || quality === 'best' || quality === 'excellent')) {
+      tips.push({ kind: 'plan', text: 'Castle & connect rooks' });
+    }
+    if (delta !== null && Math.abs(delta) >= 0.3) {
+      tips.push({ kind: 'plan', text: 'Eval ' + formatDeltaValue(delta) });
+    }
+    if (leavesTheory) {
+      tips.push({ kind: 'idea', text: 'Out of book' });
+    }
+    if (critical) {
+      tips.push({ kind: 'threat', text: 'Critical moment' });
+    } else if (equalish && phasePlan) {
+      tips.push({ kind: 'plan', text: 'Plan: improve pieces' });
     }
 
-    if (san.indexOf('O-O-O') === 0) {
-      return 'Queenside castling activates the rook and tucks the king away.';
-    }
-
-    if (san.indexOf('O-O') === 0) {
-      return 'Castling improves king safety and connects the rooks.';
-    }
-
-    if (san.indexOf('+') !== -1) {
-      return 'The check forces a response and changes the tempo of the position.';
-    }
-
-    if ((moveInfo.quality === 'miss' || moveInfo.quality === 'inaccuracy') && bestMoveText) {
-      return 'Stockfish preferred ' + bestMoveText + ' instead.';
-    }
-
-    if (moveInfo.quality === 'book') {
-      return 'This is a standard theoretical move from the opening.';
-    }
-
-    return '';
+    return {
+      title: 'Coach Ramp · ' + meta.label,
+      quality: quality,
+      mood: COACH_MOOD_BY_QUALITY[quality] || 'idle',
+      headline: headline,
+      text: detail,
+      moveLabel: moveLabel + ' · ' + player,
+      tips: tips
+    };
   }
 
   function signedEvalForMover(moveInfo, evalValue) {
     var num = parseFloat(evalValue);
     if (isNaN(num)) return 0;
     return moveInfo && moveInfo.color === 'b' ? -num : num;
+  }
+
+  // ===== Coach Ramp Timeline =====
+  var coachTimelineState = { history: null, width: 0, height: 0 };
+
+  function clampCoachEval(v) {
+    if (typeof v !== 'number' || isNaN(v)) return 0;
+    if (v > 6) return 6;
+    if (v < -6) return -6;
+    return v;
+  }
+
+  function renderCoachTimeline(history) {
+    coachTimelineState.history = history;
+    var canvas = document.getElementById('grCoachTimelineGraph');
+    var dotsEl = document.getElementById('grCoachTimelineDots');
+    var rail = document.getElementById('grCoachTimelineRail');
+    if (!canvas || !dotsEl || !rail) return;
+
+    var ctx = canvas.getContext('2d');
+    var rect = rail.getBoundingClientRect();
+    var W = Math.max(320, Math.floor(rect.width));
+    var H = Math.max(60, Math.floor(rect.height));
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    coachTimelineState.width = W;
+    coachTimelineState.height = H;
+
+    if (!history || !history.length) {
+      dotsEl.innerHTML = '';
+      updateCoachTimelineCursor(-1);
+      return;
+    }
+
+    var n = history.length;
+    var stepX = n > 1 ? W / (n - 1) : W;
+    var midY = H / 2;
+
+    // Build eval points (smoothed).
+    var points = history.map(function(h, i) {
+      var ev = clampCoachEval(parseFloat(h.evalAfter));
+      var y = midY - (ev / 6) * (H / 2 - 6);
+      return { x: i * stepX, y: y };
+    });
+
+    // Area fill gradient (white-ish for white advantage, dark for black advantage).
+    var grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, 'rgba(240, 242, 248, 0.28)');
+    grad.addColorStop(0.5, 'rgba(240, 242, 248, 0.06)');
+    grad.addColorStop(0.5, 'rgba(10, 12, 18, 0.14)');
+    grad.addColorStop(1, 'rgba(10, 12, 18, 0.40)');
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+    ctx.moveTo(0, midY);
+    ctx.lineTo(points[0].x, points[0].y);
+    for (var i = 1; i < points.length; i++) {
+      var p0 = points[i - 1], p1 = points[i];
+      var cx = (p0.x + p1.x) / 2;
+      ctx.bezierCurveTo(cx, p0.y, cx, p1.y, p1.x, p1.y);
+    }
+    ctx.lineTo(W, midY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Line stroke on top.
+    ctx.strokeStyle = 'rgba(230, 234, 245, 0.75)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (var j = 1; j < points.length; j++) {
+      var q0 = points[j - 1], q1 = points[j];
+      var cx2 = (q0.x + q1.x) / 2;
+      ctx.bezierCurveTo(cx2, q0.y, cx2, q1.y, q1.x, q1.y);
+    }
+    ctx.stroke();
+
+    // Dots overlay (DOM nodes so they can be colored by class).
+    var dotsHtml = '';
+    var highlightable = { brilliant:1, great:1, best:1, inaccuracy:1, mistake:1, miss:1, blunder:1 };
+    for (var k = 0; k < n; k++) {
+      var h = history[k];
+      if (!h || !highlightable[h.quality]) continue;
+      var cx3 = k * stepX;
+      var cy3 = points[k].y;
+      var left = (cx3 / W) * 100;
+      var top = (cy3 / H) * 100;
+      dotsHtml += '<span class="crt-dot q-' + h.quality + '" data-move-index="' + k + '" style="left:' + left.toFixed(3) + '%;top:' + top.toFixed(3) + '%;"></span>';
+    }
+    dotsEl.innerHTML = dotsHtml;
+
+    updateCoachTimelineCursor(typeof currentMoveIndex === 'number' ? currentMoveIndex - 1 : -1);
+  }
+
+  function updateCoachTimelineCursor(moveIndex) {
+    var cursor = document.getElementById('grCoachTimelineCursor');
+    var dotsEl = document.getElementById('grCoachTimelineDots');
+    if (!cursor) return;
+    var history = coachTimelineState.history;
+    if (!history || !history.length || typeof moveIndex !== 'number' || moveIndex < 0 || moveIndex >= history.length) {
+      cursor.classList.remove('is-visible');
+      if (dotsEl) {
+        var prev = dotsEl.querySelector('.crt-dot.is-current');
+        if (prev) prev.classList.remove('is-current');
+      }
+      return;
+    }
+    var n = history.length;
+    var stepX = n > 1 ? 1 / (n - 1) : 1;
+    var pct = Math.max(0, Math.min(1, moveIndex * stepX));
+    cursor.style.left = (pct * 100).toFixed(3) + '%';
+    cursor.classList.add('is-visible');
+    if (dotsEl) {
+      var was = dotsEl.querySelector('.crt-dot.is-current');
+      if (was) was.classList.remove('is-current');
+      var now = dotsEl.querySelector('.crt-dot[data-move-index="' + moveIndex + '"]');
+      if (now) now.classList.add('is-current');
+    }
+  }
+
+  function setupCoachTimelineInteractions() {
+    var rail = document.getElementById('grCoachTimelineRail');
+    if (!rail || rail._coachBound) return;
+    rail._coachBound = true;
+    rail.addEventListener('click', function(ev) {
+      var history = coachTimelineState.history;
+      if (!history || !history.length) return;
+      var r = rail.getBoundingClientRect();
+      var pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+      var idx = Math.round(pct * (history.length - 1));
+      goToMove(idx + 1);
+    });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', function() {
+        if (coachTimelineState.history) renderCoachTimeline(coachTimelineState.history);
+      });
+    }
+  }
+
+  function updateCoachTimelinePlayers() {
+    var whiteEl = document.getElementById('grCoachTlWhite');
+    var blackEl = document.getElementById('grCoachTlBlack');
+    if (whiteEl) whiteEl.textContent = (currentGame && currentGame.white) ? currentGame.white : 'White Player';
+    if (blackEl) blackEl.textContent = (currentGame && currentGame.black) ? currentGame.black : 'Black Player';
+  }
+
+  function resetCoachTimeline() {
+    coachTimelineState.history = null;
+    var canvas = document.getElementById('grCoachTimelineGraph');
+    var dots = document.getElementById('grCoachTimelineDots');
+    if (canvas) {
+      var ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    if (dots) dots.innerHTML = '';
+    updateCoachTimelineCursor(-1);
   }
 
   function pieceLabel(piece) {
