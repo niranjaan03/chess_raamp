@@ -111,27 +111,6 @@ function AccuracySummary() {
   );
 }
 
-function EvalGraphCard() {
-  return (
-    <section className="review-card eval-graph-card">
-      <div className="review-card-head">
-        <div>
-          <div className="gr-section-title">Evaluation Graph</div>
-          <div className="review-card-title">Game trend</div>
-        </div>
-        <div className="gr-cpl-legend">
-          <span className="gr-legend-item"><span className="gr-legend-dot accurate"></span>Good</span>
-          <span className="gr-legend-item"><span className="gr-legend-dot mistake"></span>Mistake</span>
-          <span className="gr-legend-item"><span className="gr-legend-dot blunder"></span>Blunder</span>
-        </div>
-      </div>
-      <div className="gr-graph-wrap gr-eval-graph-wrap">
-        <canvas id="evalGraph" width="640" height="160"></canvas>
-      </div>
-    </section>
-  );
-}
-
 function MoveQualityBreakdown() {
   return (
     <section className="review-card review-quality-card">
@@ -201,22 +180,39 @@ function CoachRampPanel() {
           </span>
         </div>
 
-        <div className="coach-ramp-bubble" id="grCoachBubble">
-          <span className="coach-ramp-tail" aria-hidden="true"></span>
-          <div className="coach-ramp-bubble-head">
-            <span className="coach-ramp-quality-pill" id="grCoachQuality">
-              <span className="crqp-icon" id="grCoachQualityIcon">&#9826;</span>
-              <span className="crqp-label" id="grCoachTitle">Coach Ramp</span>
-            </span>
-            <span className="coach-ramp-move-label" id="grCoachMoveLabel"></span>
+        <div className="review-feedback-stack">
+          <div className="coach-ramp-bubble review-feedback-bubble" id="grCoachBubble" aria-live="polite">
+            <span className="coach-ramp-tail" aria-hidden="true"></span>
+            <div className="review-feedback-main">
+              <span className="coach-ramp-quality-pill review-feedback-quality" id="grCoachQuality">
+                <span className="crqp-icon qi" id="grCoachQualityIcon">?</span>
+                <span className="crqp-label" id="grCoachTitle">Awaiting analysis</span>
+              </span>
+              <span className="review-feedback-eval" id="grReviewEvalBadge">--</span>
+            </div>
+            <span className="coach-ramp-move-label review-feedback-move" id="grCoachMoveLabel"></span>
+            <p className="coach-ramp-headline review-feedback-copy" id="grCoachHeadline">
+              Run a full analysis to unlock move feedback.
+            </p>
+            <p className="coach-ramp-text review-feedback-copy" id="grCoachText">
+              Run a full analysis to unlock personalized move-by-move coaching.
+            </p>
+            <div className="coach-ramp-tips review-feedback-copy" id="grCoachTips"></div>
           </div>
-          <p className="coach-ramp-headline" id="grCoachHeadline">
-            Welcome! I&apos;m Coach Ramp.
-          </p>
-          <p className="coach-ramp-text" id="grCoachText">
-            Run a full analysis to unlock personalized move-by-move coaching.
-          </p>
-          <div className="coach-ramp-tips" id="grCoachTips"></div>
+
+          <div className="review-feedback-actions is-best-hidden" id="grReviewActions" aria-label="Move feedback actions">
+            <button type="button" className="review-feedback-btn is-best" id="grReviewBestBtn" aria-label="Show best move" disabled>
+              <span className="review-feedback-btn-icon">&#9733;</span>
+              <span>Best</span>
+            </button>
+            <button type="button" className="review-feedback-btn is-try" id="grReviewTryAgainBtn" aria-label="Try again" disabled>
+              <span className="review-feedback-btn-icon">&#8634;</span>
+              <span>Try Again</span>
+            </button>
+            <button type="button" className="review-feedback-btn is-forward" id="grReviewNextBtn" aria-label="Next review move" disabled>
+              <span className="review-feedback-btn-icon">&#8594;</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -505,7 +501,6 @@ function GameReviewLayout() {
               <div className="gr-tab-panel active" id="grReportPanel">
                 <CoachRampPanel />
                 <AccuracySummary />
-                <EvalGraphCard />
                 <MoveQualityBreakdown />
                 <CriticalMomentsPanel />
               </div>

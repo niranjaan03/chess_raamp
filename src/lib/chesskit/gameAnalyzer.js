@@ -166,6 +166,12 @@ const adaptHistoryEntry = (move, prevPosition, classifiedPosition, isLast) => {
 
   const cpBeforeWhite = cpFromLine(prevPosition.lines[0]);
   const cpAfterWhite = cpFromLine(classifiedPosition.lines[0]);
+  const mateBefore = typeof prevPosition.lines[0]?.mate === 'number'
+    ? prevPosition.lines[0].mate
+    : undefined;
+  const mateAfter = typeof classifiedPosition.lines[0]?.mate === 'number'
+    ? classifiedPosition.lines[0].mate
+    : undefined;
   const evalBefore = cpBeforeWhite / 100;
   const evalAfter = cpAfterWhite / 100;
 
@@ -184,6 +190,8 @@ const adaptHistoryEntry = (move, prevPosition, classifiedPosition, isLast) => {
   entry.opening = classifiedPosition.opening || null;
   entry.evalBefore = evalBefore;
   entry.evalAfter = evalAfter;
+  entry.mateBefore = mateBefore;
+  entry.mateAfter = mateAfter;
   entry.winPercentBefore = moverWpBefore;
   entry.winPercentAfter = moverWpAfter;
   entry.winPercentLoss = winPercentLoss;
