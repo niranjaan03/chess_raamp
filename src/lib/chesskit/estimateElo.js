@@ -3,7 +3,9 @@
 import { ceilsNumber } from './math.js';
 
 export const computeEstimatedElo = (positions, whiteElo, blackElo) => {
-  if (positions.length < 2) {
+  // Need at least one move from each side, otherwise one player's divisor
+  // becomes zero and the estimate is not meaningful.
+  if (positions.length < 3) {
     return undefined;
   }
 
@@ -17,6 +19,10 @@ export const computeEstimatedElo = (positions, whiteElo, blackElo) => {
     blackCpl,
     blackElo ?? whiteElo
   );
+
+  if (!Number.isFinite(whiteEstimatedElo) || !Number.isFinite(blackEstimatedElo)) {
+    return undefined;
+  }
 
   return { white: whiteEstimatedElo, black: blackEstimatedElo };
 };

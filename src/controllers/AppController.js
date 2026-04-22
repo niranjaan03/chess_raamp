@@ -2511,7 +2511,14 @@ const AppController = (function() {
       }
       var pct = Math.max(1, Math.round(done / total * 100));
       setReviewBusyState(true, pct + '%');
-    }, function(results, history) {
+    }, function(results, history, error) {
+      if (error) {
+        console.error('Full game analysis failed:', error);
+        resetGameReviewUI();
+        showToast(error, 'error');
+        return;
+      }
+
       setReviewBusyState(false);
       
       // Apply quality labels to moves

@@ -26,6 +26,7 @@ const EngineController = (function() {
   var fullGameAnalysis = [];
   var gameAnalysisToken = 0;
   var onBestMoveCallback = null;
+  var REVIEW_FAILURE_MESSAGE = 'Full game analysis failed. Please try again.';
 
   // ---------- Live-analysis helpers ----------
 
@@ -52,6 +53,22 @@ const EngineController = (function() {
     return history.map(function(move) {
       return Object.assign({}, move);
     });
+  }
+
+  function getBatchFailureMessage(batchResults) {
+    if (!Array.isArray(batchResults) || !batchResults.length) {
+      return REVIEW_FAILURE_MESSAGE;
+    }
+
+    var failedResult = batchResults.find(function(result) {
+      return !result || result.ok !== true;
+    });
+    if (!failedResult) return null;
+
+    if (failedResult.error) {
+      return String(failedResult.error);
+    }
+    return REVIEW_FAILURE_MESSAGE;
   }
 
   function getReviewProfile(totalPositions) {
@@ -378,7 +395,13 @@ const EngineController = (function() {
     }, function(batchResults) {
       if (reviewToken !== gameAnalysisToken) return;
       if (!batchResults || !batchResults.length) {
-        if (typeof onComplete === 'function') onComplete([], history);
+        if (typeof onComplete === 'function') onComplete([], history, REVIEW_FAILURE_MESSAGE);
+        return;
+      }
+
+      var batchFailure = getBatchFailureMessage(batchResults);
+      if (batchFailure) {
+        if (typeof onComplete === 'function') onComplete([], history, batchFailure);
         return;
       }
 
@@ -397,6 +420,12 @@ const EngineController = (function() {
         };
         if (typeof onComplete === 'function') {
           onComplete(reviewedHistory, reviewedHistory);
+        }
+      }).catch(function(err) {
+        if (reviewToken !== gameAnalysisToken) return;
+        console.error('Full game review failed:', err);
+        if (typeof onComplete === 'function') {
+          onComplete([], history, err && err.message ? err.message : REVIEW_FAILURE_MESSAGE);
         }
       });
     }, { chunkSize: profile.chunkSize, initialChunkSize: profile.initialChunkSize });

@@ -15,6 +15,29 @@ const MATE_SENTINEL_CP = 100000;
 
 const sideToMove = (fen) => (fen ? (fen.split(' ')[1] || 'w') : 'w');
 
+const getTerminalPositionEval = (fen) => {
+  try {
+    const game = new Chess(fen);
+    if (game.isCheckmate()) {
+      const stm = game.turn();
+      return {
+        lines: [{ pv: [], mate: stm === 'w' ? -1 : 1, depth: 0, multiPv: 1 }]
+      };
+    }
+    if (
+      game.isStalemate() ||
+      game.isInsufficientMaterial() ||
+      game.isThreefoldRepetition() ||
+      game.isDraw()
+    ) {
+      return { lines: [{ pv: [], cp: 0, depth: 0, multiPv: 1 }] };
+    }
+  } catch (_) {
+    // Invalid FENs are handled by the caller.
+  }
+  return null;
+};
+
 // Convert one engine line (eval string from side-to-move perspective + pv) into
 // a chess kit LineEval. cp/mate are stored in white's perspective.
 const lineEvalFromEngineLine = (rawLine, fen) => {
@@ -48,8 +71,22 @@ const lineEvalFromEngineLine = (rawLine, fen) => {
 };
 
 const positionEvalFromBatchResult = (batchResult, fen) => {
-  if (!batchResult || !batchResult.ok || !Array.isArray(batchResult.lines) || !batchResult.lines.length) {
-    return { lines: [{ pv: [], cp: 0, depth: 0, multiPv: 1 }] };
+  if (!batchResult || batchResult.ok !== true) {
+    throw new Error(batchResult && batchResult.error
+      ? String(batchResult.error)
+      : 'Engine analysis did not finish for all positions.');
+  }
+
+  if (!Array.isArray(batchResult.lines)) {
+    throw new Error('Engine analysis returned an invalid response.');
+  }
+
+  if (!batchResult.lines.length) {
+    const terminalEval = getTerminalPositionEval(fen);
+    if (terminalEval) {
+      return terminalEval;
+    }
+    throw new Error('Engine analysis returned no candidate lines for a non-terminal position.');
   }
 
   const sorted = batchResult.lines
@@ -71,23 +108,7 @@ const positionEvalFromBatchResult = (batchResult, fen) => {
 // terminal flag fits the position so chess kit can short-circuit cleanly.
 const ensureTerminalEval = (positionEval, fen, isLastPosition) => {
   if (!isLastPosition) return positionEval;
-
-  try {
-    const game = new Chess(fen);
-    if (game.isCheckmate()) {
-      const stm = game.turn();
-      // Side to move is the loser; mate against them.
-      const mate = stm === 'w' ? -1 : 1;
-      return { lines: [{ pv: [], mate, depth: 0, multiPv: 1 }] };
-    }
-    if (game.isStalemate() || game.isInsufficientMaterial() || game.isThreefoldRepetition() || game.isDraw()) {
-      return { lines: [{ pv: [], cp: 0, depth: 0, multiPv: 1 }] };
-    }
-  } catch (_) {
-    // Leave as-is.
-  }
-
-  return positionEval;
+  return getTerminalPositionEval(fen) || positionEval;
 };
 
 // Build the inputs the chess kit pipeline expects, given this project's

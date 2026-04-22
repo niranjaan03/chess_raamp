@@ -136,10 +136,16 @@ const EngineManager = (function() {
       }
     }
 
-    function handleFailure() {
+    function handleFailure(err) {
+      var errorMessage = err && err.message ? err.message : 'Batch analysis request failed';
       for (var i = 0; i < positions.length; i++) {
         if (!results[i]) {
-          results[i] = { ok: false, bestmove: null, lines: [] };
+          results[i] = {
+            ok: false,
+            error: errorMessage,
+            bestmove: null,
+            lines: []
+          };
         }
       }
       finish(results);
@@ -203,7 +209,7 @@ const EngineManager = (function() {
             finish([]);
             return;
           }
-          handleFailure();
+          handleFailure(err);
         });
     }
 
