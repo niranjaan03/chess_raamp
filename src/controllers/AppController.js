@@ -4663,6 +4663,7 @@ const AppController = (function() {
 const HomeController = (function() {
   var chesscomStatsRequest = 0;
   var CHESSCOM_FETCH_MONTHS = 3;
+  var GAMES_TAB_PAGE_SIZE = 50;
 
   function init() {
     setupImportTabs();
@@ -5258,7 +5259,7 @@ const HomeController = (function() {
 
     for (var i = 0; i < candidates.length; i++) {
       var username = normalizeUsername(candidates[i]);
-      if (username) return username;
+      if (username && username.toLowerCase() !== 'username') return username;
     }
     return '';
   }
@@ -5460,6 +5461,75 @@ const HomeController = (function() {
     '</div>';
   }
 
+  function renderGamesTabSkeleton(container, labelText) {
+    if (!container) return;
+    var label = labelText || 'Loading games';
+    var rows = '';
+    for (var i = 0; i < 5; i++) {
+      rows += '<article class="gt-game-row games-skeleton-row" aria-hidden="true">' +
+        '<div class="gt-row-main">' +
+          '<div class="gt-row-head">' +
+            '<div class="gt-title-block">' +
+              '<div class="skeleton-line w-55"></div>' +
+              '<div class="gt-subline"><span class="skeleton-chip"></span><span class="skeleton-chip small"></span></div>' +
+            '</div>' +
+            '<div class="gt-result-col"><span class="skeleton-chip"></span><span class="skeleton-chip small"></span></div>' +
+          '</div>' +
+          '<div class="gt-row-body">' +
+            '<div class="gt-player-line"><span class="skeleton-line w-72"></span></div>' +
+            '<div class="gt-meta"><span class="skeleton-chip"></span><span class="skeleton-chip"></span></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="gt-actions"><span class="skeleton-chip"></span><span class="skeleton-chip"></span></div>' +
+      '</article>';
+    }
+    container.innerHTML =
+      '<div class="games-list-banner games-list-banner-loading">' +
+        '<div class="games-count">' +
+          '<span class="games-count-main">' + escapeHtml(label) + '</span>' +
+          '<span class="games-count-sub">Preparing a 50-game page</span>' +
+        '</div>' +
+        '<div class="games-list-banner-meta">Syncing archive</div>' +
+      '</div>' +
+      '<div class="games-list-stack">' + rows + '</div>';
+  }
+
+  function buildGamesTabPagination(currentPage, pageCount, total, startNumber, endNumber) {
+    if (!total || pageCount <= 1) return '';
+    var candidates = [1, currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2, pageCount];
+    var seen = {};
+    var pages = candidates
+      .filter(function(page) {
+        page = Number(page);
+        if (page < 1 || page > pageCount || seen[page]) return false;
+        seen[page] = true;
+        return true;
+      })
+      .sort(function(a, b) { return a - b; });
+    var buttons = '';
+    var lastPage = 0;
+    pages.forEach(function(page) {
+      if (lastPage && page - lastPage > 1) {
+        buttons += '<span class="games-page-ellipsis">...</span>';
+      }
+      if (page === currentPage) {
+        buttons += '<button type="button" class="games-page-btn is-active" aria-current="page">' + page + '</button>';
+      } else {
+        buttons += '<button type="button" class="games-page-btn" onclick="HomeController.setGamesTabPage(' + page + ')">' + page + '</button>';
+      }
+      lastPage = page;
+    });
+
+    return '<nav class="games-pagination" aria-label="Games pagination">' +
+      '<div class="games-page-summary">Showing ' + startNumber + '-' + endNumber + ' of ' + total + ' &middot; ' + GAMES_TAB_PAGE_SIZE + ' per page</div>' +
+      '<div class="games-page-controls">' +
+        '<button type="button" class="games-page-btn games-page-nav" ' + (currentPage <= 1 ? 'disabled' : 'onclick="HomeController.setGamesTabPage(' + (currentPage - 1) + ')"') + '>Previous</button>' +
+        buttons +
+        '<button type="button" class="games-page-btn games-page-nav" ' + (currentPage >= pageCount ? 'disabled' : 'onclick="HomeController.setGamesTabPage(' + (currentPage + 1) + ')"') + '>Next</button>' +
+      '</div>' +
+    '</nav>';
+  }
+
   function summarizeGamesTabModes(items) {
     var counts = {};
     (items || []).forEach(function(item) {
@@ -5547,6 +5617,7 @@ const HomeController = (function() {
     if (filters) filters.style.display = 'none';
     if (sub) sub.textContent = 'Chess.com archive range: ' + archiveLabel + '.';
     if (userEl) userEl.textContent = '@' + username;
+    window._gamesTabPage = 1;
     updateGamesTabOverview({
       username: username,
       archive: archive,
@@ -5554,7 +5625,7 @@ const HomeController = (function() {
       loading: true,
       modes: 'Syncing...'
     });
-    AppController.renderFetchSkeleton(container, 'Fetching 3 months of games for ' + username + '...');
+    renderGamesTabSkeleton(container, 'Fetching 3 months of games for ' + username + '...');
 
     var archiveKey = getCurrentChesscomArchiveKey(username, archive);
     window._ccLastRequestedArchiveKey = archiveKey;
@@ -5684,6 +5755,7 @@ const HomeController = (function() {
       var userSide = isUserWhite ? 'White' : 'Black';
       var reviewedClass = reviewed ? 'is-reviewed' : 'is-pending';
       var reviewedText = reviewed ? 'Reviewed' : 'Needs review';
+      var timeClassSafe = String(timeClass || 'rapid').toLowerCase().replace(/[^a-z0-9-]/g, '') || 'rapid';
 
       return {
         idx: idx,
@@ -5701,7 +5773,6 @@ const HomeController = (function() {
                 '</div>' +
                 '<div class="gt-subline">' +
                   '<span class="gt-date">' + escapeHtml(dateStr || 'Date unavailable') + '</span>' +
-                  '<span class="gt-separator">&middot;</span>' +
                   '<span class="gt-review-inline ' + reviewedClass + '">' + escapeHtml(reviewedText) + '</span>' +
                 '</div>' +
               '</div>' +
@@ -5712,19 +5783,19 @@ const HomeController = (function() {
             '</div>' +
             '<div class="gt-row-body">' +
               '<div class="gt-player-line">' +
-                '<span class="gt-player-emphasis">You · ' + escapeHtml(userName) + ' (' + escapeHtml(userRating) + ')</span>' +
+                '<span class="gt-player-emphasis">You &middot; ' + escapeHtml(userName) + ' (' + escapeHtml(userRating) + ')</span>' +
                 '<span class="gt-player-divider">vs</span>' +
                 '<span class="gt-player-secondary">' + escapeHtml(opponentName) + ' (' + escapeHtml(opponentRating) + ')</span>' +
               '</div>' +
               '<div class="gt-meta">' +
                 '<span class="gt-side-chip gt-side-' + (isUserWhite ? 'white' : 'black') + '">' + escapeHtml(userSide) + '</span>' +
-                '<span class="gt-time-badge gt-tc-' + escapeAttr(timeClass) + '">' + escapeHtml(timeLabel) + '</span>' +
+                '<span class="gt-time-badge gt-tc-' + escapeAttr(timeClassSafe) + '">' + escapeHtml(timeLabel) + '</span>' +
               '</div>' +
             '</div>' +
           '</div>' +
           '<div class="gt-actions">' +
-            '<button type="button" class="gt-btn gt-btn-analyze" onclick="HomeController.loadChesscomGame(' + idx + ')">Analyze</button>' +
-            '<button type="button" class="gt-btn gt-btn-share" onclick="HomeController.shareGame(' + idx + ')">Share</button>' +
+            '<button type="button" class="gt-btn gt-btn-analyze" onclick="HomeController.loadChesscomGame(' + idx + ')"><span class="gt-btn-icon" aria-hidden="true">&#8599;</span><span>Analyze</span></button>' +
+            '<button type="button" class="gt-btn gt-btn-share" onclick="HomeController.shareGame(' + idx + ')"><span class="gt-btn-icon" aria-hidden="true">&#128279;</span><span>Share</span></button>' +
           '</div>' +
         '</article>'
       };
@@ -5757,16 +5828,48 @@ const HomeController = (function() {
       modes: summarizeGamesTabModes(items)
     });
 
+    var pageCount = Math.max(1, Math.ceil(filteredItems.length / GAMES_TAB_PAGE_SIZE));
+    var currentPage = Math.min(Math.max(getGamesTabPage(), 1), pageCount);
+    window._gamesTabPage = currentPage;
+    var startIndex = (currentPage - 1) * GAMES_TAB_PAGE_SIZE;
+    var pageItems = filteredItems.slice(startIndex, startIndex + GAMES_TAB_PAGE_SIZE);
+    var startNumber = filteredItems.length ? startIndex + 1 : 0;
+    var endNumber = filteredItems.length ? Math.min(startIndex + GAMES_TAB_PAGE_SIZE, filteredItems.length) : 0;
+    var rangeCopy = filteredItems.length
+      ? 'Showing ' + startNumber + '-' + endNumber + ' of ' + filteredItems.length + ' &middot; ' + GAMES_TAB_PAGE_SIZE + ' per page'
+      : 'No games to show';
     var header = '<div class="games-list-banner">' +
-      '<div class="games-count">' + filteredItems.length + ' game' + (filteredItems.length !== 1 ? 's' : '') +
-        (filter === 'all' ? '' : ' matching ' + escapeHtml(getGamesTabFilterLabel(filter).toLowerCase())) + '</div>' +
+      '<div class="games-count">' +
+        '<span class="games-count-main">' + filteredItems.length + ' game' + (filteredItems.length !== 1 ? 's' : '') +
+          (filter === 'all' ? '' : ' matching ' + escapeHtml(getGamesTabFilterLabel(filter).toLowerCase())) + '</span>' +
+        '<span class="games-count-sub">' + rangeCopy + '</span>' +
+      '</div>' +
       '<div class="games-list-banner-meta">' + wins + '-' + losses + '-' + draws + ' · ' + reviewedCount + ' reviewed</div>' +
     '</div>';
     var rows = filteredItems.length
-      ? '<div class="games-list-stack">' + filteredItems.map(function(item) { return item.html; }).join('') + '</div>'
+      ? '<div class="games-list-stack">' + pageItems.map(function(item) { return item.html; }).join('') + '</div>' +
+        buildGamesTabPagination(currentPage, pageCount, filteredItems.length, startNumber, endNumber)
       : buildGamesTabEmptyState('No games match this filter', 'Try another filter to inspect the rest of the archive.');
 
     container.innerHTML = header + rows;
+  }
+
+  function getGamesTabPage() {
+    var page = parseInt(window._gamesTabPage, 10);
+    return isNaN(page) || page < 1 ? 1 : page;
+  }
+
+  function setGamesTabPage(page) {
+    window._gamesTabPage = Math.max(1, parseInt(page, 10) || 1);
+    var container = document.getElementById('gamesTabList');
+    var games = window._ccFetchedGames || [];
+    var username = window._ccFetchedUsername || (getProfile().chesscomUsername || '');
+    if (container && games.length && username) {
+      renderGamesTab(container, games, username);
+      if (container.scrollIntoView) {
+        container.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+    }
   }
 
   function getGamesTabFilter() {
@@ -5775,6 +5878,7 @@ const HomeController = (function() {
 
   function setGamesTabFilter(filter) {
     window._gamesTabFilter = filter || 'all';
+    window._gamesTabPage = 1;
     updateGamesTabFilterUI(window._gamesTabFilter);
     var container = document.getElementById('gamesTabList');
     var games = window._ccFetchedGames || [];
@@ -6017,6 +6121,7 @@ const HomeController = (function() {
     fetchChesscomGames: fetchChesscomGames,
     fetchLatestChesscomGames: fetchLatestChesscomGames,
     fetchHomeChesscomGames: fetchHomeChesscomGames,
+    setGamesTabPage: setGamesTabPage,
     loadPlatformGame: loadPlatformGame,
     loadChesscomGame: loadChesscomGame,
     shareGame: shareGame,
