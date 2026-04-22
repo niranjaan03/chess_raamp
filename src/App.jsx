@@ -473,14 +473,6 @@ function GameReviewLayout() {
             </div>
 
             <PlayerStrip side="white" avatar="♖" nameId="whiteName" ratingId="whiteRating" clockId="whiteClock" defaultName="White Player" />
-
-            <div className="opening-info review-opening-info" id="openingInfo">
-              <div className="opening-live-row">
-                <span className="opening-live-dot" id="openingLiveDot"></span>
-                <span className="opening-name" id="openingName">Waiting for moves…</span>
-                <span className="opening-eco-badge" id="openingEco"></span>
-              </div>
-            </div>
           </section>
 
           <aside className="analysis-panel review-side-panel">

@@ -500,6 +500,8 @@ body {
 }
 #chessBoard {
   display: block;
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: auto;
   border-radius: 4px;
@@ -512,6 +514,9 @@ body {
   pointer-events: none;
   overflow: visible;
   z-index: 2;
+}
+.board-overlay * {
+  pointer-events: none;
 }
 .board-marker {
   position: absolute;

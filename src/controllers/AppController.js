@@ -1053,11 +1053,17 @@ const AppController = (function() {
   }
 
   // ===== BOARD COORDINATES =====
-  function setupCoordinates() {
+  function syncAnalyzeCoordinates(flipped) {
     var rankEl = document.getElementById('rankCoords');
     var fileEl = document.getElementById('fileCoords');
-    if (rankEl) rankEl.innerHTML = '87654321'.split('').map(function(r) { return '<span>' + r + '</span>'; }).join('');
-    if (fileEl) fileEl.innerHTML = 'abcdefgh'.split('').map(function(f) { return '<span>' + f + '</span>'; }).join('');
+    var ranks = flipped ? '12345678' : '87654321';
+    var files = flipped ? 'hgfedcba' : 'abcdefgh';
+    if (rankEl) rankEl.innerHTML = ranks.split('').map(function(r) { return '<span>' + r + '</span>'; }).join('');
+    if (fileEl) fileEl.innerHTML = files.split('').map(function(f) { return '<span>' + f + '</span>'; }).join('');
+  }
+
+  function setupCoordinates() {
+    syncAnalyzeCoordinates(false);
   }
 
   function setupNavDrawer() {
@@ -1365,6 +1371,12 @@ const AppController = (function() {
 
     if (sourceUsername) {
       game.reviewUsername = sourceUsername;
+      var reviewUserKey = normalizePlayerLookupName(sourceUsername);
+      if (reviewUserKey && normalizePlayerLookupName(game.white) === reviewUserKey) {
+        game.reviewUserColor = 'w';
+      } else if (reviewUserKey && normalizePlayerLookupName(game.black) === reviewUserKey) {
+        game.reviewUserColor = 'b';
+      }
     }
   }
 
@@ -1377,6 +1389,50 @@ const AppController = (function() {
       black: black,
       source: source && source.source ? source.source : 'estimated'
     };
+  }
+
+  function getReviewPlayerStrip(color) {
+    var nameEl = document.getElementById(color === 'b' ? 'blackName' : 'whiteName');
+    return nameEl && nameEl.closest ? nameEl.closest('.review-player-strip') : null;
+  }
+
+  function syncReviewPlayerStripOrder(flipped) {
+    var stage = document.querySelector('.review-board-stage');
+    var panel = stage ? stage.parentNode : null;
+    var whiteStrip = getReviewPlayerStrip('w');
+    var blackStrip = getReviewPlayerStrip('b');
+    if (!panel || !stage || !whiteStrip || !blackStrip) return;
+
+    var topStrip = flipped ? whiteStrip : blackStrip;
+    var bottomStrip = flipped ? blackStrip : whiteStrip;
+    panel.insertBefore(topStrip, stage);
+    panel.insertBefore(bottomStrip, stage.nextSibling);
+    syncAnalyzeCoordinates(flipped);
+  }
+
+  function updateAnalyzePlayerInfo(game, bottomColor) {
+    var whiteNameEl = document.getElementById('whiteName');
+    var blackNameEl = document.getElementById('blackName');
+    var whiteRatingEl = document.getElementById('whiteRating');
+    var blackRatingEl = document.getElementById('blackRating');
+    var whiteClockEl = document.getElementById('whiteClock');
+    var blackClockEl = document.getElementById('blackClock');
+    var result = game.result || '—';
+
+    if (whiteNameEl) whiteNameEl.textContent = game.white || 'White';
+    if (blackNameEl) blackNameEl.textContent = game.black || 'Black';
+    if (whiteRatingEl) whiteRatingEl.textContent = game.whiteElo !== '?' ? '(' + game.whiteElo + ')' : '';
+    if (blackRatingEl) blackRatingEl.textContent = game.blackElo !== '?' ? '(' + game.blackElo + ')' : '';
+    if (whiteClockEl) whiteClockEl.textContent = bottomColor === 'w' ? result : '--:--';
+    if (blackClockEl) blackClockEl.textContent = bottomColor === 'b' ? result : '--:--';
+  }
+
+  function applyAnalyzeBoardOrientation(game) {
+    var bottomColor = getReviewUserColor(game) === 'b' ? 'b' : 'w';
+    var flipped = bottomColor === 'b';
+    ChessBoard.setFlipped(flipped);
+    syncReviewPlayerStripOrder(flipped);
+    return bottomColor;
   }
 
   function loadPGNGame(pgn, options) {
@@ -1397,12 +1453,8 @@ const AppController = (function() {
     currentMoveIndex = 0;
     resetGameReviewUI();
 
-    // Update player info
-    document.getElementById('whiteName').textContent = game.white || 'White';
-    document.getElementById('blackName').textContent = game.black || 'Black';
-    document.getElementById('whiteRating').textContent = game.whiteElo !== '?' ? '(' + game.whiteElo + ')' : '';
-    document.getElementById('blackRating').textContent = game.blackElo !== '?' ? '(' + game.blackElo + ')' : '';
-    document.getElementById('whiteClock').textContent = game.result || '—';
+    var bottomColor = applyAnalyzeBoardOrientation(game);
+    updateAnalyzePlayerInfo(game, bottomColor);
 
     ChessBoard.setPosition(chess);
     ChessBoard.setLastMove(null, null);
@@ -1757,6 +1809,7 @@ const AppController = (function() {
     var archive = getChessComArchiveDate();
     fetchChesscomMonthPgn(username, archive.year, archive.month)
       .then(function(text) {
+        window._ccFetchedUsername = username;
         var games = parseChesscomArchiveGames(text, 20) || [];
         if (!games.length) {
           container.innerHTML = '<div class="no-games">No public games for ' + escapeHtml(username) + ' in ' + escapeHtml(archive.year + '-' + archive.month) + '</div>';
@@ -1968,7 +2021,7 @@ const AppController = (function() {
           if (pgn) {
             loadPGNGame(pgn, {
               sourcePlatform: 'lichess',
-              sourceUsername: readStoredProfile().lichessUsername || window._lichessFetchedUsername || ''
+              sourceUsername: window._lichessFetchedUsername || readStoredProfile().lichessUsername || ''
             });
             switchTab('analyze');
             triggerAutoReview();
@@ -1979,7 +2032,14 @@ const AppController = (function() {
 
   function loadFetchedPGNGame(el) {
     var pgn = decodeURIComponent(el.getAttribute('data-pgn'));
-    if (pgn) { loadPGNGame(pgn); switchTab('analyze'); triggerAutoReview(); }
+    if (pgn) {
+      loadPGNGame(pgn, {
+        sourcePlatform: 'chesscom',
+        sourceUsername: window._ccFetchedUsername || readStoredProfile().chesscomUsername || ''
+      });
+      switchTab('analyze');
+      triggerAutoReview();
+    }
   }
 
   // ===== NAVIGATION =====
@@ -2398,6 +2458,9 @@ const AppController = (function() {
 
   function flipBoard() {
     ChessBoard.flip();
+    var flipped = ChessBoard.getFlipped && ChessBoard.getFlipped();
+    syncReviewPlayerStripOrder(flipped);
+    if (currentGame) updateAnalyzePlayerInfo(currentGame, flipped ? 'b' : 'w');
   }
 
   // ===== ANALYSIS =====
@@ -4402,8 +4465,9 @@ const AppController = (function() {
     var opening = OpeningBook.identify(chess);
     var nameEl = document.getElementById('openingName');
     var ecoEl = document.getElementById('openingEco');
-    if (nameEl) nameEl.textContent = opening.name || '—';
-    if (ecoEl) ecoEl.textContent = opening.eco || '';
+    var openingName = opening && opening.name && opening.name !== 'Unknown Opening' ? opening.name : '';
+    if (nameEl) nameEl.textContent = openingName || '—';
+    if (ecoEl) ecoEl.textContent = openingName ? (opening.eco || '') : '';
   }
 
   // ===== ENGINE LINE LOADING =====
@@ -5960,7 +6024,7 @@ const HomeController = (function() {
           if (p) {
             AppController.loadPGNAndReviewExternal(p, {
               sourcePlatform: 'lichess',
-              sourceUsername: getProfile().lichessUsername || window._lichessFetchedUsername || ''
+              sourceUsername: window._lichessFetchedUsername || getProfile().lichessUsername || ''
             });
           }
         });

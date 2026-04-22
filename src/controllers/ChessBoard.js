@@ -25,7 +25,7 @@ const ChessBoard = (function() {
   var showArrows = true;
   var showCoordinates = true;
   var highlightLast = true;
-  var lastMoveMode = 'both';
+  var lastMoveMode = 'to';
   var interactionColor = '';
   var allowedMoves = [];
   var interactive = true;
@@ -70,8 +70,6 @@ const ChessBoard = (function() {
       label: 'Brilliant',
       icon: 'sparkle',
       badgeColor: '#1fc7d4',
-      pieceTint: 'rgba(31, 199, 212, 0.68)',
-      tintAlpha: 0.96,
       glow: 'rgba(31, 199, 212, 0.78)',
       squareHighlight: 'rgba(31, 199, 212, 0.34)'
     },
@@ -79,8 +77,6 @@ const ChessBoard = (function() {
       label: 'Great',
       icon: 'bang',
       badgeColor: '#13a897',
-      pieceTint: 'rgba(19, 168, 151, 0.64)',
-      tintAlpha: 0.94,
       glow: 'rgba(19, 168, 151, 0.74)',
       squareHighlight: 'rgba(19, 168, 151, 0.30)'
     },
@@ -88,8 +84,6 @@ const ChessBoard = (function() {
       label: 'Best',
       icon: 'star',
       badgeColor: '#86b957',
-      pieceTint: 'rgba(134, 185, 87, 0.66)',
-      tintAlpha: 0.96,
       glow: 'rgba(134, 185, 87, 0.76)',
       squareHighlight: 'rgba(134, 185, 87, 0.33)'
     },
@@ -97,8 +91,6 @@ const ChessBoard = (function() {
       label: 'Excellent',
       icon: 'thumb',
       badgeColor: '#82b457',
-      pieceTint: 'rgba(130, 180, 87, 0.62)',
-      tintAlpha: 0.92,
       glow: 'rgba(130, 180, 87, 0.70)',
       squareHighlight: 'rgba(130, 180, 87, 0.30)'
     },
@@ -106,8 +98,6 @@ const ChessBoard = (function() {
       label: 'Good',
       icon: 'check',
       badgeColor: '#93ad68',
-      pieceTint: 'rgba(147, 173, 104, 0.58)',
-      tintAlpha: 0.90,
       glow: 'rgba(147, 173, 104, 0.62)',
       squareHighlight: 'rgba(147, 173, 104, 0.27)'
     },
@@ -115,8 +105,6 @@ const ChessBoard = (function() {
       label: 'Book',
       icon: 'book',
       badgeColor: '#d79a71',
-      pieceTint: 'rgba(215, 154, 113, 0.64)',
-      tintAlpha: 0.94,
       glow: 'rgba(215, 154, 113, 0.72)',
       squareHighlight: 'rgba(215, 154, 113, 0.36)'
     },
@@ -124,8 +112,6 @@ const ChessBoard = (function() {
       label: 'Inaccuracy',
       icon: 'inaccuracy',
       badgeColor: '#f4bf2f',
-      pieceTint: 'rgba(244, 191, 47, 0.66)',
-      tintAlpha: 0.96,
       glow: 'rgba(244, 191, 47, 0.76)',
       squareHighlight: 'rgba(244, 191, 47, 0.38)'
     },
@@ -133,8 +119,6 @@ const ChessBoard = (function() {
       label: 'Mistake',
       icon: 'question',
       badgeColor: '#ff9854',
-      pieceTint: 'rgba(255, 152, 84, 0.68)',
-      tintAlpha: 0.98,
       glow: 'rgba(255, 152, 84, 0.80)',
       squareHighlight: 'rgba(255, 152, 84, 0.38)'
     },
@@ -142,8 +126,6 @@ const ChessBoard = (function() {
       label: 'Miss',
       icon: 'miss',
       badgeColor: 'linear-gradient(135deg, #a855f7 0%, #fb923c 100%)',
-      pieceTint: 'rgba(168, 85, 247, 0.62)',
-      tintAlpha: 0.94,
       glow: 'rgba(251, 146, 60, 0.78)',
       squareHighlight: 'rgba(168, 85, 247, 0.34)'
     },
@@ -151,8 +133,6 @@ const ChessBoard = (function() {
       label: 'Blunder',
       icon: 'blunder',
       badgeColor: '#f14e44',
-      pieceTint: 'rgba(241, 78, 68, 0.70)',
-      tintAlpha: 1,
       glow: 'rgba(241, 78, 68, 0.84)',
       squareHighlight: 'rgba(241, 78, 68, 0.42)'
     },
@@ -160,8 +140,6 @@ const ChessBoard = (function() {
       label: 'Forced',
       icon: 'forced',
       badgeColor: '#64748b',
-      pieceTint: 'rgba(100, 116, 139, 0.54)',
-      tintAlpha: 0.86,
       glow: 'rgba(100, 116, 139, 0.50)',
       squareHighlight: 'rgba(100, 116, 139, 0.28)'
     },
@@ -169,8 +147,6 @@ const ChessBoard = (function() {
       label: 'Interesting',
       icon: 'sparkle',
       badgeColor: '#4f8df7',
-      pieceTint: 'rgba(79, 141, 247, 0.58)',
-      tintAlpha: 0.90,
       glow: 'rgba(79, 141, 247, 0.58)',
       squareHighlight: 'rgba(79, 141, 247, 0.30)'
     },
@@ -178,8 +154,6 @@ const ChessBoard = (function() {
       label: 'Dubious',
       icon: 'question',
       badgeColor: '#f59e0b',
-      pieceTint: 'rgba(245, 158, 11, 0.62)',
-      tintAlpha: 0.92,
       glow: 'rgba(245, 158, 11, 0.56)',
       squareHighlight: 'rgba(245, 158, 11, 0.34)'
     }
@@ -450,8 +424,6 @@ const ChessBoard = (function() {
       }
     }
 
-    drawReviewMoveArrow();
-    
     // Draw pieces (skip dragged piece)
     for (var square in position) {
       if (square === dragFrom && dragging) continue;
@@ -461,6 +433,10 @@ const ChessBoard = (function() {
       }
     }
     
+    // Do not darken or color the chess piece when a move square is highlighted;
+    // highlight the square only, never the piece.
+    drawReviewMoveArrow();
+
     // Draw dragged piece at mouse position
     if (dragging && dragPiece) {
       drawPieceAtXY(dragPiece, dragX - squareSize/2, dragY - squareSize/2);
@@ -472,13 +448,12 @@ const ChessBoard = (function() {
   function drawPiece(piece, square) {
     var pos = squareToXY(square);
     if (!pos) return;
-    drawPieceAtXY(piece, pos.x, pos.y, square);
+    drawPieceAtXY(piece, pos.x, pos.y);
   }
 
-  function drawPieceAtXY(piece, x, y, square) {
+  function drawPieceAtXY(piece, x, y) {
     var style = PIECE_STYLES[currentPieceStyle] || PIECE_STYLES.classic;
     if (style.renderMode === 'svg' && drawPieceImage(piece, style, x, y)) {
-      drawReviewPieceTint(piece, style, x, y, square, 'svg');
       return;
     }
 
@@ -512,7 +487,6 @@ const ChessBoard = (function() {
     ctx.fillStyle = getPieceFillStyle(piece, style, x, y);
     ctx.fillText(unicode, centerX, centerY);
     ctx.restore();
-    drawReviewPieceTint(piece, style, x, y, square, 'text');
   }
 
   function drawPieceImage(piece, style, x, y) {
@@ -623,69 +597,6 @@ const ChessBoard = (function() {
     ctx.lineTo(baseX - px * headWidth / 2, baseY - py * headWidth / 2);
     ctx.closePath();
     ctx.fill();
-    ctx.restore();
-  }
-
-  function drawReviewPieceTint(piece, style, x, y, square, mode) {
-    if (!reviewQualityLayer || square !== reviewQualityLayer.square) return;
-    var visual = reviewQualityLayer.visual;
-    if (!visual) return;
-    var progress = getReviewLayerProgress();
-    var alpha = (visual.tintAlpha || 0.75) * progress;
-
-    if (mode === 'svg') {
-      var metrics = getPieceImageMetrics(piece, style, x, y);
-      if (metrics && drawReviewImageTint(metrics, visual, alpha)) return;
-    }
-
-    drawReviewTextTint(piece, style, x, y, visual, alpha);
-  }
-
-  function drawReviewImageTint(metrics, visual, alpha) {
-    if (typeof document === 'undefined') return false;
-    var size = Math.max(1, Math.ceil(metrics.size));
-    var offscreen = document.createElement('canvas');
-    offscreen.width = size;
-    offscreen.height = size;
-    var offCtx = offscreen.getContext('2d');
-    if (!offCtx) return false;
-
-    offCtx.clearRect(0, 0, size, size);
-    offCtx.drawImage(metrics.img, 0, 0, size, size);
-    offCtx.globalCompositeOperation = 'source-atop';
-    offCtx.fillStyle = visual.pieceTint;
-    offCtx.fillRect(0, 0, size, size);
-
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.shadowColor = visual.glow;
-    ctx.shadowBlur = squareSize * 0.12;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.drawImage(offscreen, metrics.x, metrics.y, metrics.size, metrics.size);
-    ctx.restore();
-    return true;
-  }
-
-  function drawReviewTextTint(piece, style, x, y, visual, alpha) {
-    var key = piece.color + piece.type.toUpperCase();
-    var unicode = PIECE_UNICODE[key] || PIECE_UNICODE[piece.color + piece.type.toUpperCase()];
-    if (!unicode) return;
-
-    var centerX = x + squareSize / 2;
-    var yOff = (style.yOffset || 0) * squareSize;
-    var centerY = y + squareSize / 2 + yOff;
-    var fontSize = squareSize * style.fontScale * PIECE_SIZE_MULTIPLIER;
-
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = style.fontWeight + ' ' + fontSize + 'px ' + style.fontFamily;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = visual.glow;
-    ctx.shadowBlur = squareSize * 0.12;
-    ctx.fillStyle = visual.pieceTint;
-    ctx.fillText(unicode, centerX, centerY);
     ctx.restore();
   }
 
@@ -1137,7 +1048,7 @@ const ChessBoard = (function() {
       if ('showArrows' in opts) showArrows = opts.showArrows;
       if ('showCoordinates' in opts) showCoordinates = opts.showCoordinates;
       if ('highlightLast' in opts) highlightLast = opts.highlightLast;
-      if ('lastMoveMode' in opts) lastMoveMode = opts.lastMoveMode || 'both';
+      if ('lastMoveMode' in opts) lastMoveMode = opts.lastMoveMode || 'to';
       if ('interactionColor' in opts) interactionColor = opts.interactionColor || '';
       if ('allowedMoves' in opts) allowedMoves = Array.isArray(opts.allowedMoves) ? opts.allowedMoves : [];
       if ('interactive' in opts) {
