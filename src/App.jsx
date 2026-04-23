@@ -22,16 +22,46 @@ function showBootError(error) {
   document.body.appendChild(overlay);
 }
 
-function PlayerStrip({ side, avatar, nameId, ratingId, clockId, defaultName }) {
+function ClockBadge({ clockId }) {
   return (
-    <div className={`player-info review-player-strip ${side}`}>
+    <div className="player-clock review-clock-badge" id={clockId} hidden></div>
+  );
+}
+
+function CapturedPiecesRow({ capturedId, materialId }) {
+  return (
+    <div className="review-captured-row">
+      <div className="review-captured-pieces" id={capturedId}></div>
+      <span className="review-material-advantage" id={materialId}></span>
+    </div>
+  );
+}
+
+function PlayerInfoBar({
+  side,
+  avatar,
+  nameId,
+  ratingId,
+  flagId,
+  capturedId,
+  materialId,
+  clockId,
+  defaultName
+}) {
+  return (
+    <div className={`player-info review-player-strip ${side}`} data-player-color={side === 'white' ? 'w' : 'b'}>
       <div className={`player-avatar ${side}`}>{avatar}</div>
-      <div className="player-details">
-        <span className="player-side-label">{side}</span>
-        <span className="player-name" id={nameId}>{defaultName}</span>
-        <span className="player-rating" id={ratingId}>—</span>
+      <div className="review-player-main">
+        <div className="review-player-identity">
+          <div className="review-player-name-line">
+            <span className="player-name" id={nameId}>{defaultName}</span>
+            <span className="review-player-flag" id={flagId} hidden></span>
+            <span className="player-rating" id={ratingId}></span>
+          </div>
+        </div>
+        <CapturedPiecesRow capturedId={capturedId} materialId={materialId} />
       </div>
-      <div className="player-clock" id={clockId}>--:--</div>
+      <ClockBadge clockId={clockId} />
     </div>
   );
 }
@@ -448,7 +478,17 @@ function GameReviewLayout() {
       <div className="analyze-shell game-review-shell" id="analyzeShell">
         <div className="analyze-layout game-review-layout" id="analyzeContent">
           <section className="board-panel review-board-panel">
-            <PlayerStrip side="black" avatar="♜" nameId="blackName" ratingId="blackRating" clockId="blackClock" defaultName="Black Player" />
+            <PlayerInfoBar
+              side="black"
+              avatar="♜"
+              nameId="blackName"
+              ratingId="blackRating"
+              flagId="blackFlag"
+              capturedId="blackCapturedPieces"
+              materialId="blackMaterialAdvantage"
+              clockId="blackClock"
+              defaultName="Black Player"
+            />
 
             <div className="review-board-stage">
               <div className="review-eval-rail" aria-label="Evaluation">
@@ -472,7 +512,17 @@ function GameReviewLayout() {
               </div>
             </div>
 
-            <PlayerStrip side="white" avatar="♖" nameId="whiteName" ratingId="whiteRating" clockId="whiteClock" defaultName="White Player" />
+            <PlayerInfoBar
+              side="white"
+              avatar="♖"
+              nameId="whiteName"
+              ratingId="whiteRating"
+              flagId="whiteFlag"
+              capturedId="whiteCapturedPieces"
+              materialId="whiteMaterialAdvantage"
+              clockId="whiteClock"
+              defaultName="White Player"
+            />
           </section>
 
           <aside className="analysis-panel review-side-panel">

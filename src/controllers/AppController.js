@@ -19,8 +19,25 @@ const RAW_GOOGLE_CLIENT_ID = (typeof import.meta !== 'undefined' && import.meta.
 const APP_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL)
   ? import.meta.env.BASE_URL
   : '/';
+const CLEAN_APP_BASE_URL = (!APP_BASE_URL || APP_BASE_URL === '/') ? '' : APP_BASE_URL.replace(/\/$/, '');
 const DEFAULT_ENGINE_ID = 'sf18';
 const DEFAULT_ENGINE_LABEL = 'Stockfish 18';
+const REVIEW_PIECE_ASSET_PATHS = {
+  wP: 'Chess_plt45.svg',
+  wN: 'Chess_nlt45.svg',
+  wB: 'Chess_blt45.svg',
+  wR: 'Chess_rlt45.svg',
+  wQ: 'Chess_qlt45.svg',
+  wK: 'Chess_klt45.svg',
+  bP: 'Chess_pdt45.svg',
+  bN: 'Chess_ndt45.svg',
+  bB: 'Chess_bdt45.svg',
+  bR: 'Chess_rdt45.svg',
+  bQ: 'Chess_qdt45.svg',
+  bK: 'Chess_kdt45.svg'
+};
+const REVIEW_PIECE_ORDER = ['q', 'r', 'n', 'b', 'p'];
+const REVIEW_PIECE_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9 };
 
 const AppController = (function() {
   var chess = null;
@@ -97,6 +114,7 @@ const AppController = (function() {
     
     ChessBoard.init('chessBoard', 'boardOverlay', onBoardMove);
     ChessBoard.setPosition(chess);
+    updateAnalyzePlayerInfo(null, getAnalyzeBottomColor());
     syncAnalyzeBoardInteraction();
     EngineController.init();
     SoundController.init();
@@ -1341,6 +1359,285 @@ const AppController = (function() {
     };
   }
 
+  function getAnalyzeBottomColor() {
+    return ChessBoard.getFlipped && ChessBoard.getFlipped() ? 'b' : 'w';
+  }
+
+  function createEmptyPieceCounts() {
+    return {
+      w: { p: 0, n: 0, b: 0, r: 0, q: 0, k: 0 },
+      b: { p: 0, n: 0, b: 0, r: 0, q: 0, k: 0 }
+    };
+  }
+
+  function getPieceCountsFromFen(fen) {
+    var counts = createEmptyPieceCounts();
+    var boardPart = String(fen || '').split(' ')[0] || '';
+    for (var i = 0; i < boardPart.length; i++) {
+      var ch = boardPart.charAt(i);
+      if (!/[prnbqkPRNBQK]/.test(ch)) continue;
+      var color = ch === ch.toLowerCase() ? 'b' : 'w';
+      var piece = ch.toLowerCase();
+      if (counts[color][piece] !== undefined) {
+        counts[color][piece]++;
+      }
+    }
+    return counts;
+  }
+
+  function getMissingPieceCounts(baseCounts, currentCounts, color) {
+    var missing = { p: 0, n: 0, b: 0, r: 0, q: 0, k: 0 };
+    Object.keys(missing).forEach(function(piece) {
+      var baseCount = baseCounts && baseCounts[color] ? baseCounts[color][piece] || 0 : 0;
+      var currentCount = currentCounts && currentCounts[color] ? currentCounts[color][piece] || 0 : 0;
+      missing[piece] = Math.max(0, baseCount - currentCount);
+    });
+    return missing;
+  }
+
+  function getMaterialScore(pieceCounts) {
+    if (!pieceCounts) return 0;
+    return Object.keys(REVIEW_PIECE_VALUES).reduce(function(total, piece) {
+      return total + (pieceCounts[piece] || 0) * REVIEW_PIECE_VALUES[piece];
+    }, 0);
+  }
+
+  function getReviewPieceAssetUrl(pieceColor, pieceType) {
+    var key = String(pieceColor || '').toLowerCase() + String(pieceType || '').toUpperCase();
+    var fileName = REVIEW_PIECE_ASSET_PATHS[key];
+    if (!fileName) return '';
+    return (CLEAN_APP_BASE_URL ? CLEAN_APP_BASE_URL : '') + '/chess-pieces/cburnett/' + fileName;
+  }
+
+  function buildCapturedPiecesMarkup(pieceColor, capturedCounts) {
+    var items = [];
+    REVIEW_PIECE_ORDER.forEach(function(piece) {
+      var count = capturedCounts && capturedCounts[piece] ? capturedCounts[piece] : 0;
+      for (var i = 0; i < count; i++) {
+        var src = getReviewPieceAssetUrl(pieceColor, piece);
+        if (!src) continue;
+        items.push(
+          '<img class="review-captured-piece is-' + pieceColor + '" src="' + escapeAttr(src) + '" alt="" aria-hidden="true">'
+        );
+      }
+    });
+    return items.join('');
+  }
+
+  function formatDurationValue(value) {
+    if (value === null || value === undefined || value === '') return '';
+    if (typeof value === 'number' && isFinite(value)) {
+      var numeric = value > 10000 ? Math.round(value / 1000) : Math.round(value);
+      var hours = Math.floor(numeric / 3600);
+      var minutes = Math.floor((numeric % 3600) / 60);
+      var seconds = numeric % 60;
+      if (hours > 0) return hours + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+      return minutes + ':' + String(seconds).padStart(2, '0');
+    }
+
+    var text = String(value).trim();
+    if (!text) return '';
+    if (/^\d+(\.\d+)?$/.test(text)) {
+      return formatDurationValue(parseFloat(text));
+    }
+    return text;
+  }
+
+  function getSourcePlayer(sourceGame, color) {
+    if (!sourceGame) return null;
+    var key = color === 'w' ? 'white' : 'black';
+    if (sourceGame[key]) return sourceGame[key];
+    if (sourceGame.players && sourceGame.players[key]) return sourceGame.players[key];
+    return null;
+  }
+
+  function getSourcePlayerCountry(sourceGame, color) {
+    var player = getSourcePlayer(sourceGame, color);
+    if (!player) return '';
+    return player.countryCode ||
+      player.country ||
+      player.flag ||
+      player.federation ||
+      (player.user && (player.user.countryCode || player.user.country || player.user.flag)) ||
+      '';
+  }
+
+  function getSourcePlayerClock(sourceGame, color) {
+    var key = color === 'w' ? 'white' : 'black';
+    var player = getSourcePlayer(sourceGame, color);
+    if (player) {
+      var nestedClock = player.clock || player.time || player.remainingTime || player.remaining_time || player.clockTime;
+      if (nestedClock !== undefined && nestedClock !== null && nestedClock !== '') {
+        return nestedClock;
+      }
+    }
+
+    return sourceGame
+      ? sourceGame[key + 'Clock'] ||
+          sourceGame[key + '_clock'] ||
+          sourceGame[key + 'Time'] ||
+          sourceGame[key + '_time'] ||
+          ''
+      : '';
+  }
+
+  function extractLiveClocks(sourceGame, options) {
+    var opts = options || {};
+    var provided = opts.liveClocks || null;
+    var white = provided && (provided.w || provided.white || '');
+    var black = provided && (provided.b || provided.black || '');
+
+    if (!white) white = getSourcePlayerClock(sourceGame, 'w');
+    if (!black) black = getSourcePlayerClock(sourceGame, 'b');
+
+    white = formatDurationValue(white);
+    black = formatDurationValue(black);
+
+    if (!white && !black) return null;
+    return { w: white, b: black };
+  }
+
+  function normalizeCountryCode(rawCountry) {
+    var text = String(rawCountry || '').trim();
+    if (!text) return '';
+    if (/^[A-Za-z]{2}$/.test(text)) return text.toUpperCase();
+    var suffixMatch = text.match(/(?:^|\/)([A-Za-z]{2})(?:\/)?$/);
+    if (suffixMatch) return suffixMatch[1].toUpperCase();
+
+    var aliasMap = {
+      USA: 'US',
+      IND: 'IN',
+      GBR: 'GB',
+      ENG: 'GB',
+      UAE: 'AE'
+    };
+    return aliasMap[text.toUpperCase()] || '';
+  }
+
+  function getCountryFlag(rawCountry) {
+    var text = String(rawCountry || '').trim();
+    if (!text) return '';
+    if (/^[\u{1F1E6}-\u{1F1FF}]{2}$/u.test(text)) return text;
+
+    var code = normalizeCountryCode(text);
+    if (!code) return '';
+    return code.split('').map(function(char) {
+      return String.fromCodePoint(127397 + char.toUpperCase().charCodeAt(0));
+    }).join('');
+  }
+
+  function setPlayerCountryFlag(color, rawCountry) {
+    var flagEl = document.getElementById(color === 'w' ? 'whiteFlag' : 'blackFlag');
+    if (!flagEl) return;
+
+    var flag = getCountryFlag(rawCountry);
+    if (!flag) {
+      flagEl.textContent = '';
+      flagEl.hidden = true;
+      flagEl.removeAttribute('title');
+      return;
+    }
+
+    flagEl.hidden = false;
+    flagEl.textContent = flag;
+    flagEl.title = normalizeCountryCode(rawCountry) || String(rawCountry || '').trim();
+  }
+
+  function getRecordedPlayerTimeState(game, moveIndex) {
+    var clocks = { w: '', b: '' };
+    var moveTimes = { w: '', b: '' };
+    var moves = game && Array.isArray(game.moves) ? game.moves : [];
+    var limit = Math.max(0, Math.min(typeof moveIndex === 'number' ? moveIndex : moves.length, moves.length));
+
+    for (var i = 0; i < limit; i++) {
+      var move = moves[i];
+      if (!move || !move.color) continue;
+      if (move.clock) clocks[move.color] = formatDurationValue(move.clock);
+      if (move.elapsedTime) moveTimes[move.color] = formatDurationValue(move.elapsedTime);
+    }
+
+    return { clocks: clocks, moveTimes: moveTimes };
+  }
+
+  function getPlayerClockDisplay(game, color, moveIndex) {
+    var latestIndex = gamePositions && gamePositions.length ? gamePositions.length - 1 : 0;
+    var liveClocks = moveIndex >= latestIndex && game && game.liveClocks ? game.liveClocks : null;
+    var liveValue = liveClocks ? formatDurationValue(liveClocks[color] || liveClocks[color === 'w' ? 'white' : 'black']) : '';
+    if (liveValue) {
+      return { value: liveValue, label: 'live' };
+    }
+
+    var recorded = getRecordedPlayerTimeState(game, moveIndex);
+    if (recorded.clocks[color]) {
+      return { value: recorded.clocks[color], label: 'clock' };
+    }
+    if (recorded.moveTimes[color]) {
+      return { value: recorded.moveTimes[color], label: 'move' };
+    }
+
+    return { value: '', label: '' };
+  }
+
+  function setPlayerClockDisplay(color, state) {
+    var clockEl = document.getElementById(color === 'w' ? 'whiteClock' : 'blackClock');
+    if (!clockEl) return;
+
+    var value = state && state.value ? state.value : '';
+    if (!value) {
+      clockEl.hidden = true;
+      clockEl.textContent = '';
+      clockEl.dataset.clockLabel = '';
+      clockEl.classList.remove('is-live', 'is-move-time');
+      return;
+    }
+
+    clockEl.hidden = false;
+    clockEl.textContent = value;
+    clockEl.dataset.clockLabel = state.label === 'move' ? 'move time' : state.label || 'clock';
+    clockEl.classList.toggle('is-live', state.label === 'live');
+    clockEl.classList.toggle('is-move-time', state.label === 'move');
+  }
+
+  function updateAnalyzePlayerBarState(game) {
+    var currentFen = chess && chess.fen
+      ? chess.fen()
+      : (gamePositions && gamePositions[currentMoveIndex] ? gamePositions[currentMoveIndex].fen : '');
+    var baseFen = gamePositions && gamePositions[0] ? gamePositions[0].fen : '';
+    var baseCounts = getPieceCountsFromFen(baseFen || new Chess().fen());
+    var currentCounts = getPieceCountsFromFen(currentFen || baseFen || new Chess().fen());
+    var capturedByWhite = getMissingPieceCounts(baseCounts, currentCounts, 'b');
+    var capturedByBlack = getMissingPieceCounts(baseCounts, currentCounts, 'w');
+    var whiteMaterial = getMaterialScore(currentCounts.w);
+    var blackMaterial = getMaterialScore(currentCounts.b);
+    var materialDiff = whiteMaterial - blackMaterial;
+    var whiteCapturedEl = document.getElementById('whiteCapturedPieces');
+    var blackCapturedEl = document.getElementById('blackCapturedPieces');
+    var whiteAdvEl = document.getElementById('whiteMaterialAdvantage');
+    var blackAdvEl = document.getElementById('blackMaterialAdvantage');
+
+    if (whiteCapturedEl) {
+      whiteCapturedEl.innerHTML = buildCapturedPiecesMarkup('b', capturedByWhite);
+      whiteCapturedEl.classList.toggle('is-empty', !whiteCapturedEl.innerHTML);
+    }
+    if (blackCapturedEl) {
+      blackCapturedEl.innerHTML = buildCapturedPiecesMarkup('w', capturedByBlack);
+      blackCapturedEl.classList.toggle('is-empty', !blackCapturedEl.innerHTML);
+    }
+
+    if (whiteAdvEl) {
+      whiteAdvEl.textContent = materialDiff > 0 ? '+' + materialDiff : '';
+      whiteAdvEl.classList.toggle('is-visible', materialDiff > 0);
+    }
+    if (blackAdvEl) {
+      blackAdvEl.textContent = materialDiff < 0 ? '+' + Math.abs(materialDiff) : '';
+      blackAdvEl.classList.toggle('is-visible', materialDiff < 0);
+    }
+
+    var positionIndex = typeof currentMoveIndex === 'number' ? currentMoveIndex : 0;
+    setPlayerClockDisplay('w', getPlayerClockDisplay(game, 'w', positionIndex));
+    setPlayerClockDisplay('b', getPlayerClockDisplay(game, 'b', positionIndex));
+  }
+
   function applyLoadedGameMetadata(game, options) {
     var opts = options || {};
     var sourceGame = opts.sourceGame || null;
@@ -1348,6 +1645,17 @@ const AppController = (function() {
     var savedSourceAccuracies = opts.sourceAccuracies || null;
     var sourceUsername = normalizeReviewUsername(opts.sourceUsername || opts.reviewUsername || '');
     var reviewAccuracies = extractChesscomReviewAccuracies(sourceGame) || savedSourceAccuracies || null;
+    var liveClocks = extractLiveClocks(sourceGame, opts);
+    var whiteCountry = opts.whiteCountry ||
+      (opts.playerFlags && (opts.playerFlags.white || opts.playerFlags.w)) ||
+      game.whiteCountry ||
+      getSourcePlayerCountry(sourceGame, 'w') ||
+      '';
+    var blackCountry = opts.blackCountry ||
+      (opts.playerFlags && (opts.playerFlags.black || opts.playerFlags.b)) ||
+      game.blackCountry ||
+      getSourcePlayerCountry(sourceGame, 'b') ||
+      '';
 
     if (sourcePlatform) {
       game.sourcePlatform = sourcePlatform;
@@ -1367,6 +1675,16 @@ const AppController = (function() {
         black: reviewAccuracies.black,
         source: reviewAccuracies.source || ''
       };
+    }
+
+    if (liveClocks) {
+      game.liveClocks = liveClocks;
+    }
+    if (whiteCountry) {
+      game.whiteCountry = whiteCountry;
+    }
+    if (blackCountry) {
+      game.blackCountry = blackCountry;
     }
 
     if (sourceUsername) {
@@ -1410,21 +1728,19 @@ const AppController = (function() {
     syncAnalyzeCoordinates(flipped);
   }
 
-  function updateAnalyzePlayerInfo(game, bottomColor) {
+  function updateAnalyzePlayerInfo(game, _bottomColor) {
     var whiteNameEl = document.getElementById('whiteName');
     var blackNameEl = document.getElementById('blackName');
     var whiteRatingEl = document.getElementById('whiteRating');
     var blackRatingEl = document.getElementById('blackRating');
-    var whiteClockEl = document.getElementById('whiteClock');
-    var blackClockEl = document.getElementById('blackClock');
-    var result = game.result || '—';
 
-    if (whiteNameEl) whiteNameEl.textContent = game.white || 'White';
-    if (blackNameEl) blackNameEl.textContent = game.black || 'Black';
-    if (whiteRatingEl) whiteRatingEl.textContent = game.whiteElo !== '?' ? '(' + game.whiteElo + ')' : '';
-    if (blackRatingEl) blackRatingEl.textContent = game.blackElo !== '?' ? '(' + game.blackElo + ')' : '';
-    if (whiteClockEl) whiteClockEl.textContent = bottomColor === 'w' ? result : '--:--';
-    if (blackClockEl) blackClockEl.textContent = bottomColor === 'b' ? result : '--:--';
+    if (whiteNameEl) whiteNameEl.textContent = game && game.white ? game.white : 'White Player';
+    if (blackNameEl) blackNameEl.textContent = game && game.black ? game.black : 'Black Player';
+    if (whiteRatingEl) whiteRatingEl.textContent = game && game.whiteElo && game.whiteElo !== '?' ? '(' + game.whiteElo + ')' : '';
+    if (blackRatingEl) blackRatingEl.textContent = game && game.blackElo && game.blackElo !== '?' ? '(' + game.blackElo + ')' : '';
+    setPlayerCountryFlag('w', game ? game.whiteCountry : '');
+    setPlayerCountryFlag('b', game ? game.blackCountry : '');
+    updateAnalyzePlayerBarState(game);
   }
 
   function applyAnalyzeBoardOrientation(game) {
@@ -1483,6 +1799,7 @@ const AppController = (function() {
       resetGameReviewUI();
       ChessBoard.setPosition(chess);
       ChessBoard.setLastMove(null, null);
+      updateAnalyzePlayerInfo(null, getAnalyzeBottomColor());
       syncAnalyzeBoardInteraction();
       updateMovesList();
       startAnalysis();
@@ -1545,8 +1862,8 @@ const AppController = (function() {
     showToast('Fetching game from ' + (platform === 'chesscom' ? 'Chess.com' : 'Lichess') + '...', '');
 
     if (platform === 'lichess') {
-      var proxyUrl = '/api/lichess/game/' + encodeURIComponent(gameId) + '/export?clocks=false&evals=false';
-      var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(gameId) + '?clocks=false&evals=false';
+      var proxyUrl = '/api/lichess/game/' + encodeURIComponent(gameId) + '/export?clocks=true&evals=false';
+      var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(gameId) + '?clocks=true&evals=false';
       fetchTextWithFallback(proxyUrl, directUrl)
         .then(function(pgn) {
           if (pgn && pgn.includes('[')) {
@@ -2014,8 +2331,8 @@ const AppController = (function() {
     var platform = el.getAttribute('data-platform');
     
     if (platform === 'lichess') {
-      var proxyUrl = '/api/lichess/game/' + encodeURIComponent(id) + '/export?clocks=false&evals=false';
-      var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(id) + '?clocks=false&evals=false';
+      var proxyUrl = '/api/lichess/game/' + encodeURIComponent(id) + '/export?clocks=true&evals=false';
+      var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(id) + '?clocks=true&evals=false';
       fetchTextWithFallback(proxyUrl, directUrl)
         .then(function(pgn) {
           if (pgn) {
@@ -2049,8 +2366,12 @@ const AppController = (function() {
     reviewReplayState = null;
     currentMoveIndex = 0;
     chess = new Chess();
+    if (gamePositions[0] && gamePositions[0].fen) {
+      chess.load(gamePositions[0].fen);
+    }
     ChessBoard.setPosition(chess);
     ChessBoard.setLastMove(null, null);
+    updateAnalyzePlayerInfo(currentGame, getAnalyzeBottomColor());
     syncAnalyzeBoardInteraction();
     updateActiveMoveHighlight();
     startAnalysis();
@@ -2096,6 +2417,7 @@ const AppController = (function() {
     chess = new Chess();
     chess.load(pos.fen);
     ChessBoard.setPosition(chess);
+    updateAnalyzePlayerInfo(currentGame, getAnalyzeBottomColor());
     syncAnalyzeBoardInteraction();
     
     // Set last move highlight
@@ -2306,6 +2628,7 @@ const AppController = (function() {
     ChessBoard.clearArrows();
     if (ChessBoard.clearMarkers) ChessBoard.clearMarkers();
     if (ChessBoard.clearReviewMoveQuality) ChessBoard.clearReviewMoveQuality();
+    updateAnalyzePlayerInfo(currentGame, getAnalyzeBottomColor());
     syncAnalyzeBoardInteraction();
     updateFenDisplay();
     updateOpeningDisplay();
@@ -2356,6 +2679,7 @@ const AppController = (function() {
     ChessBoard.setLastMove(result.from, result.to);
     ChessBoard.clearArrows();
     ChessBoard.setArrows([{ from: result.from, to: result.to, color: 'rgba(134, 185, 87, 0.92)' }]);
+    updateAnalyzePlayerInfo(currentGame, getAnalyzeBottomColor());
     syncAnalyzeBoardInteraction();
     updateFenDisplay();
     updateOpeningDisplay();
@@ -2393,6 +2717,7 @@ const AppController = (function() {
     ChessBoard.setPosition(chess);
     ChessBoard.setLastMove(move.from, move.to);
     ChessBoard.clearArrows();
+    updateAnalyzePlayerInfo(currentGame, getAnalyzeBottomColor());
     syncAnalyzeBoardInteraction();
     updateFenDisplay();
     updateOpeningDisplay();
@@ -2448,6 +2773,7 @@ const AppController = (function() {
     currentMoveIndex++;
     
     ChessBoard.setLastMove(move.from, move.to);
+    updateAnalyzePlayerInfo(null, getAnalyzeBottomColor());
     SoundController.playMove();
     updateMovesList();
     updateActiveMoveHighlight();
@@ -2460,7 +2786,7 @@ const AppController = (function() {
     ChessBoard.flip();
     var flipped = ChessBoard.getFlipped && ChessBoard.getFlipped();
     syncReviewPlayerStripOrder(flipped);
-    if (currentGame) updateAnalyzePlayerInfo(currentGame, flipped ? 'b' : 'w');
+    updateAnalyzePlayerInfo(currentGame, flipped ? 'b' : 'w');
   }
 
   // ===== ANALYSIS =====
@@ -4580,6 +4906,9 @@ const AppController = (function() {
     if (game.sourcePlatform) summary.sourcePlatform = game.sourcePlatform;
     if (game.sourceUrl) summary.sourceUrl = game.sourceUrl;
     if (game.reviewUsername) summary.reviewUsername = game.reviewUsername;
+    if (game.whiteCountry) summary.whiteCountry = game.whiteCountry;
+    if (game.blackCountry) summary.blackCountry = game.blackCountry;
+    if (game.liveClocks) summary.liveClocks = game.liveClocks;
     if (game.reviewAccuracies) {
       summary.sourceAccuracies = {
         white: game.reviewAccuracies.white,
@@ -4658,7 +4987,10 @@ const AppController = (function() {
         sourcePlatform: game.sourcePlatform || '',
         sourceUrl: game.sourceUrl || '',
         sourceUsername: game.reviewUsername || '',
-        sourceAccuracies: game.sourceAccuracies || null
+        sourceAccuracies: game.sourceAccuracies || null,
+        whiteCountry: game.whiteCountry || '',
+        blackCountry: game.blackCountry || '',
+        liveClocks: game.liveClocks || null
       });
       switchTab('analyze');
     }
@@ -6024,8 +6356,8 @@ const HomeController = (function() {
         sourceUsername: platform === 'lichess' ? (getProfile().lichessUsername || window._lichessFetchedUsername || '') : ''
       });
     } else if (id && platform === 'lichess') {
-      var proxyUrl = '/api/lichess/game/' + encodeURIComponent(id) + '/export?clocks=false&evals=false';
-      var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(id) + '?clocks=false&evals=false';
+      var proxyUrl = '/api/lichess/game/' + encodeURIComponent(id) + '/export?clocks=true&evals=false';
+      var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(id) + '?clocks=true&evals=false';
       AppController.fetchTextWithFallback(proxyUrl, directUrl)
         .then(function(p) {
           if (p) {

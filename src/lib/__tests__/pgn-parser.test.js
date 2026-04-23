@@ -44,6 +44,12 @@ const PGN_WITH_PROMOTION = `[White "A"]
 
 1. e4 e5 2. e5 e4 3. e6 e3 4. exf7+ Kd7 5. fxg8=Q+ exd2+ 6. Qxd5+ Ke7 7. Qe6# 1-0`;
 
+const PGN_WITH_CLOCKS = `[White "Clocky"]
+[Black "Timer"]
+[Result "*"]
+
+1. e4 {[%clk 0:10:00]} e5 {[%clk 0:09:58]} 2. Nf3 {[%clk 0:09:55][%emt 0:00:05]} Nc6 {[%clk 0:09:54]} *`;
+
 // ── parse() ────────────────────────────────────────────────────────────────────
 
 describe('PGNParser.parse', () => {
@@ -119,6 +125,15 @@ describe('PGNParser.parse', () => {
   it('canonical PGN includes result token', () => {
     const g = PGNParser.parse(RUY_LOPEZ);
     expect(g.pgn).toContain('1-0');
+  });
+
+  it('preserves move clock annotations when present', () => {
+    const g = PGNParser.parse(PGN_WITH_CLOCKS);
+    expect(g.moves[0].clock).toBe('0:10:00');
+    expect(g.moves[1].clock).toBe('0:09:58');
+    expect(g.moves[2].clock).toBe('0:09:55');
+    expect(g.moves[2].elapsedTime).toBe('0:00:05');
+    expect(g.pgn).toContain('[%clk 0:10:00]');
   });
 });
 

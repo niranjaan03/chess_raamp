@@ -111,6 +111,48 @@ const PGNParser = (function() {
 
     return headerLines.join('\n') + '\n\n' + moveParts.join(' ').trim();
   }
+
+  function parseMoveComment(comment) {
+    var text = String(comment || '').trim();
+    if (!text) return {};
+
+    var clockMatch = text.match(/\[%clk\s+([^\]]+)\]/i);
+    var elapsedMatch = text.match(/\[%emt\s+([^\]]+)\]/i);
+
+    return {
+      comment: text,
+      clock: clockMatch ? clockMatch[1].trim() : '',
+      elapsedTime: elapsedMatch ? elapsedMatch[1].trim() : ''
+    };
+  }
+
+  function extractMoveAnnotations(chess, headers, history) {
+    if (!chess || typeof chess.getComments !== 'function' || !Array.isArray(history) || !history.length) {
+      return [];
+    }
+
+    var commentsByFen = {};
+    chess.getComments().forEach(function(entry) {
+      if (!entry || !entry.fen || commentsByFen[entry.fen] !== undefined) return;
+      commentsByFen[entry.fen] = entry.comment || '';
+    });
+
+    var startFen = getStartingFen(headers);
+    var replay = startFen ? new ChessV1(startFen) : new ChessV1();
+
+    return history.map(function(move) {
+      try {
+        if (move.from && move.to) {
+          replay.move({ from: move.from, to: move.to, promotion: move.promotion });
+        } else {
+          replay.move(move.san);
+        }
+      } catch {
+        return {};
+      }
+      return parseMoveComment(commentsByFen[replay.fen()] || '');
+    });
+  }
   
   function parse(pgnText) {
     if (!pgnText || !pgnText.trim()) return null;
@@ -128,7 +170,8 @@ const PGNParser = (function() {
     }
 
     // Try to load
-    var success = tryLoadPgn(chess, cleaned);
+    var loadedWithOriginalPgn = tryLoadPgn(chess, cleaned);
+    var success = loadedWithOriginalPgn;
 
     if (!success) {
       // Try cleaning the PGN more aggressively
@@ -140,6 +183,10 @@ const PGNParser = (function() {
     if (!success) return null;
 
     var history = chess.history({ verbose: true }).map(adaptVerboseMove);
+    var annotations = loadedWithOriginalPgn ? extractMoveAnnotations(chess, headers, history) : [];
+    history = history.map(function(move, index) {
+      return Object.assign({}, move, annotations[index] || {});
+    });
 
     return {
       headers: headers,
@@ -154,8 +201,10 @@ const PGNParser = (function() {
       date: headers.Date || '',
       opening: headers.Opening || '',
       eco: headers.ECO || '',
+      whiteCountry: headers.WhiteCountry || headers.WhiteFlag || headers.WhiteFederation || '',
+      blackCountry: headers.BlackCountry || headers.BlackFlag || headers.BlackFederation || '',
       timeControl: headers.TimeControl || '',
-      pgn: buildCanonicalPgn(headers, history)
+      pgn: loadedWithOriginalPgn ? cleaned : buildCanonicalPgn(headers, history)
     };
   }
 
@@ -190,7 +239,7 @@ const PGNParser = (function() {
         } else {
           chess.move(m.san);
         }
-      } catch (_) {
+      } catch {
         // Skip illegal move (parser would have rejected the game otherwise).
         break;
       }
@@ -198,7 +247,9 @@ const PGNParser = (function() {
         fen: chess.fen(),
         move: m,
         moveNum: i + 1,
-        san: m.san
+        san: m.san,
+        clock: m.clock || '',
+        elapsedTime: m.elapsedTime || ''
       });
     }
 
@@ -211,6 +262,8 @@ const PGNParser = (function() {
       black: game.black,
       whiteElo: game.whiteElo,
       blackElo: game.blackElo,
+      whiteCountry: game.whiteCountry || '',
+      blackCountry: game.blackCountry || '',
       result: game.result,
       event: game.event,
       date: game.date,
