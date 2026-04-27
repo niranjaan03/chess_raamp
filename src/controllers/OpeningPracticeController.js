@@ -15,8 +15,6 @@ const LEARN_PROGRESS_KEY = 'kv_learn_progress_v1';
 const TIME_BESTS_KEY = 'kv_opening_time_bests_v1';
 const ARENA_STATS_KEY = 'kv_opening_arena_stats_v1';
 
-const MODE_UNLOCK = { learn: 0, practice: 0, drill: 0, time: 0, puzzles: 0, arena: 0 };
-
 const MODE_META = {
   learn:    { icon: '📖', title: 'Learn',    desc: 'Step through the line with coach explanations.' },
   practice: { icon: '🎯', title: 'Practice', desc: 'Play the moves with guided feedback and hints.' },
@@ -151,6 +149,9 @@ const OpeningPracticeController = (function () {
   var practiceChess = null;
   var currentOpening = null;
   var currentVariation = null;
+  var openingModeVariationIdx = 0;
+  var openingModeSelectedMode = 'learn';
+  var openingRouteListenerBound = false;
   var expectedMoves = [];       // SAN moves for the current variation
   var currentMoveIndex = 0;     // How far the user has progressed
   var userColor = 'w';          // Which color the user plays
@@ -826,6 +827,41 @@ const OpeningPracticeController = (function () {
       .replace(/^-+|-+$/g, '');
   }
 
+  function getOpeningModeUrl(openingKey, variationIdx) {
+    var idx = Math.max(0, parseInt(variationIdx, 10) || 0);
+    return '/openings/' + encodeURIComponent(openingKey || '') + '/mode/' + idx;
+  }
+
+  function parseOpeningModeRoute() {
+    if (typeof window === 'undefined') return null;
+    var match = String(window.location.pathname || '').match(/^\/openings\/([^/]+)\/mode(?:\/(\d+))?\/?$/);
+    if (!match) return null;
+    return {
+      openingKey: decodeURIComponent(match[1] || ''),
+      variationIdx: Math.max(0, parseInt(match[2] || '0', 10) || 0)
+    };
+  }
+
+  function writeOpeningModeHistory(opening, variationIdx, replace) {
+    if (typeof window === 'undefined' || !opening) return;
+    var openingKey = getOpeningLookupKey(opening);
+    var url = getOpeningModeUrl(openingKey, variationIdx);
+    try {
+      var state = { kvTab: 'openings', openingMode: true, openingKey: openingKey, variationIdx: variationIdx };
+      if (replace) window.history.replaceState(state, document.title, url);
+      else window.history.pushState(state, document.title, url);
+    } catch (e) { /* history API unavailable */ }
+  }
+
+  function writeOpeningsListHistory(replace) {
+    if (typeof window === 'undefined') return;
+    try {
+      var state = { kvTab: 'openings' };
+      if (replace) window.history.replaceState(state, document.title, '/openings');
+      else window.history.pushState(state, document.title, '/openings');
+    } catch (e) { /* history API unavailable */ }
+  }
+
   function formatOpeningStatsDate(value) {
     if (!value) return '';
     var parsed = new Date(value);
@@ -1040,6 +1076,24 @@ const OpeningPracticeController = (function () {
     };
   }
 
+  function isVariationDiscovered(opening, variation) {
+    var sourceOpening = getCanonicalOpening(opening, variation);
+    var sourceVariation = getCanonicalVariation(variation);
+    if (!sourceOpening || !sourceVariation) return false;
+    var record = learnProgress[getOpeningId(sourceOpening)];
+    var variationId = getVariationId(sourceOpening, sourceVariation);
+    return !!(record && record.discovered && record.discovered[variationId]);
+  }
+
+  function isVariationPerfected(opening, variation) {
+    var sourceOpening = getCanonicalOpening(opening, variation);
+    var sourceVariation = getCanonicalVariation(variation);
+    if (!sourceOpening || !sourceVariation) return false;
+    var record = progress[getOpeningId(sourceOpening)];
+    var variationId = getVariationId(sourceOpening, sourceVariation);
+    return !!(record && record.completed && record.completed[variationId]);
+  }
+
   function toggleFavorite(openingId) {
     if (!openingId) return;
     favorites = favorites || {};
@@ -1172,6 +1226,15 @@ const OpeningPracticeController = (function () {
       });
     });
 
+    container.querySelectorAll('.btn-practice-open').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var card = this.closest('.opening-card');
+        var openingKey = card ? decodeURIComponent(card.getAttribute('data-opening') || '') : '';
+        if (openingKey) showOpeningMode(openingKey, 0);
+      });
+    });
+
     container.querySelectorAll('[data-favorite]').forEach(function(btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -1197,9 +1260,215 @@ const OpeningPracticeController = (function () {
     });
   }
 
+  function getOpeningByKey(openingKey) {
+    return getDisplayOpenings().find(function (o) { return getOpeningLookupKey(o) === openingKey; }) || null;
+  }
+
+  function getOpeningModeCoachCopy(opening, variation) {
+    var name = opening && opening.name ? opening.name : 'this opening';
+    var moves = parsePGNMoves((variation && variation.pgn) || '');
+    var firstMove = moves && moves.length ? moves[0] : '';
+    if (firstMove) {
+      return 'Let\'s learn the ' + name + '. We start with ' + firstMove + '.';
+    }
+    return 'Let\'s learn the ' + name + '. Choose Learn for a guided walk-through or Practice to train the moves.';
+  }
+
+  function getOpeningModeCardSubtitle(opening, variation, mode) {
+    var total = opening && opening.variations ? opening.variations.length : 0;
+    var discovered = getDiscoveredLines(opening);
+    if (mode === 'learn') {
+      return discovered + '/' + total + ' lines discovered';
+    }
+    if (mode === 'practice') {
+      return (isVariationPerfected(opening, variation) ? 1 : 0) + '/1 lines perfected';
+    }
+    if (mode === 'drill') return 'Replay the line from memory';
+    if (mode === 'time') return 'Race the clock through this line';
+    if (mode === 'puzzles') return 'Solve positions from this opening';
+    if (mode === 'arena') return 'Random lines until one mistake';
+    return '';
+  }
+
+  function renderOpeningModeOptions() {
+    var container = document.getElementById('openingModeOptions');
+    if (!container || !currentOpening) return;
+    var variation = currentOpening.variations[openingModeVariationIdx];
+    var modes = ['learn', 'practice', 'drill', 'time', 'puzzles', 'arena'];
+    container.innerHTML = modes.map(function(mode) {
+      var meta = MODE_META[mode] || MODE_META.practice;
+      var wide = mode === 'learn' || mode === 'practice';
+      var active = openingModeSelectedMode === mode;
+      return '<button type="button" class="opening-mode-option' +
+        (wide ? ' is-wide' : '') +
+        (active ? ' is-selected' : '') +
+        '" data-mode="' + escapeAttr(mode) + '">' +
+        '<span class="opening-mode-option-icon" aria-hidden="true">' + meta.icon + '</span>' +
+        '<span class="opening-mode-option-text">' +
+        '<span class="opening-mode-option-title">' + escapeHtml(meta.title) + '</span>' +
+        '<span class="opening-mode-option-sub">' + escapeHtml(getOpeningModeCardSubtitle(currentOpening, variation, mode)) + '</span>' +
+        '</span>' +
+        '</button>';
+    }).join('');
+
+    container.querySelectorAll('.opening-mode-option').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var mode = this.getAttribute('data-mode') || 'practice';
+        startOpeningModeSelection(mode);
+      });
+    });
+  }
+
+  function updateOpeningModeView() {
+    var empty = document.getElementById('openingModeEmpty');
+    if (!currentOpening || !currentOpening.variations || !currentOpening.variations.length) {
+      if (empty) empty.style.display = '';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+    openingModeVariationIdx = Math.max(0, Math.min(openingModeVariationIdx, currentOpening.variations.length - 1));
+    var variation = currentOpening.variations[openingModeVariationIdx];
+    var total = currentOpening.variations.length;
+
+    var title = document.getElementById('openingModeTitle');
+    var headerName = document.getElementById('openingModeHeaderName');
+    var headerMode = document.getElementById('openingModeHeaderMode');
+    var lineNo = document.getElementById('openingModeLineNo');
+    var coach = document.getElementById('openingModeCoachText');
+    if (title) title.textContent = currentOpening.name || 'Opening';
+    if (headerName) headerName.textContent = currentOpening.name || 'Opening';
+    if (headerMode) headerMode.textContent = (MODE_META[openingModeSelectedMode] || MODE_META.learn).title;
+    if (lineNo) lineNo.textContent = '#' + (openingModeVariationIdx + 1);
+    if (coach) coach.textContent = getOpeningModeCoachCopy(currentOpening, variation);
+
+    renderOpeningModeOptions();
+
+    var prev = document.getElementById('openingModePrevLineBtn');
+    var next = document.getElementById('openingModeNextLineBtn');
+    var hideArrows = total <= 1;
+    if (prev) {
+      prev.disabled = openingModeVariationIdx <= 0 || hideArrows;
+      prev.style.visibility = hideArrows ? 'hidden' : '';
+    }
+    if (next) {
+      next.disabled = openingModeVariationIdx >= total - 1 || hideArrows;
+      next.style.visibility = hideArrows ? 'hidden' : '';
+    }
+
+    try {
+      var previewChess = new Chess();
+      ChessBoard.init('openingModeChessBoard', 'openingModeBoardOverlay', null);
+      ChessBoard.setPosition(previewChess);
+      ChessBoard.setLastMove(null, null);
+      ChessBoard.clearArrows();
+      ChessBoard.clearMarkers();
+      ChessBoard.setFlipped(getOpeningPracticeColor(currentOpening) === 'b');
+      ChessBoard.setOptions({ interactionColor: null, allowedMoves: [], interactive: false });
+      ChessBoard.redraw();
+    } catch (e) {
+      console.error('Failed to render opening mode board:', e);
+    }
+  }
+
+  function showOpeningMode(openingKey, variationIdx, options) {
+    var opening = getOpeningByKey(openingKey);
+    if (!opening) {
+      if (options && options.fromRoute) showOpeningModeEmpty();
+      return false;
+    }
+    currentOpening = opening;
+    currentVariation = null;
+    isPracticing = false;
+    openingModeVariationIdx = Math.max(0, parseInt(variationIdx, 10) || 0);
+    openingModeSelectedMode = 'learn';
+
+    var galleryView = document.getElementById('openingGalleryView');
+    var detailView = document.getElementById('openingDetailView');
+    var modeView = document.getElementById('openingModeView');
+    var practiceView = document.getElementById('openingPracticeView');
+    if (galleryView) galleryView.style.display = 'none';
+    if (detailView) detailView.style.display = 'none';
+    if (practiceView) practiceView.style.display = 'none';
+    if (modeView) modeView.style.display = 'block';
+
+    updateOpeningModeView();
+    animateEntry('openingModeView');
+    if (!options || !options.fromRoute) writeOpeningModeHistory(opening, openingModeVariationIdx, false);
+    return true;
+  }
+
+  function showOpeningModeEmpty() {
+    currentOpening = null;
+    currentVariation = null;
+    var galleryView = document.getElementById('openingGalleryView');
+    var detailView = document.getElementById('openingDetailView');
+    var modeView = document.getElementById('openingModeView');
+    var practiceView = document.getElementById('openingPracticeView');
+    if (galleryView) galleryView.style.display = 'none';
+    if (detailView) detailView.style.display = 'none';
+    if (practiceView) practiceView.style.display = 'none';
+    if (modeView) modeView.style.display = 'block';
+    var title = document.getElementById('openingModeTitle');
+    var headerName = document.getElementById('openingModeHeaderName');
+    var lineNo = document.getElementById('openingModeLineNo');
+    var coach = document.getElementById('openingModeCoachText');
+    var options = document.getElementById('openingModeOptions');
+    var empty = document.getElementById('openingModeEmpty');
+    if (title) title.textContent = 'Opening unavailable';
+    if (headerName) headerName.textContent = 'Opening unavailable';
+    if (lineNo) lineNo.textContent = '';
+    if (coach) coach.textContent = 'Opening data is unavailable. Return to the openings list and choose another opening.';
+    if (options) options.innerHTML = '';
+    if (empty) empty.style.display = '';
+    animateEntry('openingModeView');
+  }
+
+  function startOpeningModeSelection(mode) {
+    var normalized = normalizePracticeMode(mode);
+    openingModeSelectedMode = normalized;
+    renderOpeningModeOptions();
+    startPractice(openingModeVariationIdx, normalized);
+  }
+
+  function changeOpeningModeLine(delta) {
+    if (!currentOpening || !currentOpening.variations) return;
+    var max = currentOpening.variations.length - 1;
+    var nextIdx = Math.max(0, Math.min(max, openingModeVariationIdx + delta));
+    if (nextIdx === openingModeVariationIdx) return;
+    openingModeVariationIdx = nextIdx;
+    updateOpeningModeView();
+    writeOpeningModeHistory(currentOpening, openingModeVariationIdx, true);
+  }
+
+  function handleOpeningRoute() {
+    var route = parseOpeningModeRoute();
+    if (route) {
+      showOpeningMode(route.openingKey, route.variationIdx, { fromRoute: true });
+      return true;
+    }
+    if (typeof window !== 'undefined' && String(window.location.pathname || '').replace(/\/+$/, '') === '/openings') {
+      var modeView = document.getElementById('openingModeView');
+      var practiceView = document.getElementById('openingPracticeView');
+      if ((modeView && modeView.style.display !== 'none') || (practiceView && practiceView.style.display !== 'none')) {
+        isPracticing = false;
+        stopTimeModeTimer();
+        clearArenaAdvanceTimer();
+        currentOpening = null;
+        currentVariation = null;
+        if (modeView) modeView.style.display = 'none';
+        if (practiceView) practiceView.style.display = 'none';
+        var detailView = document.getElementById('openingDetailView');
+        var galleryView = document.getElementById('openingGalleryView');
+        if (detailView) detailView.style.display = 'none';
+        if (galleryView) galleryView.style.display = 'block';
+      }
+    }
+    return false;
+  }
+
   // ===== OPENING DETAIL (VARIATION LIST) =====
   function showOpeningDetail(openingKey) {
-    var opening = getDisplayOpenings().find(function (o) { return getOpeningLookupKey(o) === openingKey; });
+    var opening = getOpeningByKey(openingKey);
     if (!opening) return;
 
     currentOpening = opening;
@@ -1207,6 +1476,8 @@ const OpeningPracticeController = (function () {
     // Hide gallery, show detail
     document.getElementById('openingGalleryView').style.display = 'none';
     document.getElementById('openingDetailView').style.display = 'block';
+    var modeView = document.getElementById('openingModeView');
+    if (modeView) modeView.style.display = 'none';
     document.getElementById('openingPracticeView').style.display = 'none';
     animateEntry('openingDetailView');
 
@@ -1265,7 +1536,8 @@ const OpeningPracticeController = (function () {
         e.stopPropagation();
         var idx = parseInt(this.getAttribute('data-idx'));
         var mode = this.getAttribute('data-mode') || 'practice';
-        startPractice(idx, mode);
+        if (mode === 'practice') showOpeningMode(getOpeningLookupKey(currentOpening), idx);
+        else startPractice(idx, mode);
       });
     });
 
@@ -1710,7 +1982,7 @@ const OpeningPracticeController = (function () {
     ChessBoard.clearArrows();
     ChessBoard.clearMarkers();
     ChessBoard.setFlipped(userColor === 'b');
-    ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [] });
+    ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [], interactive: true });
 
     updatePracticeModeUI();
     updatePracticeMeta();
@@ -2166,6 +2438,8 @@ const OpeningPracticeController = (function () {
     // Show practice view
     document.getElementById('openingGalleryView').style.display = 'none';
     document.getElementById('openingDetailView').style.display = 'none';
+    var modeView = document.getElementById('openingModeView');
+    if (modeView) modeView.style.display = 'none';
     document.getElementById('openingPracticeView').style.display = 'flex';
     animateEntry('openingPracticeView');
 
@@ -2175,9 +2449,9 @@ const OpeningPracticeController = (function () {
     ChessBoard.setLastMove(null, null);
     ChessBoard.setFlipped(userColor === 'b');
     if (practiceMode === 'learn') {
-      ChessBoard.setOptions({ interactionColor: null, allowedMoves: [] });
+      ChessBoard.setOptions({ interactionColor: null, allowedMoves: [], interactive: true });
     } else {
-      ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [] });
+      ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [], interactive: true });
     }
 
     // Update UI
@@ -3249,8 +3523,11 @@ const OpeningPracticeController = (function () {
     updateArenaModePanel();
     document.getElementById('openingGalleryView').style.display = 'block';
     document.getElementById('openingDetailView').style.display = 'none';
+    var modeView = document.getElementById('openingModeView');
+    if (modeView) modeView.style.display = 'none';
     document.getElementById('openingPracticeView').style.display = 'none';
     animateEntry('openingGalleryView');
+    writeOpeningsListHistory(false);
   }
 
   function backToDetail() {
@@ -3266,6 +3543,8 @@ const OpeningPracticeController = (function () {
     updateArenaModePanel();
     document.getElementById('openingGalleryView').style.display = 'none';
     document.getElementById('openingDetailView').style.display = 'block';
+    var modeView = document.getElementById('openingModeView');
+    if (modeView) modeView.style.display = 'none';
     document.getElementById('openingPracticeView').style.display = 'none';
     animateEntry('openingDetailView');
   }
@@ -3326,6 +3605,7 @@ const OpeningPracticeController = (function () {
   function setupUI() {
     if (uiInitialized) {
       renderOpeningGallery();
+      handleOpeningRoute();
       return;
     }
     uiInitialized = true;
@@ -3362,6 +3642,28 @@ const OpeningPracticeController = (function () {
     // Back buttons
     var backGalleryBtn = document.getElementById('backToGalleryBtn');
     if (backGalleryBtn) backGalleryBtn.addEventListener('click', backToGallery);
+
+    var openingModeBackBtn = document.getElementById('openingModeBackBtn');
+    if (openingModeBackBtn) openingModeBackBtn.addEventListener('click', backToGallery);
+
+    var openingModePrevLineBtn = document.getElementById('openingModePrevLineBtn');
+    if (openingModePrevLineBtn) openingModePrevLineBtn.addEventListener('click', function() { changeOpeningModeLine(-1); });
+
+    var openingModeNextLineBtn = document.getElementById('openingModeNextLineBtn');
+    if (openingModeNextLineBtn) openingModeNextLineBtn.addEventListener('click', function() { changeOpeningModeLine(1); });
+
+    var openingModeHintBtn = document.getElementById('openingModeHintBtn');
+    if (openingModeHintBtn) openingModeHintBtn.addEventListener('click', function() {
+      var coach = document.getElementById('openingModeCoachText');
+      var variation = currentOpening && currentOpening.variations ? currentOpening.variations[openingModeVariationIdx] : null;
+      if (coach && currentOpening && variation) coach.textContent = getOpeningModeCoachCopy(currentOpening, variation);
+    });
+
+    var openingModeCycleBtn = document.getElementById('openingModeCycleBtn');
+    if (openingModeCycleBtn) openingModeCycleBtn.addEventListener('click', function() {
+      openingModeSelectedMode = openingModeSelectedMode === 'learn' ? 'practice' : 'learn';
+      updateOpeningModeView();
+    });
 
     var backDetailBtn = document.getElementById('backToDetailBtn');
     if (backDetailBtn) backDetailBtn.addEventListener('click', backToDetail);
@@ -3405,6 +3707,12 @@ const OpeningPracticeController = (function () {
     // Review queue
     var startReviewBtn = document.getElementById('startReviewBtn');
     if (startReviewBtn) startReviewBtn.addEventListener('click', startReviewSession);
+
+    if (!openingRouteListenerBound && typeof window !== 'undefined') {
+      openingRouteListenerBound = true;
+      window.addEventListener('popstate', handleOpeningRoute);
+    }
+    handleOpeningRoute();
 
     updateReviewBanner();
   }

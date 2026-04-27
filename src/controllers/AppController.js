@@ -183,6 +183,7 @@ const AppController = (function() {
     var path = String(pathname || '').trim();
     if (!path || path === '/') return 'home';
     var clean = path.replace(/\/+$/, '') || '/';
+    if (clean === TAB_ROUTE_MAP.openings || clean.indexOf(TAB_ROUTE_MAP.openings + '/') === 0) return 'openings';
     var entries = Object.keys(TAB_ROUTE_MAP);
     for (var i = 0; i < entries.length; i++) {
       var tab = entries[i];
@@ -216,7 +217,9 @@ const AppController = (function() {
     if (typeof window === 'undefined' || !tabHistoryReady) return;
     var safeTab = tab || 'home';
     var state = { kvTab: safeTab };
-    var nextUrl = getRouteForTab(safeTab) + getSearchForTab(safeTab);
+    var currentPath = String(window.location.pathname || '').replace(/\/+$/, '') || '/';
+    var isOpeningSubroute = safeTab === 'openings' && currentPath.indexOf(TAB_ROUTE_MAP.openings + '/') === 0;
+    var nextUrl = (replace && isOpeningSubroute ? currentPath : getRouteForTab(safeTab)) + getSearchForTab(safeTab);
     try {
       if (replace) window.history.replaceState(state, document.title, nextUrl);
       else window.history.pushState(state, document.title, nextUrl);
@@ -352,6 +355,8 @@ const AppController = (function() {
       displayName: '',
       chesscomUsername: '',
       lichessUsername: '',
+      linkedAccounts: [],
+      activeAccountId: '',
       prefEngine: DEFAULT_ENGINE_ID,
       prefDepth: '20',
       authEmail: '',
@@ -403,6 +408,8 @@ const AppController = (function() {
       displayName: sourceProfile.displayName || '',
       chesscomUsername: sourceProfile.chesscomUsername || '',
       lichessUsername: sourceProfile.lichessUsername || '',
+      linkedAccounts: Array.isArray(sourceProfile.linkedAccounts) ? sourceProfile.linkedAccounts : [],
+      activeAccountId: sourceProfile.activeAccountId || '',
       prefEngine: sourceProfile.prefEngine || DEFAULT_ENGINE_ID,
       prefDepth: sourceProfile.prefDepth || '20'
     };
@@ -2009,6 +2016,37 @@ const AppController = (function() {
     return filtered;
   }
 
+  function isEcoCode(value) {
+    return /^[A-E]\d{2}$/i.test(String(value || '').trim());
+  }
+
+  function chesscomOpeningNameFromUrl(value) {
+    var raw = String(value || '');
+    var slug = raw.split('/openings/')[1] || '';
+    if (!slug) return '';
+    slug = slug.split(/[?#]/)[0];
+    try {
+      slug = decodeURIComponent(slug);
+    } catch { /* keep original slug */ }
+    return slug.replace(/-/g, ' ').trim();
+  }
+
+  function formatChesscomOpeningLabel(game) {
+    if (!game) return '';
+    var headers = game.headers || {};
+    var opening = String(game.opening || headers.Opening || '').trim();
+    var ecoUrl = game.ecoUrl || game.eco_url || headers.ECOUrl || headers.ECOURL || '';
+    var eco = String(game.eco || headers.ECO || '').trim();
+
+    if (opening && !isEcoCode(opening)) return opening;
+    var fromEcoUrl = chesscomOpeningNameFromUrl(ecoUrl);
+    if (fromEcoUrl) return fromEcoUrl;
+    var fromEco = chesscomOpeningNameFromUrl(eco);
+    if (fromEco) return fromEco;
+    if (eco && !isEcoCode(eco)) return eco;
+    return '';
+  }
+
   function parseChesscomPgnPreviewGames(text, maxGames) {
     var raw = String(text || '').trim();
     if (!raw) return [];
@@ -2032,7 +2070,7 @@ const AppController = (function() {
         result: headers.Result || '*',
         event: headers.Event || '',
         date: headers.Date || '',
-        opening: headers.Opening || '',
+        opening: formatChesscomOpeningLabel({ headers: headers }),
         eco: headers.ECO || '',
         timeControl: headers.TimeControl || '',
         pgn: trimmed
@@ -2163,10 +2201,7 @@ const AppController = (function() {
     var requestUrl = 'https://api.chess.com/pub/player/' + encodedUser + '/games/' + year + '/' + month + '/pgn';
     var proxyUrl = '/api/chesscom/player/' + encodedUser + '/games/' + year + '/' + month + '/pgn';
     return fetchTextWithFallback(proxyUrl, requestUrl).then(function(text) {
-      if (!text || isHtmlResponse(text) || !isLikelyChesscomPgn(text)) {
-        throw createChesscomInvalidResponseError('fallback');
-      }
-      return text;
+      return parseChesscomArchivePayload(text, 'archive');
     });
   }
 
@@ -2188,6 +2223,26 @@ const AppController = (function() {
 
   function isLikelyChesscomPgn(text) {
     return /\[(Event|Site|Date)\s+"[^"]*"\]/.test(text || '');
+  }
+
+  function parseChesscomArchivePayload(text, source) {
+    var raw = typeof text === 'string' ? text : '';
+    if (!raw.trim()) {
+      return '';
+    }
+    if (isHtmlResponse(raw)) {
+      throw createChesscomInvalidResponseError(source);
+    }
+    if (isLikelyChesscomPgn(raw)) {
+      return raw;
+    }
+    try {
+      var parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.games)) {
+        return parsed;
+      }
+    } catch { /* fall through to invalid response */ }
+    throw createChesscomInvalidResponseError(source);
   }
 
   function parseChesscomResponse(response, responseType, source) {
@@ -4591,21 +4646,28 @@ const AppController = (function() {
     loadEngineLine(candidate.pv.join(' '));
   }
 
+  function formatEstimatedElo(value) {
+    if (value === null || value === undefined) return 'N/A';
+    var num = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(num)) return 'N/A';
+    return String(Math.round(num / 50) * 50);
+  }
+
   function updateGameRatings(counts, wAcc, bAcc) {
     var wBox = document.getElementById('grWhiteGameRating');
     var bBox = document.getElementById('grBlackGameRating');
     if (!wBox || !bBox) return;
     if (!counts || !counts.w || !counts.b || isNaN(wAcc) || isNaN(bAcc)) {
-      wBox.textContent = '—';
-      bBox.textContent = '—';
+      wBox.textContent = 'N/A';
+      bBox.textContent = 'N/A';
       return;
     }
-    wBox.textContent = estimateGameRating(wAcc, counts.w);
-    bBox.textContent = estimateGameRating(bAcc, counts.b);
+    wBox.textContent = formatEstimatedElo(estimateGameRating(wAcc, counts.w));
+    bBox.textContent = formatEstimatedElo(estimateGameRating(bAcc, counts.b));
   }
 
   function estimateGameRating(acc, playerCounts) {
-    if (acc === null || acc === undefined || isNaN(acc) || !playerCounts) return '—';
+    if (acc === null || acc === undefined || isNaN(acc) || !playerCounts) return null;
     var base = 200 + acc * 20;
     var swing = 0;
     swing += (playerCounts.brilliant || 0) * 24;
@@ -4616,8 +4678,7 @@ const AppController = (function() {
     swing -= (playerCounts.mistake || 0) * 24;
     swing -= (playerCounts.miss || 0) * 32;
     swing -= (playerCounts.blunder || 0) * 46;
-    var rating = Math.round(Math.max(300, Math.min(3200, base + swing)));
-    return Math.round(rating);
+    return Math.max(300, Math.min(3200, base + swing));
   }
 
   function highlightPlayerCards(wAcc, bAcc) {
@@ -4800,7 +4861,7 @@ const AppController = (function() {
     var ecoEl = document.getElementById('openingEco');
     var openingName = opening && opening.name && opening.name !== 'Unknown Opening' ? opening.name : '';
     if (nameEl) nameEl.textContent = openingName || '—';
-    if (ecoEl) ecoEl.textContent = openingName ? (opening.eco || '') : '';
+    if (ecoEl) ecoEl.textContent = '';
   }
 
   // ===== ENGINE LINE LOADING =====
@@ -4837,7 +4898,8 @@ const AppController = (function() {
     try {
       var saved = localStorage.getItem('kv_profile');
       if (saved) {
-        profile = JSON.parse(saved);
+        profile = migrateProfileAccounts(JSON.parse(saved));
+        localStorage.setItem('kv_profile', JSON.stringify(profile));
         applyProfile();
       }
     } catch { /* corrupt profile data – keep defaults */ }
@@ -4858,14 +4920,20 @@ const AppController = (function() {
   }
 
   function saveProfile() {
+    var existingProfile = {};
+    try { existingProfile = JSON.parse(localStorage.getItem('kv_profile') || '{}'); } catch(e) { existingProfile = {}; }
+    existingProfile = migrateProfileAccounts(existingProfile);
     profile = {
       displayName: document.getElementById('profileDisplayName').value,
       chesscomUsername: document.getElementById('chesscomUsername').value,
       lichessUsername: document.getElementById('lichessUsername').value,
+      linkedAccounts: Array.isArray(existingProfile.linkedAccounts) ? existingProfile.linkedAccounts : [],
+      activeAccountId: existingProfile.activeAccountId || '',
       prefEngine: DEFAULT_ENGINE_ID,
       prefDepth: document.getElementById('prefDepth').value,
       savedAt: new Date().toISOString()
     };
+    profile = syncLegacyAccountFields(migrateProfileAccounts(profile));
     
     try {
       localStorage.setItem('kv_profile', JSON.stringify(profile));
@@ -4888,6 +4956,78 @@ const AppController = (function() {
     } catch(e) {
       showToast('Could not save profile', 'error');
     }
+  }
+
+  function normalizeStoredUsername(raw) {
+    return String(raw || '').trim().replace(/^@+/, '');
+  }
+
+  function normalizeStoredPlatform(platform) {
+    var value = String(platform || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (value === 'chesscom' || value === 'chess') return 'chesscom';
+    if (value === 'lichess' || value === 'lichessorg') return 'lichess';
+    return value || 'chesscom';
+  }
+
+  function getStoredLinkedAccountId(platform, username) {
+    return normalizeStoredPlatform(platform) + ':' + normalizeStoredUsername(username).toLowerCase();
+  }
+
+  function migrateProfileAccounts(source) {
+    var p = Object.assign(getDefaultProfile(), source || {});
+    var accounts = Array.isArray(p.linkedAccounts) ? p.linkedAccounts.slice() : [];
+    var byId = {};
+    accounts = accounts.map(function(account) {
+      if (!account) return null;
+      var platform = normalizeStoredPlatform(account.platform || account.site || '');
+      var username = normalizeStoredUsername(account.username || account.handle || '');
+      if (!platform || !username) return null;
+      var id = getStoredLinkedAccountId(platform, username);
+      if (byId[id]) return null;
+      byId[id] = true;
+      return Object.assign({
+        id: id,
+        platform: platform,
+        username: username,
+        displayName: username,
+        avatar: '',
+        ratingData: null,
+        lastSynced: '',
+        isActive: false
+      }, account, { id: id, platform: platform, username: username });
+    }).filter(Boolean);
+    [
+      { platform: 'chesscom', username: p.chesscomUsername },
+      { platform: 'lichess', username: p.lichessUsername }
+    ].forEach(function(entry) {
+      var username = normalizeStoredUsername(entry.username);
+      var id = username ? getStoredLinkedAccountId(entry.platform, username) : '';
+      if (id && !byId[id]) {
+        byId[id] = true;
+        accounts.push({
+          id: id,
+          platform: entry.platform,
+          username: username,
+          displayName: username,
+          avatar: '',
+          ratingData: null,
+          lastSynced: '',
+          isActive: false
+        });
+      }
+    });
+    if (!p.activeAccountId || !accounts.some(function(account) { return account.id === p.activeAccountId; })) {
+      p.activeAccountId = accounts.length ? accounts[0].id : '';
+    }
+    p.linkedAccounts = accounts.map(function(account) {
+      return Object.assign({}, account, { isActive: account.id === p.activeAccountId });
+    });
+    var active = p.linkedAccounts.find(function(account) { return account.id === p.activeAccountId; }) || p.linkedAccounts[0] || null;
+    var firstChesscom = p.linkedAccounts.find(function(account) { return account.platform === 'chesscom'; });
+    var firstLichess = p.linkedAccounts.find(function(account) { return account.platform === 'lichess'; });
+    p.chesscomUsername = active && active.platform === 'chesscom' ? active.username : (firstChesscom ? firstChesscom.username : '');
+    p.lichessUsername = active && active.platform === 'lichess' ? active.username : (firstLichess ? firstLichess.username : '');
+    return p;
   }
 
   // ===== DATABASE =====
@@ -5053,6 +5193,7 @@ const AppController = (function() {
     createAnalyzeLinkForPGN: createAnalyzeLinkForPGN,
     renderFetchSkeleton: renderFetchSkeleton,
     parseChesscomArchiveGames: parseChesscomArchiveGames,
+    formatChesscomOpeningLabel: formatChesscomOpeningLabel,
     fetchChesscomMonthPgn: fetchChesscomMonthPgn,
     fetchChesscomWithFallback: fetchChesscomWithFallback,
     fetchTextWithFallback: fetchTextWithFallback,
@@ -5067,6 +5208,7 @@ const HomeController = (function() {
   var chesscomStatsRequest = 0;
   var CHESSCOM_FETCH_MONTHS = 3;
   var GAMES_TAB_PAGE_SIZE = 50;
+  var accountSyncRequests = {};
 
   function init() {
     setupImportTabs();
@@ -5112,7 +5254,115 @@ const HomeController = (function() {
   }
 
   function getProfile() {
-    try { return JSON.parse(localStorage.getItem('kv_profile') || '{}'); } catch(e) { return {}; }
+    try {
+      var migrated = migrateProfileAccounts(JSON.parse(localStorage.getItem('kv_profile') || '{}'));
+      localStorage.setItem('kv_profile', JSON.stringify(migrated));
+      return migrated;
+    } catch(e) { return migrateProfileAccounts({}); }
+  }
+
+  function normalizePlatform(platform) {
+    var value = String(platform || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (value === 'chesscom' || value === 'chess') return 'chesscom';
+    if (value === 'lichess' || value === 'lichessorg') return 'lichess';
+    return value || 'chesscom';
+  }
+
+  function getAccountId(platform, username) {
+    return normalizePlatform(platform) + ':' + normalizeUsername(username).toLowerCase();
+  }
+
+  function createLinkedAccount(platform, username, patch) {
+    var normalizedPlatform = normalizePlatform(platform);
+    var normalizedUsername = normalizeUsername(username);
+    return Object.assign({
+      id: getAccountId(normalizedPlatform, normalizedUsername),
+      platform: normalizedPlatform,
+      username: normalizedUsername,
+      displayName: normalizedUsername,
+      avatar: '',
+      ratingData: null,
+      lastSynced: '',
+      isActive: false
+    }, patch || {});
+  }
+
+  function migrateProfileAccounts(source) {
+    var p = Object.assign({}, source || {});
+    var accounts = Array.isArray(p.linkedAccounts) ? p.linkedAccounts.slice() : [];
+    var byId = {};
+    accounts = accounts.map(function(account) {
+      if (!account) return null;
+      var platform = normalizePlatform(account.platform || account.site || '');
+      var username = normalizeUsername(account.username || account.handle || '');
+      if (!platform || !username) return null;
+      var normalized = createLinkedAccount(platform, username, account);
+      normalized.id = getAccountId(platform, username);
+      normalized.platform = platform;
+      normalized.username = username;
+      normalized.isActive = false;
+      if (byId[normalized.id]) return null;
+      byId[normalized.id] = true;
+      return normalized;
+    }).filter(Boolean);
+
+    [
+      { platform: 'chesscom', username: p.chesscomUsername },
+      { platform: 'lichess', username: p.lichessUsername }
+    ].forEach(function(entry) {
+      var username = normalizeUsername(entry.username);
+      var id = username ? getAccountId(entry.platform, username) : '';
+      if (id && !byId[id]) {
+        byId[id] = true;
+        accounts.push(createLinkedAccount(entry.platform, username));
+      }
+    });
+
+    if (!p.activeAccountId || !accounts.some(function(account) { return account.id === p.activeAccountId; })) {
+      p.activeAccountId = accounts.length ? accounts[0].id : '';
+    }
+    accounts = accounts.map(function(account) {
+      return Object.assign({}, account, { isActive: account.id === p.activeAccountId });
+    });
+    p.linkedAccounts = accounts;
+    return syncLegacyAccountFields(p);
+  }
+
+  function syncLegacyAccountFields(profileObj) {
+    var p = Object.assign({}, profileObj || {});
+    var accounts = Array.isArray(p.linkedAccounts) ? p.linkedAccounts : [];
+    var active = accounts.find(function(account) { return account.id === p.activeAccountId; }) || accounts[0] || null;
+    var firstChesscom = accounts.find(function(account) { return account.platform === 'chesscom'; });
+    var firstLichess = accounts.find(function(account) { return account.platform === 'lichess'; });
+    if (active && active.platform === 'chesscom') p.chesscomUsername = active.username;
+    else p.chesscomUsername = firstChesscom ? firstChesscom.username : '';
+    if (active && active.platform === 'lichess') p.lichessUsername = active.username;
+    else p.lichessUsername = firstLichess ? firstLichess.username : '';
+    p.linkedAccounts = accounts.map(function(account) {
+      return Object.assign({}, account, { isActive: account.id === p.activeAccountId });
+    });
+    return p;
+  }
+
+  function saveProfileObject(p) {
+    var next = syncLegacyAccountFields(migrateProfileAccounts(p));
+    localStorage.setItem('kv_profile', JSON.stringify(next));
+    return next;
+  }
+
+  function getLinkedAccounts() {
+    return getProfile().linkedAccounts || [];
+  }
+
+  function getActiveLinkedAccount(platform) {
+    var normalizedPlatform = platform ? normalizePlatform(platform) : '';
+    var p = getProfile();
+    var accounts = p.linkedAccounts || [];
+    var active = accounts.find(function(account) { return account.id === p.activeAccountId; }) || null;
+    if (normalizedPlatform && (!active || active.platform !== normalizedPlatform)) {
+      active = accounts.find(function(account) { return account.platform === normalizedPlatform; }) || null;
+    }
+    return active;
   }
 
   function getTodayKey() {
@@ -5238,23 +5488,24 @@ const HomeController = (function() {
     var noChip = document.getElementById('noAccountsChip');
     var ccName = document.getElementById('chesscomChipName');
     var lcName = document.getElementById('lichessChipName');
+    var accounts = (p && p.linkedAccounts) || [];
+    var active = accounts.find(function(account) { return account.id === p.activeAccountId; }) || accounts[0] || null;
+    var chesscom = active && active.platform === 'chesscom' ? active : accounts.find(function(account) { return account.platform === 'chesscom'; });
+    var lichess = active && active.platform === 'lichess' ? active : accounts.find(function(account) { return account.platform === 'lichess'; });
 
-    var hasAny = false;
-    if (p.chesscomUsername) {
+    if (chesscom) {
       if (ccChip) { ccChip.style.display = 'inline-flex'; }
-      if (ccName) ccName.textContent = p.chesscomUsername;
-      hasAny = true;
+      if (ccName) ccName.textContent = chesscom.username;
     } else {
       if (ccChip) ccChip.style.display = 'none';
     }
-    if (p.lichessUsername) {
+    if (lichess) {
       if (lcChip) { lcChip.style.display = 'inline-flex'; }
-      if (lcName) lcName.textContent = p.lichessUsername;
-      hasAny = true;
+      if (lcName) lcName.textContent = lichess.username;
     } else {
       if (lcChip) lcChip.style.display = 'none';
     }
-    if (noChip) noChip.style.display = hasAny ? 'none' : 'inline-flex';
+    if (noChip) noChip.style.display = accounts.length ? 'none' : 'inline-flex';
   }
 
   function updateHomeStats() {
@@ -5284,12 +5535,20 @@ const HomeController = (function() {
   }
 
   function refreshChesscomRatings() {
-    var p = getProfile();
-    if (!p.chesscomUsername) {
+    var account = getActiveLinkedAccount('chesscom');
+    if (!account || !account.username) {
       setChesscomRatingsState(null, '');
       return;
     }
-    fetchChesscomRatings(p.chesscomUsername);
+    if (account.ratingData) {
+      setChesscomRatingsState({
+        bullet: account.ratingData.bullet || '—',
+        blitz: account.ratingData.blitz || '—',
+        rapid: account.ratingData.rapid || '—'
+      }, account.username);
+      return;
+    }
+    fetchChesscomRatings(account.username);
   }
 
   function fetchChesscomRatings(username) {
@@ -5344,6 +5603,11 @@ const HomeController = (function() {
   function setupSavedProfileActions() {
     bindHomeClick('savedProfilesList', 'homeProfilesBound', function(e) {
       if (!e.target || !e.target.closest) return;
+      var fetchBtn = e.target.closest('[data-profile-fetch]');
+      if (fetchBtn) {
+        fetchSavedProfileGames(fetchBtn.getAttribute('data-profile-fetch'), fetchBtn.getAttribute('data-profile-platform'));
+        return;
+      }
       var deleteBtn = e.target.closest('[data-profile-delete]');
       if (deleteBtn) {
         deleteProfile(deleteBtn.getAttribute('data-profile-delete'));
@@ -5360,10 +5624,28 @@ const HomeController = (function() {
     try { return JSON.parse(localStorage.getItem('kv_saved_profiles') || '[]'); } catch(e) { return []; }
   }
 
+  function getSavedProfileDisplayName(p) {
+    if (p && p.displayName) return p.displayName;
+    var active = p && Array.isArray(p.linkedAccounts)
+      ? (p.linkedAccounts.find(function(account) { return account.id === p.activeAccountId; }) || p.linkedAccounts[0])
+      : null;
+    if (active) return getPlatformLabel(active.platform) + ' @' + active.username;
+    if (p && p.chesscomUsername) return 'Chess.com @' + p.chesscomUsername;
+    if (p && p.lichessUsername) return 'Lichess @' + p.lichessUsername;
+    return 'Unnamed';
+  }
+
+  function isActiveSavedProfile(saved, active) {
+    return String(saved.displayName || '') === String(active.displayName || '') &&
+      String(saved.activeAccountId || '') === String(active.activeAccountId || '') &&
+      String(saved.chesscomUsername || '') === String(active.chesscomUsername || '') &&
+      String(saved.lichessUsername || '') === String(active.lichessUsername || '');
+  }
+
   function saveCurrentAsProfile(p, silent) {
     var profiles = getSavedProfiles();
     var existing = profiles.findIndex(function(x) { return x.displayName === p.displayName; });
-    var entry = Object.assign({}, p, { savedAt: new Date().toISOString(), id: Date.now() });
+    var entry = Object.assign({}, migrateProfileAccounts(p), { savedAt: new Date().toISOString(), id: Date.now() });
     if (existing !== -1) {
       profiles[existing] = entry;
       if (!silent) AppController.showToast('Profile updated', 'success');
@@ -5391,25 +5673,31 @@ const HomeController = (function() {
     }
 
     container.innerHTML = profiles.map(function(p) {
-      var initials = p.displayName ? p.displayName.substring(0, 2).toUpperCase() : '??';
-      var parts = (p.displayName || '').trim().split(' ');
+      var displayName = getSavedProfileDisplayName(p);
+      var initials = displayName ? displayName.replace(/^.*@/, '').substring(0, 2).toUpperCase() : '??';
+      var parts = displayName.trim().split(' ');
       if (parts.length >= 2) initials = (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
-      var isActive = p.displayName === active.displayName;
-      var accounts = [
-        p.chesscomUsername ? '&#9823; ' + escapeHtml(p.chesscomUsername) : '',
-        p.lichessUsername ? '&#9820; ' + escapeHtml(p.lichessUsername) : '',
-      ].filter(Boolean).join(' \u00b7 ') || 'No linked accounts';
+      var isActive = isActiveSavedProfile(p, active);
+      var linked = migrateProfileAccounts(p).linkedAccounts || [];
+      var accounts = linked.map(function(account) {
+        return (account.platform === 'chesscom' ? '&#9823; ' : '&#9820; ') + escapeHtml(account.username) + (account.id === p.activeAccountId ? ' active' : '');
+      }).join(' \u00b7 ') || 'No linked accounts';
       var meta = 'Stockfish \u00b7 Depth ' + escapeHtml(String(p.prefDepth || 20));
       var safeId = escapeAttr(p.id);
+      var fetchActions = [
+        linked.some(function(account) { return account.platform === 'chesscom'; }) ? '<button type="button" class="sp-fetch-btn" data-profile-fetch="' + safeId + '" data-profile-platform="chesscom">Fetch Chess.com</button>' : '',
+        linked.some(function(account) { return account.platform === 'lichess'; }) ? '<button type="button" class="sp-fetch-btn" data-profile-fetch="' + safeId + '" data-profile-platform="lichess">Fetch Lichess</button>' : ''
+      ].filter(Boolean).join('');
 
       return '<div class="saved-profile-item' + (isActive ? ' active-profile' : '') + '" data-profile-id="' + safeId + '">' +
         '<div class="sp-avatar">' + escapeHtml(initials) + '</div>' +
         '<div class="sp-info">' +
-          '<div class="sp-name">' + escapeHtml(p.displayName || 'Unnamed') + '</div>' +
+          '<div class="sp-name">' + escapeHtml(displayName) + '</div>' +
           '<div class="sp-meta sp-accounts">Linked: ' + accounts + '</div>' +
           '<div class="sp-meta">' + meta + '</div>' +
         '</div>' +
         '<div class="sp-actions">' +
+          fetchActions +
           '<button type="button" class="sp-load-btn" data-profile-load="' + safeId + '">Load</button>' +
           '<button type="button" class="sp-del-btn" data-profile-delete="' + safeId + '">\u2715</button>' +
         '</div>' +
@@ -5417,11 +5705,33 @@ const HomeController = (function() {
     }).join('');
   }
 
+  function fetchSavedProfileGames(id, platform) {
+    var profiles = getSavedProfiles();
+    var p = profiles.find(function(x) { return String(x.id) === String(id); });
+    if (!p) return;
+    var normalizedPlatform = platform === 'lichess' ? 'lichess' : 'chesscom';
+    p = migrateProfileAccounts(p);
+    var account = (p.linkedAccounts || []).find(function(item) {
+      return item.platform === normalizedPlatform && item.id === p.activeAccountId;
+    }) || (p.linkedAccounts || []).find(function(item) { return item.platform === normalizedPlatform; });
+    if (!account || !account.username) {
+      AppController.showToast('No ' + getPlatformLabel(normalizedPlatform) + ' account saved on this profile', 'error');
+      return;
+    }
+    p.activeAccountId = account.id;
+    localStorage.setItem('kv_profile', JSON.stringify(syncLegacyAccountFields(p)));
+    loadProfileToHome();
+    restoreLinkedAccounts();
+    renderSavedProfilesList();
+    setAccountPanel(normalizedPlatform);
+    fetchPlatformGames(normalizedPlatform, account.username);
+  }
+
   function loadProfileFn(id) {
     var profiles = getSavedProfiles();
     var p = profiles.find(function(x) { return String(x.id) === String(id); });
     if (!p) return;
-    localStorage.setItem('kv_profile', JSON.stringify(p));
+    localStorage.setItem('kv_profile', JSON.stringify(migrateProfileAccounts(p)));
     loadProfileToHome();
     restoreLinkedAccounts();
     renderSavedProfilesList();
@@ -5499,6 +5809,31 @@ const HomeController = (function() {
   }
 
   function setupAccountLinks() {
+    bindHomeClick('linkedAccountsList', 'homeLinkedAccountsBound', function(e) {
+      if (!e.target || !e.target.closest) return;
+      var switchBtn = e.target.closest('[data-account-switch]');
+      if (switchBtn) {
+        switchLinkedAccount(switchBtn.getAttribute('data-account-switch'));
+        return;
+      }
+      var syncBtn = e.target.closest('[data-account-sync]');
+      if (syncBtn) {
+        syncLinkedAccount(syncBtn.getAttribute('data-account-sync'), true);
+        return;
+      }
+      var removeBtn = e.target.closest('[data-account-remove]');
+      if (removeBtn) {
+        removeLinkedAccount(removeBtn.getAttribute('data-account-remove'));
+      }
+    });
+
+    bindHomeClick('linkAnotherAccountBtn', 'homeLinkAnotherBound', function() {
+      var platform = document.querySelector('.acct-toggle-btn.active[data-account-panel]');
+      var activePlatform = platform ? platform.getAttribute('data-account-panel') : 'chesscom';
+      var input = document.getElementById(getPlatformInputId(activePlatform));
+      if (input && input.focus) input.focus();
+    });
+
     // Chess.com
     bindHomeClick('linkChesscom', 'homeLinkBound', function() {
       var input = document.getElementById('chesscomUsername');
@@ -5507,10 +5842,13 @@ const HomeController = (function() {
       if (input) input.value = val;
       linkAccount('chesscom', val);
     });
-    bindHomeClick('unlinkChesscom', 'homeUnlinkBound', function() { unlinkAccount('chesscom'); });
+    bindHomeClick('unlinkChesscom', 'homeUnlinkBound', function() {
+      var account = getActiveLinkedAccount('chesscom');
+      if (account) removeLinkedAccount(account.id);
+    });
     bindHomeClick('fetchChesscomGames', 'homeFetchBound', function() {
-      var p = getProfile();
-      if (p.chesscomUsername) fetchPlatformGames('chesscom', p.chesscomUsername);
+      var account = getActiveLinkedAccount('chesscom');
+      if (account) fetchPlatformGames('chesscom', account.username);
       else AppController.showToast('Link your Chess.com username first', 'error');
     });
 
@@ -5522,44 +5860,241 @@ const HomeController = (function() {
       if (input) input.value = val;
       linkAccount('lichess', val);
     });
-    bindHomeClick('unlinkLichess', 'homeUnlinkBound', function() { unlinkAccount('lichess'); });
+    bindHomeClick('unlinkLichess', 'homeUnlinkBound', function() {
+      var account = getActiveLinkedAccount('lichess');
+      if (account) removeLinkedAccount(account.id);
+    });
     bindHomeClick('fetchLichessGames', 'homeFetchBound', function() {
-      var p = getProfile();
-      if (p.lichessUsername) fetchPlatformGames('lichess', p.lichessUsername);
+      var account = getActiveLinkedAccount('lichess');
+      if (account) fetchPlatformGames('lichess', account.username);
       else AppController.showToast('Link your Lichess username first', 'error');
     });
   }
 
   function linkAccount(platform, username) {
     username = normalizeUsername(username);
+    platform = normalizePlatform(platform);
     if (!username) {
       AppController.showToast('Enter a ' + (platform === 'chesscom' ? 'Chess.com' : 'Lichess') + ' username', 'error');
       return;
     }
     var p = getProfile();
-    if (platform === 'chesscom') p.chesscomUsername = username;
-    else p.lichessUsername = username;
-    localStorage.setItem('kv_profile', JSON.stringify(p));
-    saveCurrentAsProfile(p, true);
-    loadProfileToHome();
-    updateAccountUI(platform, username);
-    if (platform === 'chesscom') fetchChesscomRatings(username);
-    AppController.showToast((platform === 'chesscom' ? 'Chess.com' : 'Lichess') + ' account linked!', 'success');
+    var id = getAccountId(platform, username);
+    if ((p.linkedAccounts || []).some(function(account) { return account.id === id; })) {
+      AppController.showToast(getPlatformLabel(platform) + ' @' + username + ' is already linked', 'error');
+      return;
+    }
+    renderAccountPanelState(platform, 'loading', 'Linking ' + getPlatformLabel(platform), 'Checking @' + username + ' and fetching profile data.', true);
+    setLinkButtonLoading(platform, true);
+    fetchBasicAccountProfile(platform, username)
+      .then(function(meta) {
+        var current = getProfile();
+        var account = createLinkedAccount(platform, username, Object.assign({}, meta || {}, {
+          lastSynced: new Date().toISOString(),
+          isActive: true
+        }));
+        current.linkedAccounts = (current.linkedAccounts || []).concat(account);
+        current.activeAccountId = account.id;
+        current = saveProfileObject(current);
+        saveCurrentAsProfile(current, true);
+        clearPlatformInput(platform);
+        loadProfileToHome();
+        restoreLinkedAccounts();
+        renderSavedProfilesList();
+        if (platform === 'chesscom') {
+          setChesscomRatingsState(account.ratingData, username);
+        }
+        AppController.showToast(getPlatformLabel(platform) + ' account linked', 'success');
+      })
+      .catch(function(err) {
+        renderAccountPanelState(platform, 'error', 'Could not link account', describeAccountLinkError(platform, username, err), true);
+        AppController.showToast(describeAccountLinkError(platform, username, err), 'error');
+      })
+      .finally(function() {
+        setLinkButtonLoading(platform, false);
+      });
   }
 
-  function unlinkAccount(platform) {
-    var p = getProfile();
+  function setLinkButtonLoading(platform, loading) {
+    var btn = document.getElementById(platform === 'chesscom' ? 'linkChesscom' : 'linkLichess');
+    if (!btn) return;
+    btn.disabled = !!loading;
+    btn.textContent = loading ? 'Linking...' : 'Link';
+  }
+
+  function clearPlatformInput(platform) {
     var input = document.getElementById(getPlatformInputId(platform));
-    if (platform === 'chesscom') p.chesscomUsername = '';
-    else p.lichessUsername = '';
     if (input) input.value = '';
-    localStorage.setItem('kv_profile', JSON.stringify(p));
+  }
+
+  function describeAccountLinkError(platform, username, err) {
+    if (err && err.status === 404) return getPlatformLabel(platform) + ' user @' + username + ' was not found.';
+    if (err && err.timeout) return getPlatformLabel(platform) + ' profile lookup timed out. Try again.';
+    return 'Could not verify ' + getPlatformLabel(platform) + ' @' + username + '.';
+  }
+
+  function fetchBasicAccountProfile(platform, username) {
+    platform = normalizePlatform(platform);
+    username = normalizeUsername(username);
+    if (platform === 'chesscom') {
+      var encodedChesscom = encodeURIComponent(username);
+      return AppController.fetchChesscomWithFallback(
+        '/api/chesscom/player/' + encodedChesscom,
+        'https://api.chess.com/pub/player/' + encodedChesscom,
+        'json'
+      ).then(function(profilePayload) {
+        return AppController.fetchChesscomWithFallback(
+          '/api/chesscom/player/' + encodedChesscom + '/stats',
+          'https://api.chess.com/pub/player/' + encodedChesscom + '/stats',
+          'json'
+        ).catch(function() { return null; }).then(function(stats) {
+          return {
+            displayName: profilePayload && (profilePayload.name || profilePayload.username) || username,
+            avatar: profilePayload && profilePayload.avatar || '',
+            ratingData: stats ? {
+              bullet: extractChesscomRating(stats, 'chess_bullet'),
+              blitz: extractChesscomRating(stats, 'chess_blitz'),
+              rapid: extractChesscomRating(stats, 'chess_rapid')
+            } : null
+          };
+        });
+      });
+    }
+    var encodedLichess = encodeURIComponent(username);
+    return AppController.fetchTextWithFallback(
+      '/api/lichess/user/' + encodedLichess,
+      'https://lichess.org/api/user/' + encodedLichess,
+      { Accept: 'application/json' }
+    ).then(function(text) {
+      var payload = {};
+      try { payload = JSON.parse(text); } catch(e) { payload = {}; }
+      var perfs = payload.perfs || {};
+      return {
+        displayName: payload.username || username,
+        avatar: '',
+        ratingData: {
+          bullet: perfs.bullet && perfs.bullet.rating ? String(perfs.bullet.rating) : '—',
+          blitz: perfs.blitz && perfs.blitz.rating ? String(perfs.blitz.rating) : '—',
+          rapid: perfs.rapid && perfs.rapid.rating ? String(perfs.rapid.rating) : '—'
+        }
+      };
+    });
+  }
+
+  function switchLinkedAccount(accountId) {
+    var p = getProfile();
+    var account = (p.linkedAccounts || []).find(function(item) { return item.id === accountId; });
+    if (!account) return;
+    p.activeAccountId = account.id;
+    p = saveProfileObject(p);
+    loadProfileToHome();
+    restoreLinkedAccounts();
+    renderSavedProfilesList();
+    setAccountPanel(account.platform);
+    if (account.platform === 'chesscom') refreshChesscomRatings();
+    AppController.showToast('Active account: ' + getPlatformLabel(account.platform) + ' @' + account.username, 'success');
+  }
+
+  function removeLinkedAccount(accountId) {
+    var p = getProfile();
+    var removed = (p.linkedAccounts || []).find(function(account) { return account.id === accountId; });
+    if (!removed) return;
+    p.linkedAccounts = (p.linkedAccounts || []).filter(function(account) { return account.id !== accountId; });
+    if (p.activeAccountId === accountId) {
+      p.activeAccountId = p.linkedAccounts.length ? p.linkedAccounts[0].id : '';
+    }
+    p = saveProfileObject(p);
     saveCurrentAsProfile(p, true);
     loadProfileToHome();
-    updateAccountUI(platform, null);
-    if (platform === 'chesscom') setChesscomRatingsState(null, '');
-    renderAccountPanelState(platform, 'empty', 'No account linked', getAccountPanelCopy(platform, false), true);
-    AppController.showToast('Account unlinked', '');
+    restoreLinkedAccounts();
+    renderSavedProfilesList();
+    if (removed.platform === 'chesscom') refreshChesscomRatings();
+    AppController.showToast('Removed ' + getPlatformLabel(removed.platform) + ' @' + removed.username, '');
+  }
+
+  function syncLinkedAccount(accountId, fetchGamesAfterSync) {
+    var p = getProfile();
+    var account = (p.linkedAccounts || []).find(function(item) { return item.id === accountId; });
+    if (!account) return;
+    accountSyncRequests[account.id] = true;
+    renderLinkedAccountsList();
+    renderAccountPanelState(account.platform, 'loading', 'Syncing ' + getPlatformLabel(account.platform), 'Refreshing profile and rating data for @' + account.username + '.', true);
+    fetchBasicAccountProfile(account.platform, account.username)
+      .then(function(meta) {
+        var current = getProfile();
+        current.linkedAccounts = (current.linkedAccounts || []).map(function(item) {
+          if (item.id !== account.id) return item;
+          return Object.assign({}, item, meta || {}, { lastSynced: new Date().toISOString() });
+        });
+        current = saveProfileObject(current);
+        saveCurrentAsProfile(current, true);
+        loadProfileToHome();
+        restoreLinkedAccounts();
+        renderSavedProfilesList();
+        if (fetchGamesAfterSync) fetchPlatformGames(account.platform, account.username);
+      })
+      .catch(function(err) {
+        renderAccountPanelState(account.platform, 'error', 'Could not sync account', describeAccountLinkError(account.platform, account.username, err), true);
+      })
+      .finally(function() {
+        delete accountSyncRequests[account.id];
+        renderLinkedAccountsList();
+      });
+  }
+
+  function formatAccountRatingSummary(account) {
+    var ratings = account && account.ratingData ? account.ratingData : null;
+    if (!ratings) return 'Ratings unavailable';
+    var parts = [];
+    if (ratings.rapid && ratings.rapid !== '—') parts.push('Rapid ' + ratings.rapid);
+    if (ratings.blitz && ratings.blitz !== '—') parts.push('Blitz ' + ratings.blitz);
+    if (ratings.bullet && ratings.bullet !== '—') parts.push('Bullet ' + ratings.bullet);
+    return parts.length ? parts.join(' · ') : 'Ratings unavailable';
+  }
+
+  function formatAccountSynced(account) {
+    if (!account || !account.lastSynced) return 'Not synced yet';
+    var date = new Date(account.lastSynced);
+    if (!date || isNaN(date.getTime())) return 'Not synced yet';
+    return 'Synced ' + date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function renderLinkedAccountsList() {
+    var container = document.getElementById('linkedAccountsList');
+    if (!container) return;
+    var p = getProfile();
+    var accounts = p.linkedAccounts || [];
+    if (!accounts.length) {
+      container.innerHTML =
+        '<div class="account-panel-state is-empty">' +
+          '<div class="account-panel-state-title">No accounts linked</div>' +
+          '<div class="account-panel-state-copy">Link a Chess.com or Lichess username below.</div>' +
+        '</div>';
+      return;
+    }
+    container.innerHTML = accounts.map(function(account) {
+      var active = account.id === p.activeAccountId;
+      var syncing = !!accountSyncRequests[account.id];
+      return '<div class="linked-account-row' + (active ? ' is-active' : '') + '">' +
+        '<div class="linked-account-avatar">' +
+          (account.avatar ? '<img src="' + escapeAttr(account.avatar) + '" alt="" />' : '<span>' + (account.platform === 'chesscom' ? '&#9823;' : '&#9820;') + '</span>') +
+        '</div>' +
+        '<div class="linked-account-main">' +
+          '<div class="linked-account-top">' +
+            '<span class="linked-account-platform">' + escapeHtml(getPlatformLabel(account.platform)) + '</span>' +
+            (active ? '<span class="linked-account-active">Active</span>' : '') +
+          '</div>' +
+          '<div class="linked-account-name">@' + escapeHtml(account.username) + '</div>' +
+          '<div class="linked-account-meta">' + escapeHtml(formatAccountRatingSummary(account)) + '</div>' +
+          '<div class="linked-account-meta">' + escapeHtml(formatAccountSynced(account)) + '</div>' +
+        '</div>' +
+        '<div class="linked-account-actions">' +
+          '<button type="button" class="btn-sm-green" data-account-switch="' + escapeAttr(account.id) + '"' + (active ? ' disabled' : '') + '>Switch</button>' +
+          '<button type="button" class="btn-sm-green" data-account-sync="' + escapeAttr(account.id) + '"' + (syncing ? ' disabled' : '') + '>' + (syncing ? 'Syncing' : 'Sync') + '</button>' +
+          '<button type="button" class="btn-sm-red" data-account-remove="' + escapeAttr(account.id) + '">Remove</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
   }
 
   function updateAccountUI(platform, username) {
@@ -5568,24 +6103,30 @@ const HomeController = (function() {
     var linkedName = document.getElementById(platform + 'LinkedName');
     var inputEl = document.getElementById(getPlatformInputId(platform));
     var inputRow = inputEl ? inputEl.closest('.account-input-row') : null;
+    var linkButton = document.getElementById(platform === 'chesscom' ? 'linkChesscom' : 'linkLichess');
     var label = getPlatformLabel(platform);
 
+    var active = getActiveLinkedAccount(platform);
+    var count = getLinkedAccounts().filter(function(account) { return account.platform === platform; }).length;
+
     if (username) {
-      if (statusEl) { statusEl.textContent = 'Linked'; statusEl.classList.add('linked'); }
-      if (linkedInfo) linkedInfo.style.display = 'block';
+      if (statusEl) { statusEl.textContent = count + ' linked'; statusEl.classList.add('linked'); }
+      if (linkedInfo) linkedInfo.style.display = 'none';
       if (linkedName) linkedName.textContent = '@' + username;
       if (inputEl) {
         inputEl.value = '';
-        inputEl.placeholder = 'Linked: ' + username;
+        inputEl.placeholder = active ? 'Active: ' + active.username : label + ' username...';
       }
-      if (inputRow) inputRow.style.display = 'none';
-      renderAccountPanelState(platform, 'ready', label + ' linked', getAccountPanelCopy(platform, true), false);
+      if (inputRow) inputRow.style.display = 'flex';
+      if (linkButton) linkButton.textContent = 'Link';
+      renderAccountPanelState(platform, 'ready', label + ' ready', active ? ('Active account @' + active.username + '. Use Sync on its account row to fetch games.') : 'Choose an account from the linked accounts list.', true);
     } else {
       if (statusEl) { statusEl.textContent = 'Not linked'; statusEl.classList.remove('linked'); }
       if (linkedInfo) linkedInfo.style.display = 'none';
       if (linkedName) linkedName.textContent = '';
       if (inputEl) inputEl.placeholder = label + ' username...';
       if (inputRow) inputRow.style.display = 'flex';
+      if (linkButton) linkButton.textContent = 'Link';
       renderAccountPanelState(platform, 'empty', 'No account linked', getAccountPanelCopy(platform, false), true);
     }
   }
@@ -5594,15 +6135,18 @@ const HomeController = (function() {
     var p = getProfile();
     var ccInput = document.getElementById('chesscomUsername');
     var lcInput = document.getElementById('lichessUsername');
-    if (p.chesscomUsername) {
-      if (ccInput) ccInput.value = p.chesscomUsername;
-      updateAccountUI('chesscom', p.chesscomUsername);
+    var chesscom = getActiveLinkedAccount('chesscom');
+    var lichess = getActiveLinkedAccount('lichess');
+    renderLinkedAccountsList();
+    if (chesscom) {
+      if (ccInput) ccInput.value = '';
+      updateAccountUI('chesscom', chesscom.username);
     } else {
       updateAccountUI('chesscom', null);
     }
-    if (p.lichessUsername) {
-      if (lcInput) lcInput.value = p.lichessUsername;
-      updateAccountUI('lichess', p.lichessUsername);
+    if (lichess) {
+      if (lcInput) lcInput.value = '';
+      updateAccountUI('lichess', lichess.username);
     } else {
       updateAccountUI('lichess', null);
     }
@@ -5651,8 +6195,10 @@ const HomeController = (function() {
   }
 
   function resolveChesscomUsername(preferredUsername) {
+    var activeChesscom = getActiveLinkedAccount('chesscom');
     var candidates = [
       preferredUsername,
+      activeChesscom && activeChesscom.username,
       (document.getElementById('gamesTabUser') || {}).textContent,
       window._ccFetchedUsername,
       (document.getElementById('chesscomLinkedName') || {}).textContent,
@@ -5832,9 +6378,7 @@ const HomeController = (function() {
   }
 
   function getChesscomGameOpening(game) {
-    if (!game) return '';
-    var headers = game.headers || {};
-    return String(game.opening || headers.Opening || game.eco || '').trim();
+    return AppController.formatChesscomOpeningLabel(game);
   }
 
   function getChesscomGameTimeLabel(timeClass) {
@@ -6119,7 +6663,7 @@ const HomeController = (function() {
       var black = getChesscomGameBlackName(g);
       var result = getChesscomGameResult(g);
       var resultClass = result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d';
-      var opening = g.opening || g.eco || '';
+      var opening = AppController.formatChesscomOpeningLabel(g);
       var date = getChesscomGameDisplayDate(g) || g.date || '';
       return '<div class="fetch-game-item" data-cc-idx="' + idx + '" onclick="HomeController.loadChesscomGame(' + idx + ')">' +
         '<strong>' + escapeHtml(white) + '</strong> vs <strong>' + escapeHtml(black) + '</strong>' +
@@ -6266,7 +6810,8 @@ const HomeController = (function() {
     window._gamesTabPage = Math.max(1, parseInt(page, 10) || 1);
     var container = document.getElementById('gamesTabList');
     var games = window._ccFetchedGames || [];
-    var username = window._ccFetchedUsername || (getProfile().chesscomUsername || '');
+    var activeChesscom = getActiveLinkedAccount('chesscom');
+    var username = window._ccFetchedUsername || (activeChesscom && activeChesscom.username) || (getProfile().chesscomUsername || '');
     if (container && games.length && username) {
       renderGamesTab(container, games, username);
       if (container.scrollIntoView) {
@@ -6285,7 +6830,8 @@ const HomeController = (function() {
     updateGamesTabFilterUI(window._gamesTabFilter);
     var container = document.getElementById('gamesTabList');
     var games = window._ccFetchedGames || [];
-    var username = window._ccFetchedUsername || (getProfile().chesscomUsername || '');
+    var activeChesscom = getActiveLinkedAccount('chesscom');
+    var username = window._ccFetchedUsername || (activeChesscom && activeChesscom.username) || (getProfile().chesscomUsername || '');
     if (container && games.length && username) {
       renderGamesTab(container, games, username);
     }
@@ -6353,7 +6899,9 @@ const HomeController = (function() {
     if (pgn) {
       AppController.loadPGNAndReviewExternal(decodeURIComponent(pgn), {
         sourcePlatform: platform || '',
-        sourceUsername: platform === 'lichess' ? (getProfile().lichessUsername || window._lichessFetchedUsername || '') : ''
+        sourceUsername: platform === 'lichess'
+          ? ((getActiveLinkedAccount('lichess') || {}).username || getProfile().lichessUsername || window._lichessFetchedUsername || '')
+          : ''
       });
     } else if (id && platform === 'lichess') {
       var proxyUrl = '/api/lichess/game/' + encodeURIComponent(id) + '/export?clocks=true&evals=false';
@@ -6363,7 +6911,7 @@ const HomeController = (function() {
           if (p) {
             AppController.loadPGNAndReviewExternal(p, {
               sourcePlatform: 'lichess',
-              sourceUsername: window._lichessFetchedUsername || getProfile().lichessUsername || ''
+              sourceUsername: window._lichessFetchedUsername || ((getActiveLinkedAccount('lichess') || {}).username) || getProfile().lichessUsername || ''
             });
           }
         });
@@ -6376,7 +6924,7 @@ const HomeController = (function() {
     var game = games[idx];
     var pgn = game.pgn || '';
     if (pgn) {
-      var reviewUsername = window._ccFetchedUsername || (getProfile().chesscomUsername || '');
+      var reviewUsername = window._ccFetchedUsername || ((getActiveLinkedAccount('chesscom') || {}).username) || (getProfile().chesscomUsername || '');
       AppController.loadPGNAndReviewExternal(pgn, {
         sourceGame: game,
         sourcePlatform: 'chesscom',

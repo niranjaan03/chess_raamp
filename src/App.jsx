@@ -561,6 +561,64 @@ function GameReviewLayout() {
   );
 }
 
+function OpeningModePage() {
+  return (
+    <div id="openingModeView" className="opening-mode-view" style={{ display: 'none' }}>
+      <div className="opening-mode-shell">
+        <button type="button" className="btn-back opening-mode-back" id="openingModeBackBtn">
+          &#8592; All Openings
+        </button>
+
+        <h1 className="opening-mode-title" id="openingModeTitle">Opening</h1>
+
+        <div className="opening-mode-layout">
+          <section className="opening-mode-board-panel" aria-label="Opening board preview">
+            <div className="opening-mode-board-frame">
+              <canvas id="openingModeChessBoard" width="640" height="640"></canvas>
+              <div id="openingModeBoardOverlay" className="board-overlay"></div>
+            </div>
+          </section>
+
+          <aside className="opening-mode-card" aria-label="Opening learning modes">
+            <div className="opening-mode-card-header">
+              <span className="opening-mode-header-icon" aria-hidden="true">&#128218;</span>
+              <span className="opening-mode-header-mode" id="openingModeHeaderMode">Learn</span>
+              <span className="opening-mode-header-name" id="openingModeHeaderName">Opening</span>
+              <span className="opening-mode-line-no" id="openingModeLineNo">#1</span>
+            </div>
+
+            <div className="opening-mode-coach-row">
+              <div className="opening-mode-coach-icon" aria-hidden="true">&#9812;</div>
+              <div className="opening-mode-speech" id="openingModeCoachText">
+                Select Learn or Practice to start this opening line.
+              </div>
+            </div>
+
+            <div className="opening-mode-options" id="openingModeOptions"></div>
+
+            <div className="opening-mode-empty" id="openingModeEmpty" style={{ display: 'none' }}>
+              Opening data is unavailable. Return to the openings list and choose another opening.
+            </div>
+
+            <div className="opening-mode-footer">
+              <button type="button" className="opening-mode-icon-btn" id="openingModeSettingsBtn" title="Mode settings" aria-label="Mode settings">&#9881;</button>
+              <button type="button" className="opening-mode-action-btn" id="openingModeHintBtn">
+                <span aria-hidden="true">&#128161;</span>
+                Hint
+              </button>
+              <button type="button" className="opening-mode-action-btn" id="openingModeCycleBtn">
+                Mode
+              </button>
+              <button type="button" className="opening-mode-arrow-btn" id="openingModePrevLineBtn" aria-label="Previous line">&#8249;</button>
+              <button type="button" className="opening-mode-arrow-btn" id="openingModeNextLineBtn" aria-label="Next line">&#8250;</button>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -962,6 +1020,21 @@ function App() {
                         data-account-panel="lichess"
                         aria-pressed="false"
                       >Lichess</button>
+                    </div>
+                  </div>
+
+                  <div className="linked-accounts-section">
+                    <div className="linked-accounts-head">
+                      <span>Connected</span>
+                      <button type="button" className="link-another-account-btn" id="linkAnotherAccountBtn">
+                        Link another account
+                      </button>
+                    </div>
+                    <div className="linked-accounts-list" id="linkedAccountsList">
+                      <div className="account-panel-state is-empty">
+                        <div className="account-panel-state-title">No accounts linked</div>
+                        <div className="account-panel-state-copy">Link a Chess.com or Lichess username below.</div>
+                      </div>
                     </div>
                   </div>
 
@@ -1765,6 +1838,8 @@ function App() {
               {/* Variations rendered by JS */}
             </div>
           </div>
+
+          <OpeningModePage />
 
           {/* --- Practice View --- */}
           <div id="openingPracticeView" className="opn-practice-root" style={{ display: 'none' }}>

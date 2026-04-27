@@ -375,7 +375,7 @@ const Chess = (function() {
     in_check:function(){return in_check();},
     in_checkmate:function(){return in_check()&&generate_moves().length===0;},
     in_stalemate:function(){return !in_check()&&generate_moves().length===0;},
-    in_draw:function(){return half_moves>=100||(in_stalemate()||insufficient_material()||in_threefold_repetition());},
+    in_draw:function(){return half_moves>=100||((!in_check()&&generate_moves().length===0)||insufficient_material()||in_threefold_repetition());},
     insufficient_material:function(){return insufficient_material();},
     in_threefold_repetition:function(){return in_threefold_repetition();},
     game_over:function(){return half_moves>=100||this.in_checkmate()||this.in_stalemate()||this.insufficient_material();},
