@@ -389,13 +389,7 @@ const PuzzleController = (function() {
     var nextBtn = document.getElementById('puzzleNextBtn');
     if (!nextBtn) return;
 
-    if (isLoading) {
-      nextBtn.disabled = true;
-      nextBtn.textContent = 'Loading...';
-      return;
-    }
-
-    nextBtn.disabled = false;
+    nextBtn.disabled = !!isLoading;
     if (currentMode === MODE_SURVIVAL) nextBtn.textContent = survivalFailed ? 'Try Again' : 'Restart Survival';
     else if (currentMode === MODE_DAILY) nextBtn.textContent = 'Load Daily Puzzle';
     else if (currentMode === MODE_CUSTOM) nextBtn.textContent = 'Next Custom Puzzle';
@@ -1210,6 +1204,7 @@ const PuzzleController = (function() {
     if (!el) return;
     el.textContent = message;
     el.className = 'puzzle-status is-' + (tone || 'neutral');
+    el.classList.toggle('is-loading', !!isLoading);
   }
 
   function animatePuzzleEntry() {

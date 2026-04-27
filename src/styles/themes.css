@@ -1773,15 +1773,34 @@
   filter: blur(1px);
 }
 
-.puzzle-board-shell.is-loading::after {
+.puzzle-board-shell.is-loading::before {
   content: "";
   position: absolute;
   inset: 14px;
   border-radius: 14px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.11) 50%, rgba(255,255,255,0.03) 100%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.25s linear infinite;
+  background: rgba(0, 0, 0, 0.36);
   pointer-events: none;
+  z-index: 4;
+}
+
+.puzzle-board-shell.is-loading::after {
+  content: "\265E";
+  position: absolute;
+  inset: 14px;
+  display: grid;
+  place-items: center;
+  color: #facc15;
+  font-size: clamp(44px, 10vw, 70px);
+  line-height: 1;
+  text-shadow: 0 0 24px rgba(250, 204, 21, 0.36), 0 16px 36px rgba(0, 0, 0, 0.42);
+  animation: puzzle-loader-spin 1s linear infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+
+@keyframes puzzle-loader-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .puzzle-status {
@@ -1793,22 +1812,11 @@
 }
 
 .puzzle-status.is-loading {
-  color: transparent;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
+  display: none;
 }
 
 .puzzle-status.is-loading::after {
-  content: "";
-  display: block;
-  width: 68%;
-  max-width: 260px;
-  height: 12px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.16) 50%, rgba(255,255,255,0.05) 100%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.3s linear infinite;
+  content: none;
 }
 
 .puzzle-status.is-success {
@@ -2726,8 +2734,6 @@
 :root[data-color-mode="light"] .skeleton-line,
 :root[data-color-mode="light"] .skeleton-media,
 :root[data-color-mode="light"] .skeleton-chip,
-:root[data-color-mode="light"] .puzzle-board-shell.is-loading::after,
-:root[data-color-mode="light"] .puzzle-status.is-loading::after,
 :root[data-color-mode="light"] .puzzle-result-card.is-loading .puzzle-summary-title,
 :root[data-color-mode="light"] .puzzle-result-card.is-loading .puzzle-summary-sub,
 :root[data-color-mode="light"] .puzzle-result-card.is-loading .puzzle-metric-value,
@@ -2832,4 +2838,3 @@
     grid-template-columns: 1fr;
   }
 }
-
