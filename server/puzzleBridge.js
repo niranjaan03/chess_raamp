@@ -73,6 +73,7 @@ class PuzzleWorker {
         theme: options.theme || '',
         opening: options.opening || '',
         exclude: options.exclude || '',
+        minRating: options.minRating || 0,
         minPopularity: options.minPopularity
       };
       this.child.stdin.write(JSON.stringify(payload) + '\n');
@@ -121,6 +122,7 @@ function createMiddleware() {
       const theme = (requestUrl.searchParams.get('theme') || '').trim();
       const opening = (requestUrl.searchParams.get('opening') || '').trim();
       const exclude = (requestUrl.searchParams.get('exclude') || '').trim();
+      const minRating = Math.max(0, Math.min(3200, parseInt(requestUrl.searchParams.get('minRating'), 10) || 0));
       const minPopularity = Math.max(0, Math.min(100, parseInt(requestUrl.searchParams.get('minPopularity'), 10) || 50));
       const result = await runPuzzleQuery({
         rating,
@@ -128,6 +130,7 @@ function createMiddleware() {
         theme,
         opening,
         exclude,
+        minRating,
         minPopularity
       });
       sendJson(res, 200, result);

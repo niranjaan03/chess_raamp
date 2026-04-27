@@ -7,16 +7,21 @@ const PUZZLE_WINS_KEY = 'cr_puzzle_wins';
 const DAILY_PUZZLES_KEY = 'cr_daily_puzzles';
 const DAILY_SELECTED_DATE_KEY = 'cr_daily_puzzle_date';
 const DEFAULT_PUZZLE_RATING = 1200;
+const DAILY_MIN_PUZZLE_RATING = 1301;
 const MODE_CLASSIC = 'classic';
 const MODE_DAILY = 'daily';
 const MODE_CUSTOM = 'custom';
 const MODE_SURVIVAL = 'survival';
 const PUZZLE_QUALITY_META = {
   brilliant: { label: 'Brilliant', icon: '!!', className: 'qi qi-brilliant' },
+  great: { label: 'Great', icon: '!', className: 'qi qi-great' },
   best: { label: 'Best', icon: '\u2605', className: 'qi qi-best' },
   excellent: { label: 'Excellent', icon: '\u{1F44D}', className: 'qi qi-excellent' },
+  good: { label: 'Good', icon: '\u2714', className: 'qi qi-good' },
+  book: { label: 'Book', icon: '\u{1F4D6}', className: 'qi qi-book' },
   inaccuracy: { label: 'Inaccuracy', icon: '?!', className: 'qi qi-inaccuracy' },
   mistake: { label: 'Mistake', icon: '?', className: 'qi qi-mistake' },
+  miss: { label: 'Miss', icon: '\u2716', className: 'qi qi-miss' },
   blunder: { label: 'Blunder', icon: '??', className: 'qi qi-blunder' }
 };
 
@@ -226,7 +231,7 @@ const PuzzleController = (function() {
     currentProgressPly = 0;
     clearPrefetch();
     ChessBoard.clearArrows();
-    ChessBoard.clearMarkers();
+    clearPuzzleMoveFeedback();
     clearHint();
     resetDelta();
     resetSurvivalState();
@@ -579,7 +584,7 @@ const PuzzleController = (function() {
     renderTimer(0);
     clearHint();
     ChessBoard.clearArrows();
-    ChessBoard.clearMarkers();
+    clearPuzzleMoveFeedback();
 
     var config = getRandomRequestConfig();
     var signature = buildPuzzleRequestSignature(config);
@@ -626,7 +631,7 @@ const PuzzleController = (function() {
     refreshDailyHomeCard();
 
     var existingEntry = getDailyEntry(normalized);
-    if (existingEntry && existingEntry.puzzle) {
+    if (existingEntry && existingEntry.puzzle && isDailyPuzzleRatingAllowed(existingEntry.puzzle)) {
       stopTimer();
       currentElapsedMs = 0;
       renderTimer(0);
@@ -645,11 +650,11 @@ const PuzzleController = (function() {
     renderTimer(0);
     clearHint();
     ChessBoard.clearArrows();
-    ChessBoard.clearMarkers();
+    clearPuzzleMoveFeedback();
     setStatus('Loading daily puzzle for ' + formatDateLabel(normalized) + '...', 'neutral');
 
     var targetRating = computeDailyTargetRating(normalized);
-    requestPuzzle(targetRating, 220, '')
+    requestPuzzle(targetRating, 220, '', '', '', { minRating: DAILY_MIN_PUZZLE_RATING })
       .then(function(puzzle) {
         saveDailyEntry(normalized, {
           dateKey: normalized,
@@ -671,11 +676,13 @@ const PuzzleController = (function() {
       });
   }
 
-  function requestPuzzle(targetRating, spread, opening, theme, exclude) {
+  function requestPuzzle(targetRating, spread, opening, theme, exclude, options) {
+    var opts = options || {};
     var url = '/api/puzzles/next?rating=' + encodeURIComponent(targetRating) + '&spread=' + encodeURIComponent(spread);
     if (opening) url += '&opening=' + encodeURIComponent(opening);
     if (theme) url += '&theme=' + encodeURIComponent(theme);
     if (exclude) url += '&exclude=' + encodeURIComponent(exclude);
+    if (opts.minRating) url += '&minRating=' + encodeURIComponent(opts.minRating);
 
     return fetch(url)
       .then(function(r) {
@@ -709,7 +716,7 @@ const PuzzleController = (function() {
     ChessBoard.setLastMove(setupMove ? setupMove.from : null, setupMove ? setupMove.to : null);
     syncPuzzleBoardOptions();
     ChessBoard.clearArrows();
-    ChessBoard.clearMarkers();
+    clearPuzzleMoveFeedback();
     showTryAgainButton(false);
     decisionHistory.push(snapshotCurrent(setupMove));
 
@@ -798,7 +805,7 @@ const PuzzleController = (function() {
     ChessBoard.setLastMove(snapshot.lastMove ? snapshot.lastMove.from : null, snapshot.lastMove ? snapshot.lastMove.to : null);
     syncPuzzleBoardOptions();
     ChessBoard.clearArrows();
-    ChessBoard.clearMarkers();
+    clearPuzzleMoveFeedback();
     clearHint();
   }
 
@@ -810,20 +817,20 @@ const PuzzleController = (function() {
 
     if (playedUci !== expectedUci) {
       var quality = classifyUserMove(move, expectedUci);
-      showMoveMarker(move.to, quality);
+      showMoveQualityFeedback(move, quality);
       awaitingRetry = true;
       showTryAgainButton(true);
       setStatus(getQualityLabel(quality) + '. That was not the puzzle move. Use Try Again.', 'error');
       return;
     }
 
-    ChessBoard.clearMarkers();
+    clearPuzzleMoveFeedback();
     showTryAgainButton(false);
     awaitingRetry = false;
     currentProgressPly += 1;
     clearHint();
     SoundController.playMove();
-    showMoveMarker(move.to, classifyUserMove(move, expectedUci));
+    showMoveQualityFeedback(move, classifyUserMove(move, expectedUci));
 
     if (currentProgressPly >= getSolutionMoves().length) {
       finishPuzzle(true, move);
@@ -889,15 +896,27 @@ const PuzzleController = (function() {
     return meta.label;
   }
 
-  function showMoveMarker(square, quality) {
+  function clearPuzzleMoveFeedback() {
+    ChessBoard.clearMarkers();
+    if (ChessBoard.clearReviewMoveQuality) ChessBoard.clearReviewMoveQuality();
+  }
+
+  function showMoveQualityFeedback(move, quality) {
+    var square = move && move.to ? move.to : move;
     if (!square) return;
     var meta = PUZZLE_QUALITY_META[quality] || PUZZLE_QUALITY_META.best;
-    ChessBoard.setMarkers([{
-      square: square,
-      text: meta.icon,
-      className: meta.className,
-      title: meta.label
-    }]);
+    ChessBoard.clearMarkers();
+    if (ChessBoard.setReviewMoveQuality) {
+      ChessBoard.setReviewMoveQuality({
+        from: move && move.from ? move.from : '',
+        to: square,
+        square: square,
+        quality: quality || 'best',
+        label: meta.label
+      });
+      return;
+    }
+    ChessBoard.setMarkers([{ square: square, text: meta.icon, className: meta.className, title: meta.label }]);
   }
 
   function playOpponentContinuation() {
@@ -1296,13 +1315,13 @@ const PuzzleController = (function() {
   function ensureHomeDailyPuzzle(dateKey) {
     var safeDate = normalizeDateKey(dateKey) || getTodayKey();
     var existingEntry = getDailyEntry(safeDate);
-    if (existingEntry && existingEntry.puzzle) {
+    if (existingEntry && existingEntry.puzzle && isDailyPuzzleRatingAllowed(existingEntry.puzzle)) {
       if (safeDate === getTodayKey()) refreshDailyHomeCard();
       return Promise.resolve(existingEntry);
     }
     if (dailyPreviewPromise) return dailyPreviewPromise;
 
-    dailyPreviewPromise = requestPuzzle(computeDailyTargetRating(safeDate), 220, '')
+    dailyPreviewPromise = requestPuzzle(computeDailyTargetRating(safeDate), 220, '', '', '', { minRating: DAILY_MIN_PUZZLE_RATING })
       .then(function(puzzle) {
         var entry = {
           dateKey: safeDate,
@@ -1443,7 +1462,9 @@ const PuzzleController = (function() {
 
   function getDailyEntry(dateKey) {
     var map = getStoredDailyMap();
-    return map[normalizeDateKey(dateKey) || ''] || null;
+    var entry = map[normalizeDateKey(dateKey) || ''] || null;
+    if (entry && entry.puzzle && !isDailyPuzzleRatingAllowed(entry.puzzle)) return null;
+    return entry;
   }
 
   function saveDailyEntry(dateKey, entry) {
@@ -1452,6 +1473,10 @@ const PuzzleController = (function() {
     var map = getStoredDailyMap();
     map[safeDate] = Object.assign({}, entry, { dateKey: safeDate });
     saveStoredDailyMap(map);
+  }
+
+  function isDailyPuzzleRatingAllowed(puzzle) {
+    return !!(puzzle && parseInt(puzzle.rating, 10) >= DAILY_MIN_PUZZLE_RATING);
   }
 
   function getStoredDailyDate() {
@@ -1590,7 +1615,7 @@ const PuzzleController = (function() {
     var safeDate = normalizeDateKey(dateKey) || getTodayKey();
     var seed = 0;
     for (var i = 0; i < safeDate.length; i++) seed = ((seed * 31) + safeDate.charCodeAt(i)) % 2147483647;
-    return 700 + (seed % 1701);
+    return DAILY_MIN_PUZZLE_RATING + 220 + (seed % (2400 - DAILY_MIN_PUZZLE_RATING));
   }
 
   return {

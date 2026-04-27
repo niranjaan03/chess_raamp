@@ -30,11 +30,13 @@ def parse_args():
     parser.add_argument("--theme", type=str, default="")
     parser.add_argument("--opening", type=str, default="")
     parser.add_argument("--exclude", type=str, default="")
+    parser.add_argument("--min-rating", type=int, default=0)
     parser.add_argument("--min-popularity", type=int, default=MIN_POPULARITY)
     parser.add_argument("--serve", action="store_true")
     args = parser.parse_args()
     args.rating = max(400, min(3200, args.rating))
     args.spread = max(60, min(500, args.spread))
+    args.min_rating = max(0, min(3200, args.min_rating))
     args.exclude_ids = set(filter(None, [value.strip() for value in args.exclude.split(",")]))
     return args
 
@@ -113,14 +115,15 @@ def weighted_pick(candidates):
     return pool[-1]
 
 
-def pick_from_row_group(path, row_group_index, target_rating, spread, theme_filter, opening_filter, exclude_ids, min_pop):
+def pick_from_row_group(path, row_group_index, target_rating, spread, theme_filter, opening_filter, exclude_ids, min_pop, min_rating=0):
     table = PARQUET_MAP[path].read_row_group(
         row_group_index,
         columns=["PuzzleId", "FEN", "Moves", "Rating", "Popularity", "NbPlays", "Themes", "OpeningTags"],
     )
     rating_col = table["Rating"]
+    lower_bound = max(target_rating - spread, min_rating)
     mask = pc.and_(
-        pc.greater_equal(rating_col, target_rating - spread),
+        pc.greater_equal(rating_col, lower_bound),
         pc.less_equal(rating_col, target_rating + spread),
     )
     filtered = table.filter(mask)
@@ -138,7 +141,7 @@ def pick_from_row_group(path, row_group_index, target_rating, spread, theme_filt
     return weighted_pick(candidates)
 
 
-def choose_puzzle(target_rating, spread, theme_filter, opening_filter, exclude_ids, min_pop=MIN_POPULARITY):
+def choose_puzzle(target_rating, spread, theme_filter, opening_filter, exclude_ids, min_pop=MIN_POPULARITY, min_rating=0):
     if not PUZZLE_FILES:
         raise RuntimeError("Puzzle parquet files not found in ./puzzles")
 
@@ -147,7 +150,7 @@ def choose_puzzle(target_rating, spread, theme_filter, opening_filter, exclude_i
         attempts = ROW_GROUPS[:]
         random.shuffle(attempts)
         for path, row_group_index in attempts:
-            payload = pick_from_row_group(path, row_group_index, target_rating, current_spread, theme_filter, opening_filter, exclude_ids, min_pop)
+            payload = pick_from_row_group(path, row_group_index, target_rating, current_spread, theme_filter, opening_filter, exclude_ids, min_pop, min_rating)
             if payload:
                 return payload
         current_spread += 100
@@ -156,15 +159,16 @@ def choose_puzzle(target_rating, spread, theme_filter, opening_filter, exclude_i
     attempts = ROW_GROUPS[:]
     random.shuffle(attempts)
     for path, row_group_index in attempts:
-        payload = pick_from_row_group(path, row_group_index, target_rating, MAX_SPREAD, "", "", exclude_ids, min_pop)
+        payload = pick_from_row_group(path, row_group_index, target_rating, MAX_SPREAD, "", "", exclude_ids, min_pop, min_rating)
         if payload:
             return payload
 
-    # Last resort: drop popularity requirement entirely
+    # Last resort: drop popularity requirement entirely, but keep any explicit
+    # rating floor requested by the caller.
     attempts = ROW_GROUPS[:]
     random.shuffle(attempts)
     for path, row_group_index in attempts:
-        payload = pick_from_row_group(path, row_group_index, target_rating, MAX_SPREAD, "", "", exclude_ids, 0)
+        payload = pick_from_row_group(path, row_group_index, target_rating, MAX_SPREAD, "", "", exclude_ids, 0, min_rating)
         if payload:
             return payload
 
@@ -174,7 +178,7 @@ def choose_puzzle(target_rating, spread, theme_filter, opening_filter, exclude_i
 def choose_payload(args):
     return {
         "ok": True,
-        "puzzle": choose_puzzle(args.rating, args.spread, args.theme, args.opening, args.exclude_ids, args.min_popularity),
+        "puzzle": choose_puzzle(args.rating, args.spread, args.theme, args.opening, args.exclude_ids, args.min_popularity, args.min_rating),
     }
 
 
@@ -182,6 +186,7 @@ def make_args_from_payload(payload):
     args = argparse.Namespace()
     args.rating = max(400, min(3200, int(payload.get("rating", 1200) or 1200)))
     args.spread = max(60, min(500, int(payload.get("spread", DEFAULT_SPREAD) or DEFAULT_SPREAD)))
+    args.min_rating = max(0, min(3200, int(payload.get("minRating", 0) or 0)))
     args.theme = str(payload.get("theme", "") or "")
     args.opening = str(payload.get("opening", "") or "")
     args.exclude_ids = set(filter(None, [value.strip() for value in str(payload.get("exclude", "") or "").split(",")]))

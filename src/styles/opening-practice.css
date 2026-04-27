@@ -1,0 +1,504 @@
+/* ===========================
+   New Opening Practice Layout
+   =========================== */
+
+.opn-practice-root {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-base);
+}
+
+/* Board column */
+.opn-board-col {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: min(52vw, 600px);
+  padding: 16px;
+  gap: 10px;
+  min-height: 0;
+}
+
+.opn-board-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.opn-board-frame canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Bottom bar controls */
+.opn-bottom-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.opn-ctrl-btn {
+  flex: 1;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.opn-ctrl-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-light);
+}
+
+.opn-ctrl-icon {
+  font-size: 1.1rem;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+}
+
+.opn-ctrl-hint {
+  flex: 1.5;
+}
+
+.opn-ctrl-mode {
+  flex: 1.5;
+}
+
+.opn-ctrl-nav {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+/* Training column */
+.opn-train-col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  min-width: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-left: 1px solid var(--border);
+}
+
+/* Training header */
+.opn-train-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.opn-mode-badge {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  background: rgba(212, 175, 55, 0.14);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 20px;
+  color: var(--accent2);
+  white-space: nowrap;
+}
+
+.opn-train-name {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opn-train-step {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Coach bubble */
+.opn-coach-bubble {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opn-coach-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.opn-coach-icon {
+  font-size: 1.1rem;
+}
+
+.opn-coach-label {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent2);
+}
+
+.opn-coach-body {
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.opn-coach-move-label {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.opn-coach-move-explain {
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.opn-coach-next {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.opn-coach-complete {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent2);
+  margin-top: 4px;
+}
+
+/* Mode cards grid */
+.opn-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.opn-mode-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  user-select: none;
+}
+
+.opn-mode-card:hover:not(.locked) {
+  border-color: rgba(212, 175, 55, 0.4);
+  transform: translateY(-1px);
+}
+
+.opn-mode-card.active {
+  border-color: rgba(212, 175, 55, 0.5);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.06));
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.12);
+}
+
+.opn-mode-card.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.opn-mode-card-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.opn-mode-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.opn-mode-card-title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.opn-mode-card-sub {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opn-mode-lock {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* Lines discovered counter */
+.opn-lines-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(212, 175, 55, 0.07);
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  border-radius: var(--radius);
+}
+
+.opn-lines-icon {
+  font-size: 1rem;
+}
+
+.opn-lines-text {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.time-mode-panel {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.arena-mode-panel {
+  background:
+    radial-gradient(circle at top right, rgba(239, 83, 80, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  border-color: rgba(239, 83, 80, 0.22);
+}
+.time-mode-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.time-mode-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.time-mode-sub {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.time-mode-medal {
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  white-space: nowrap;
+}
+.time-mode-medal.is-gold {
+  color: #facc15;
+  border-color: rgba(250, 204, 21, 0.24);
+  background: rgba(250, 204, 21, 0.12);
+}
+.time-mode-medal.is-silver {
+  color: #d1d5db;
+  border-color: rgba(209, 213, 219, 0.26);
+  background: rgba(209, 213, 219, 0.12);
+}
+.time-mode-medal.is-bronze {
+  color: #d97706;
+  border-color: rgba(217, 119, 6, 0.24);
+  background: rgba(217, 119, 6, 0.12);
+}
+.arena-mode-badge.is-live {
+  color: #fca5a5;
+  border-color: rgba(239, 83, 80, 0.3);
+  background: rgba(239, 83, 80, 0.14);
+}
+.arena-mode-badge.is-failed {
+  color: #fecaca;
+  border-color: rgba(239, 83, 80, 0.42);
+  background: rgba(127, 29, 29, 0.36);
+}
+.time-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.arena-mode-panel .time-mode-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.time-mode-stat {
+  padding: 10px 10px 9px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.time-mode-stat-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.time-mode-stat-value {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .opening-mode-view {
+    padding-inline: 16px;
+  }
+  .opening-mode-layout {
+    grid-template-columns: 1fr;
+    align-items: start;
+    min-height: 0;
+  }
+  .opening-mode-board-panel {
+    justify-content: center;
+  }
+  .opening-mode-board-frame {
+    width: min(82vw, 620px);
+    max-width: 620px;
+    min-width: 0;
+  }
+  .opening-mode-card {
+    min-height: auto;
+  }
+  .opn-practice-root {
+    flex-direction: column;
+  }
+  .opn-board-col {
+    width: 100%;
+  }
+  .opn-train-col {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  .opn-mode-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .opening-mode-card {
+    padding: 18px;
+  }
+  .opening-mode-card-header {
+    grid-template-columns: auto auto 1fr;
+  }
+  .opening-mode-line-no {
+    grid-column: 1 / -1;
+  }
+  .opening-mode-coach-row {
+    grid-template-columns: 30px 1fr;
+  }
+  .opening-mode-options {
+    grid-template-columns: 1fr;
+  }
+  .opening-mode-footer {
+    grid-template-columns: 40px 1fr 1fr 40px 40px;
+    gap: 8px;
+  }
+  .opn-mode-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .opening-practice-view {
+    flex-direction: column;
+  }
+  .practice-left-panel {
+    flex: none;
+    width: 100%;
+  }
+  .practice-board-wrapper {
+    max-width: 100%;
+  }
+  .detail-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .detail-opening-title-row {
+    flex-direction: column;
+    align-items: center;
+  }
+  .detail-header-img {
+    width: 140px;
+    height: 140px;
+  }
+  .opening-gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+  .practice-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .opening-gallery-grid {
+    grid-template-columns: 1fr;
+  }
+  .openings-toolbar {
+    flex-direction: column;
+  }
+  .time-mode-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .arena-mode-panel .time-mode-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+

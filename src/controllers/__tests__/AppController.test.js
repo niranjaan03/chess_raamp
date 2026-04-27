@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import AppController, { HomeController } from '../AppController.js';
+import AppController from '../AppController.js';
+import HomeController from '../HomeController.js';
 
 const SAMPLE_PGN = '[Event "Live Chess"]\n[Site "Chess.com"]\n[Date "2025.02.01"]\n[White "Alpha"]\n[Black "Beta"]\n[Result "1-0"]\n[ECO "C40"]\n[ECOUrl "https://www.chess.com/openings/Kings-Knight-Opening"]\n\n1. e4 e5 2. Nf3 Nc6 1-0';
 

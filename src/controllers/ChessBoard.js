@@ -68,7 +68,7 @@ const ChessBoard = (function() {
   var MOVE_QUALITY_VISUALS = {
     brilliant: {
       label: 'Brilliant',
-      icon: 'sparkle',
+      icon: 'brilliant',
       badgeColor: '#1fc7d4',
       glow: 'rgba(31, 199, 212, 0.78)',
       squareHighlight: 'rgba(31, 199, 212, 0.34)'
@@ -745,6 +745,8 @@ const ChessBoard = (function() {
 
   function buildMoveQualityBadgeIcon(icon) {
     switch (icon) {
+      case 'brilliant':
+        return svgTextIcon('!!', 14, 950);
       case 'sparkle':
         return '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">' +
           '<path d="M16 3.5 18.9 12l8.6 3.1-8.6 3.1L16 26.5l-2.9-8.3-8.6-3.1 8.6-3.1L16 3.5Z" fill="currentColor"/>' +

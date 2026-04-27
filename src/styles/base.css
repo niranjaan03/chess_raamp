@@ -1,0 +1,76 @@
+/* ===========================
+   KnightVision - Dark Chess Analyzer
+   =========================== */
+
+:root {
+  --bg-base: #090909;
+  --bg-surface: #111111;
+  --bg-card: #171717;
+  --bg-elevated: #202020;
+  --bg-hover: #2a2417;
+  --border: #5d4720;
+  --border-light: #8e6a2d;
+
+  --text-primary: #f6e7bf;
+  --text-secondary: #d7bc79;
+  --text-muted: #9e8350;
+
+  --accent: #d4af37;
+  --accent2: #f3d67a;
+  --accent-hover: #ffe08a;
+  --accent-glow: rgba(212, 175, 55, 0.18);
+
+  --danger: #ef5350;
+  --warn: #ffbf47;
+  --info: #cda349;
+  --brilliant: #f0cf70;
+  --good: #c8a03f;
+  --inaccuracy: #e8bd58;
+  --mistake: #d48b2a;
+  --blunder: #c93030;
+
+  /* Board themes */
+  --sq-light: #f2dfb6;
+  --sq-dark: #6b4f1f;
+  --sq-highlight: rgba(255, 215, 64, 0.42);
+  --sq-lastmove: rgba(212, 175, 55, 0.28);
+  --sq-selected: rgba(255, 215, 96, 0.45);
+  --sq-possible: rgba(0, 0, 0, 0.22);
+
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-ui: 'Space Mono', monospace;
+
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow: 0 6px 24px rgba(0,0,0,0.55);
+  --shadow-lg: 0 12px 42px rgba(0,0,0,0.75);
+  --app-bg-image:
+    radial-gradient(circle at top left, rgba(212,175,55,0.12) 0%, transparent 32%),
+    radial-gradient(circle at bottom right, rgba(243,214,122,0.08) 0%, transparent 26%),
+    linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
+  --glass-surface: rgba(0, 0, 0, 0.75);
+  --glass-surface-soft: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 20px 56px rgba(0, 0, 0, 0.42);
+  --puzzle-panel-bg: linear-gradient(180deg, rgba(21, 26, 36, 0.96), rgba(13, 17, 24, 0.94));
+  --puzzle-panel-border: rgba(255, 255, 255, 0.08);
+  --puzzle-card-soft: rgba(255, 255, 255, 0.04);
+  --puzzle-card-soft-2: rgba(255, 255, 255, 0.03);
+  --puzzle-shell-bg: rgba(11, 15, 21, 0.9);
+  --puzzle-shell-border: rgba(255, 255, 255, 0.06);
+}
+
+/* ===== RESET ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 14px; }
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-image: var(--app-bg-image);
+}
+
