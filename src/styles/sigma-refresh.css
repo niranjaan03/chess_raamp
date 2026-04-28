@@ -4911,3 +4911,289 @@ body::after {
     flex: 1 1 130px;
   }
 }
+
+/* ===== Light Theme Repair Layer =====
+   This file is loaded last and contains a legacy premium-dark block that also
+   targeted light mode. Keep these overrides at the end so light mode can win
+   the cascade without changing the dark theme.
+*/
+:root[data-color-mode="light"] {
+  --bg-base: #f6f1e7;
+  --bg-surface: rgba(255, 252, 246, 0.96);
+  --bg-card: rgba(255, 250, 242, 0.97);
+  --bg-elevated: rgba(248, 240, 228, 0.97);
+  --bg-hover: rgba(122, 85, 32, 0.1);
+  --border: rgba(122, 85, 32, 0.18);
+  --border-light: rgba(122, 85, 32, 0.34);
+  --text-primary: #2c2212;
+  --text-secondary: #5c4520;
+  --text-muted: #876831;
+  --accent: #7a5520;
+  --accent2: #5a3d13;
+  --accent-hover: #3f2b0d;
+  --accent-glow: rgba(122, 85, 32, 0.14);
+  --glass-surface: rgba(255, 252, 246, 0.9);
+  --glass-surface-soft: rgba(122, 85, 32, 0.05);
+  --glass-border: rgba(122, 85, 32, 0.15);
+  --glass-shadow: 0 20px 46px rgba(120, 87, 35, 0.12);
+  --app-bg-image:
+    radial-gradient(circle at 14% 0%, rgba(181, 126, 38, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 12%, rgba(31, 143, 132, 0.08), transparent 24%),
+    linear-gradient(180deg, #fbf7ef 0%, #f2e8d8 100%);
+}
+
+:root[data-color-mode="light"] body {
+  background-color: var(--bg-base);
+  background-image: var(--app-bg-image);
+  color: var(--text-primary);
+}
+
+:root[data-color-mode="light"] body::before {
+  background: radial-gradient(circle, rgba(181, 126, 38, 0.12) 0%, transparent 68%);
+}
+
+:root[data-color-mode="light"] body::after {
+  background:
+    radial-gradient(circle, rgba(31, 143, 132, 0.08) 0%, transparent 58%),
+    radial-gradient(circle at 66% 62%, rgba(194, 87, 69, 0.08) 0%, transparent 46%);
+}
+
+:root[data-color-mode="light"] .navbar,
+:root[data-color-mode="light"] .nav-drawer,
+:root[data-color-mode="light"] .home-hero,
+:root[data-color-mode="light"] .home-card,
+:root[data-color-mode="light"] .home-action-tile,
+:root[data-color-mode="light"] .tools-card,
+:root[data-color-mode="light"] .import-card,
+:root[data-color-mode="light"] .saved-games-card,
+:root[data-color-mode="light"] .database-table,
+:root[data-color-mode="light"] .modal,
+:root[data-color-mode="light"] .player-info,
+:root[data-color-mode="light"] .eval-section,
+:root[data-color-mode="light"] .engine-lines,
+:root[data-color-mode="light"] .moves-section,
+:root[data-color-mode="light"] .game-review-panel,
+:root[data-color-mode="light"] .coach-panel,
+:root[data-color-mode="light"] .practice-moves-panel,
+:root[data-color-mode="light"] .games-tab-controls,
+:root[data-color-mode="light"] .games-tab-filters,
+:root[data-color-mode="light"] .games-shell-card,
+:root[data-color-mode="light"] .games-results-card,
+:root[data-color-mode="light"] .detail-header,
+:root[data-color-mode="light"] .opening-card,
+:root[data-color-mode="light"] .variation-item,
+:root[data-color-mode="light"] .saved-profile-item,
+:root[data-color-mode="light"] .saved-game-item,
+:root[data-color-mode="light"] .home-game-item,
+:root[data-color-mode="light"] .fetch-game-item,
+:root[data-color-mode="light"] .account-linked-info,
+:root[data-color-mode="light"] .account-card,
+:root[data-color-mode="light"] .gt-game-row,
+:root[data-color-mode="light"] .file-drop-zone,
+:root[data-color-mode="light"] .support-hero,
+:root[data-color-mode="light"] .settings-hero,
+:root[data-color-mode="light"] .support-card,
+:root[data-color-mode="light"] .settings-card,
+:root[data-color-mode="light"] .support-panel,
+:root[data-color-mode="light"] .pricing-hero,
+:root[data-color-mode="light"] .pricing-card,
+:root[data-color-mode="light"] .pricing-faq,
+:root[data-color-mode="light"] .pa-card,
+:root[data-color-mode="light"] .pa-profile-card,
+:root[data-color-mode="light"] .pa-metric-card,
+:root[data-color-mode="light"] .pa-tab-group,
+:root[data-color-mode="light"] .pa-summary-bar,
+:root[data-color-mode="light"] .review-player-strip,
+:root[data-color-mode="light"] .review-card,
+:root[data-color-mode="light"] .review-side-panel .game-review-panel,
+:root[data-color-mode="light"] .review-eval-rail,
+:root[data-color-mode="light"] .review-clock-badge,
+:root[data-color-mode="light"] .review-nav-controls {
+  border-color: var(--border);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(244, 237, 225, 0.97));
+  box-shadow:
+    0 16px 34px rgba(120, 87, 35, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+:root[data-color-mode="light"] .navbar,
+:root[data-color-mode="light"] .nav-drawer {
+  background: rgba(255, 252, 246, 0.92);
+  backdrop-filter: blur(18px);
+}
+
+:root[data-color-mode="light"] .home-hero {
+  background:
+    linear-gradient(135deg, rgba(255, 252, 246, 0.98) 0%, rgba(244, 233, 215, 0.96) 54%, rgba(230, 218, 198, 0.94) 100%);
+  border-color: rgba(122, 85, 32, 0.16);
+}
+
+:root[data-color-mode="light"] .home-hero::before {
+  background:
+    linear-gradient(115deg, rgba(181, 126, 38, 0.14), transparent 34%),
+    linear-gradient(295deg, rgba(31, 143, 132, 0.1), transparent 38%),
+    repeating-linear-gradient(90deg, rgba(122, 85, 32, 0.04) 0 1px, transparent 1px 76px);
+}
+
+:root[data-color-mode="light"] .brand-name,
+:root[data-color-mode="light"] .support-title,
+:root[data-color-mode="light"] .hero-title,
+:root[data-color-mode="light"] .hero-title span,
+:root[data-color-mode="light"] .home-hero .hero-title,
+:root[data-color-mode="light"] .home-hero .hero-title span,
+:root[data-color-mode="light"] .hc-title,
+:root[data-color-mode="light"] .settings-card-title,
+:root[data-color-mode="light"] .support-panel-title,
+:root[data-color-mode="light"] .pricing-faq-title,
+:root[data-color-mode="light"] .pa-card-title,
+:root[data-color-mode="light"] .profile-rating-title,
+:root[data-color-mode="light"] .linked-name,
+:root[data-color-mode="light"] .psm-num,
+:root[data-color-mode="light"] .stat-num,
+:root[data-color-mode="light"] .eval-score,
+:root[data-color-mode="light"] .opening-name,
+:root[data-color-mode="light"] .profile-display-name,
+:root[data-color-mode="light"] .pricing-amount,
+:root[data-color-mode="light"] .games-tab-title,
+:root[data-color-mode="light"] .games-results-title,
+:root[data-color-mode="light"] .games-overview-value,
+:root[data-color-mode="light"] .gt-opening,
+:root[data-color-mode="light"] .gt-player-emphasis,
+:root[data-color-mode="light"] .games-empty-title {
+  color: var(--text-primary);
+}
+
+:root[data-color-mode="light"] .nav-link,
+:root[data-color-mode="light"] .nav-sublink,
+:root[data-color-mode="light"] .brand-sub,
+:root[data-color-mode="light"] .engine-badge,
+:root[data-color-mode="light"] .btn-profile,
+:root[data-color-mode="light"] .games-tab-sub,
+:root[data-color-mode="light"] .games-empty-copy,
+:root[data-color-mode="light"] .games-eyebrow,
+:root[data-color-mode="light"] .games-results-kicker,
+:root[data-color-mode="light"] .games-overview-label {
+  color: var(--text-secondary);
+}
+
+:root[data-color-mode="light"] .nav-link:hover,
+:root[data-color-mode="light"] .nav-sublink:hover,
+:root[data-color-mode="light"] .hero-btn.secondary:hover,
+:root[data-color-mode="light"] .nav-btn:hover,
+:root[data-color-mode="light"] .hc-edit-btn:hover,
+:root[data-color-mode="light"] .lines-btn:hover,
+:root[data-color-mode="light"] .import-method:hover,
+:root[data-color-mode="light"] .iht:hover,
+:root[data-color-mode="light"] .eco-filter-btn:hover,
+:root[data-color-mode="light"] .gt-btn:hover,
+:root[data-color-mode="light"] .hgi-analyze-btn:hover,
+:root[data-color-mode="light"] .practice-ctrl-btn:hover,
+:root[data-color-mode="light"] .btn-back:hover {
+  color: var(--text-primary);
+}
+
+:root[data-color-mode="light"] .nav-link.active,
+:root[data-color-mode="light"] .nav-sublink.active,
+:root[data-color-mode="light"] .lines-btn.active,
+:root[data-color-mode="light"] .import-method.active,
+:root[data-color-mode="light"] .iht.active,
+:root[data-color-mode="light"] .eco-filter-btn.active,
+:root[data-color-mode="light"] .pa-tc-btn.active,
+:root[data-color-mode="light"] .pa-period-btn.active {
+  border-color: rgba(122, 85, 32, 0.28);
+  background: rgba(122, 85, 32, 0.12);
+  color: var(--text-primary);
+}
+
+:root[data-color-mode="light"] .hero-btn.secondary,
+:root[data-color-mode="light"] .nav-btn,
+:root[data-color-mode="light"] .hc-edit-btn,
+:root[data-color-mode="light"] .lines-btn,
+:root[data-color-mode="light"] .import-method,
+:root[data-color-mode="light"] .iht,
+:root[data-color-mode="light"] .eco-filter-btn,
+:root[data-color-mode="light"] .gt-btn,
+:root[data-color-mode="light"] .hgi-analyze-btn,
+:root[data-color-mode="light"] .practice-ctrl-btn,
+:root[data-color-mode="light"] .btn-back,
+:root[data-color-mode="light"] .pricing-cta-free,
+:root[data-color-mode="light"] .pa-tc-btn,
+:root[data-color-mode="light"] .pa-period-btn,
+:root[data-color-mode="light"] .profile-rating-grid .psm-box,
+:root[data-color-mode="light"] .stat-box,
+:root[data-color-mode="light"] .gr-rating-box,
+:root[data-color-mode="light"] .gr-player-card,
+:root[data-color-mode="light"] .coach-move-explain,
+:root[data-color-mode="light"] .settings-static-value,
+:root[data-color-mode="light"] .review-player-card,
+:root[data-color-mode="light"] .review-setting-row,
+:root[data-color-mode="light"] .review-setting-field,
+:root[data-color-mode="light"] .review-setting-action,
+:root[data-color-mode="light"] .phase-review-row,
+:root[data-color-mode="light"] .gr-quality-card {
+  border-color: var(--border);
+  background: rgba(122, 85, 32, 0.06);
+  color: var(--text-secondary);
+  box-shadow: none;
+}
+
+:root[data-color-mode="light"] .dark-input,
+:root[data-color-mode="light"] .dark-select,
+:root[data-color-mode="light"] .fen-input,
+:root[data-color-mode="light"] .pgn-textarea,
+:root[data-color-mode="light"] .games-filter-select,
+:root[data-color-mode="light"] .openings-search,
+:root[data-color-mode="light"] .pa-search-input {
+  border-color: var(--border);
+  background: rgba(255, 252, 246, 0.94);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+}
+
+:root[data-color-mode="light"] .dark-input::placeholder,
+:root[data-color-mode="light"] .fen-input::placeholder,
+:root[data-color-mode="light"] .pgn-textarea::placeholder,
+:root[data-color-mode="light"] .openings-search::placeholder,
+:root[data-color-mode="light"] .pa-search-input::placeholder {
+  color: rgba(92, 69, 32, 0.62);
+}
+
+:root[data-color-mode="light"] .board-wrapper,
+:root[data-color-mode="light"] .review-board-panel .board-wrapper {
+  border-color: var(--border);
+  background: rgba(255, 252, 246, 0.86);
+  box-shadow: 0 18px 38px rgba(120, 87, 35, 0.12);
+}
+
+:root[data-color-mode="light"] .eval-bar,
+:root[data-color-mode="light"] .review-eval-bar,
+:root[data-color-mode="light"] .pa-donut-wrap svg circle:first-child,
+:root[data-color-mode="light"] .pa-radar-bar,
+:root[data-color-mode="light"] .pa-cp-bar,
+:root[data-color-mode="light"] .pa-loss-term-track,
+:root[data-color-mode="light"] .pa-term-track,
+:root[data-color-mode="light"] .pa-hbar-track {
+  background-color: rgba(122, 85, 32, 0.1);
+  border-color: var(--border);
+}
+
+:root[data-color-mode="light"] .review-panel-footer,
+:root[data-color-mode="light"] .review-tabs,
+:root[data-color-mode="light"] .review-opening-info,
+:root[data-color-mode="light"] .lines-summary,
+:root[data-color-mode="light"] .games-empty-state {
+  border-color: var(--border);
+  background: rgba(122, 85, 32, 0.06);
+  color: var(--text-secondary);
+}
+
+:root[data-color-mode="light"] .games-tab-layout {
+  --games-border: rgba(122, 85, 32, 0.16);
+  --games-border-strong: rgba(122, 85, 32, 0.26);
+  --games-surface: rgba(255, 252, 246, 0.94);
+  --games-surface-soft: rgba(122, 85, 32, 0.05);
+  --games-text: #2c2212;
+  --games-soft: #5c4520;
+  --games-muted: rgba(92, 69, 32, 0.68);
+  --games-cream: #2c2212;
+}
