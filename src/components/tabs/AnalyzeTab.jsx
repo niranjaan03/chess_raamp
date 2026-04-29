@@ -9,6 +9,7 @@ import {
   CoachRampPanel,
   AnalysisPanel,
   ReviewSettingsPanel,
+  EngineSettingsModal,
 } from '../review/index.jsx';
 import { ReviewProgressOverlay } from '../modals/Modals.jsx';
 
@@ -81,7 +82,7 @@ export default function AnalyzeTab() {
 
                 <ReviewTabs />
 
-                <div className="gr-tab-panel active" id="grReportPanel">
+                <div className="gr-tab-panel" id="grReportPanel" style={{ display: 'none' }}>
                   <CoachRampPanel />
                   <AccuracySummary />
                   <MoveQualityBreakdown />
@@ -99,6 +100,7 @@ export default function AnalyzeTab() {
             </div>
           </aside>
         </div>
+        <EngineSettingsModal />
       </div>
     </div>
   );

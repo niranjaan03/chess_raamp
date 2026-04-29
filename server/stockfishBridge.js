@@ -13,15 +13,85 @@ const CANDIDATE_PATHS = [
   path.resolve(process.cwd(), 'stockfish/src/stockfish-x86-64')
 ];
 
-function resolveEnginePath() {
-  for (const p of CANDIDATE_PATHS) {
-    if (fs.existsSync(p)) return p;
+const ENGINE_DEFINITIONS = {
+  sf18: {
+    label: 'Stockfish 18',
+    paths: [
+      path.resolve(process.cwd(), 'stockfish/stockfish-18'),
+      path.resolve(process.cwd(), 'engine/stockfish/stockfish-18')
+    ]
+  },
+  sf17full: {
+    label: 'SF 17.1 Full',
+    paths: [
+      path.resolve(process.cwd(), 'stockfish/stockfish-17.1'),
+      path.resolve(process.cwd(), 'engine/stockfish/stockfish-17.1')
+    ]
+  },
+  sf17lite: {
+    label: 'SF 17.1 Lite',
+    paths: [
+      path.resolve(process.cwd(), 'stockfish/stockfish-17.1-lite'),
+      path.resolve(process.cwd(), 'engine/stockfish/stockfish-17.1-lite')
+    ]
+  },
+  sf16: {
+    label: 'Stockfish 16',
+    paths: [
+      path.resolve(process.cwd(), 'stockfish/stockfish-16'),
+      path.resolve(process.cwd(), 'engine/stockfish/stockfish-16')
+    ]
+  },
+  sf16_1lite: {
+    label: 'SF 16.1 Lite',
+    paths: [
+      path.resolve(process.cwd(), 'stockfish/stockfish-16.1-lite'),
+      path.resolve(process.cwd(), 'engine/stockfish/stockfish-16.1-lite')
+    ]
+  },
+  sf11: {
+    label: 'Stockfish 11',
+    paths: [
+      path.resolve(process.cwd(), 'stockfish/stockfish-11'),
+      path.resolve(process.cwd(), 'engine/stockfish/stockfish-11')
+    ]
   }
-  return CANDIDATE_PATHS[0];
+};
+
+function normalizeEngineId(engineId) {
+  return Object.prototype.hasOwnProperty.call(ENGINE_DEFINITIONS, engineId) ? engineId : 'sf18';
 }
 
-const ENGINE_PATH = resolveEnginePath();
-const ENGINE_CWD = path.dirname(ENGINE_PATH);
+function findExistingPath(paths) {
+  for (const p of paths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+function resolveEnginePath(engineId = 'sf18') {
+  const definition = ENGINE_DEFINITIONS[normalizeEngineId(engineId)];
+  const paths = [...(definition.paths || []), ...CANDIDATE_PATHS];
+  return findExistingPath(paths) || CANDIDATE_PATHS[0];
+}
+
+function hasSpecificEngineRuntime(engineId) {
+  const normalized = normalizeEngineId(engineId);
+  const definition = ENGINE_DEFINITIONS[normalized];
+  if (findExistingPath(definition.paths || [])) return true;
+  return normalized === 'sf18' && !!findExistingPath(CANDIDATE_PATHS);
+}
+
+function resolveEngineRuntime(engineId = 'sf18') {
+  const normalized = normalizeEngineId(engineId);
+  const enginePath = resolveEnginePath(normalized);
+  return {
+    id: normalized,
+    label: ENGINE_DEFINITIONS[normalized].label,
+    path: enginePath,
+    cwd: path.dirname(enginePath)
+  };
+}
 
 // Engine tuning: leave a couple of cores for the OS/browser, cap hash at 512MB.
 const CPU_COUNT = Math.max(1, os.cpus() ? os.cpus().length : 1);
@@ -91,15 +161,16 @@ function writeEngineSetup(engine, { multiPv, threads, hashMb }) {
   engine.stdin.write(`setoption name UCI_LimitStrength value false\n`);
 }
 
-function runStockfishAnalysis({ fen, depth, multiPv, threads, hashMb }) {
+function runStockfishAnalysis({ fen, depth, multiPv, threads, hashMb, movetimeMs, engine: engineId }) {
   return new Promise((resolve, reject) => {
-    if (!fs.existsSync(ENGINE_PATH)) {
-      reject(new Error(`Stockfish binary not found at ${ENGINE_PATH}`));
+    const runtime = resolveEngineRuntime(engineId);
+    if (!fs.existsSync(runtime.path)) {
+      reject(new Error(`Stockfish binary not found at ${runtime.path}`));
       return;
     }
 
-    const engine = spawn(ENGINE_PATH, [], {
-      cwd: ENGINE_CWD,
+    const engine = spawn(runtime.path, [], {
+      cwd: runtime.cwd,
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
@@ -109,8 +180,9 @@ function runStockfishAnalysis({ fen, depth, multiPv, threads, hashMb }) {
     let uciAcknowledged = false;
     let startedSearch = false;
     let bestmove = null;
-    // 20s base + 1s per depth unit above 15 gives room for depth 22-24.
-    const budget = 20000 + Math.max(0, depth - 15) * 1500;
+    const budget = movetimeMs && movetimeMs > 0
+      ? Math.max(5000, movetimeMs + 3000)
+      : 20000 + Math.max(0, depth - 15) * 1500;
     const timeout = setTimeout(() => {
       // Force engine to emit bestmove and wrap up cleanly.
       if (!finished && startedSearch) {
@@ -147,6 +219,8 @@ function runStockfishAnalysis({ fen, depth, multiPv, threads, hashMb }) {
       }
       resolve({
         ok: !err,
+        engineId: runtime.id,
+        engine: runtime.label,
         bestmove,
         lines
       });
@@ -167,7 +241,11 @@ function runStockfishAnalysis({ fen, depth, multiPv, threads, hashMb }) {
       if (line === 'readyok' && !startedSearch) {
         startedSearch = true;
         engine.stdin.write(`position fen ${fen}\n`);
-        engine.stdin.write(`go depth ${depth}\n`);
+        if (movetimeMs && movetimeMs > 0) {
+          engine.stdin.write(`go depth ${depth} movetime ${movetimeMs}\n`);
+        } else {
+          engine.stdin.write(`go depth ${depth}\n`);
+        }
         return;
       }
 
@@ -221,15 +299,16 @@ function readJsonBody(req) {
   });
 }
 
-function runBatchAnalysis({ positions, depth, multiPv, threads, hashMb }) {
+function runBatchAnalysis({ positions, depth, multiPv, threads, hashMb, movetimeMs, engine: engineId }) {
   return new Promise((resolve, reject) => {
-    if (!fs.existsSync(ENGINE_PATH)) {
-      reject(new Error(`Stockfish binary not found at ${ENGINE_PATH}`));
+    const runtime = resolveEngineRuntime(engineId);
+    if (!fs.existsSync(runtime.path)) {
+      reject(new Error(`Stockfish binary not found at ${runtime.path}`));
       return;
     }
 
-    const engine = spawn(ENGINE_PATH, [], {
-      cwd: ENGINE_CWD,
+    const engine = spawn(runtime.path, [], {
+      cwd: runtime.cwd,
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
@@ -242,9 +321,11 @@ function runBatchAnalysis({ positions, depth, multiPv, threads, hashMb }) {
     let uciAcknowledged = false;
     let engineReady = false;
 
-    // Budget: ~2.2s/position at depth 18 on modern hardware, scaled by depth.
-    const perPos = 2200 + Math.max(0, depth - 18) * 900;
-    const budget = Math.max(60000, positions.length * perPos + 10000);
+    // Budget: when movetimeMs is set we know the cap; otherwise scale with depth.
+    const perPos = movetimeMs && movetimeMs > 0
+      ? movetimeMs + 200
+      : 2200 + Math.max(0, depth - 18) * 900;
+    const budget = Math.max(15000, positions.length * perPos + 4000);
     const timeout = setTimeout(() => {
       finish(new Error('Batch analysis timed out'));
     }, budget);
@@ -274,7 +355,7 @@ function runBatchAnalysis({ positions, depth, multiPv, threads, hashMb }) {
         return;
       }
       while (results.length < positions.length) {
-        results.push({ ok: false, bestmove: null, lines: [] });
+        results.push({ ok: false, engineId: runtime.id, engine: runtime.label, bestmove: null, lines: [] });
       }
       resolve(results);
     }
@@ -290,7 +371,13 @@ function runBatchAnalysis({ positions, depth, multiPv, threads, hashMb }) {
       // Do NOT send ucinewgame between positions from the same game —
       // the transposition table carries massive speedups across adjacent plies.
       engine.stdin.write(`position fen ${fen}\n`);
-      engine.stdin.write(`go depth ${depth}\n`);
+      // movetime caps each position; depth is a ceiling. Stockfish stops at
+      // whichever fires first.
+      if (movetimeMs && movetimeMs > 0) {
+        engine.stdin.write(`go depth ${depth} movetime ${movetimeMs}\n`);
+      } else {
+        engine.stdin.write(`go depth ${depth}\n`);
+      }
     }
 
     function processLine(raw) {
@@ -321,7 +408,7 @@ function runBatchAnalysis({ positions, depth, multiPv, threads, hashMb }) {
         const parts = line.split(/\s+/);
         currentBestmove = parts[1] && parts[1] !== '(none)' ? parts[1] : null;
         const lines = Array.from(currentLinesByPv.values()).sort((a, b) => a.line - b.line);
-        results.push({ ok: true, bestmove: currentBestmove, lines });
+        results.push({ ok: true, engineId: runtime.id, engine: runtime.label, bestmove: currentBestmove, lines });
         currentIdx++;
         if (currentIdx < positions.length) {
           startNextPosition();
@@ -356,12 +443,19 @@ function createMiddleware() {
     const reqUrl = req.url || '';
 
     if (req.method === 'GET' && reqUrl === '/api/engine/status') {
+      const runtime = resolveEngineRuntime('sf18');
       sendJson(res, 200, {
-        ready: fs.existsSync(ENGINE_PATH),
-        engine: 'Stockfish 18',
+        ready: fs.existsSync(runtime.path),
+        engineId: runtime.id,
+        engine: runtime.label,
+        engines: Object.entries(ENGINE_DEFINITIONS).map(([id, definition]) => ({
+          id,
+          label: definition.label,
+          ready: hasSpecificEngineRuntime(id)
+        })),
         mode: 'native',
-        path: ENGINE_PATH,
-        cwd: ENGINE_CWD,
+        path: runtime.path,
+        cwd: runtime.cwd,
         threads: ENGINE_THREADS,
         hashMb: ENGINE_HASH_MB
       });
@@ -376,13 +470,15 @@ function createMiddleware() {
         const multiPv = Math.max(1, Math.min(5, parseInt(body.multiPv, 10) || 1));
         const threads = body.threads ? parseInt(body.threads, 10) : null;
         const hashMb = body.hashMb ? parseInt(body.hashMb, 10) : null;
+        const movetimeMs = body.movetimeMs ? Math.max(50, Math.min(60000, parseInt(body.movetimeMs, 10))) : null;
+        const engine = normalizeEngineId(body.engine);
 
         if (!fen) {
           sendJson(res, 400, { ok: false, error: 'Missing FEN' });
           return;
         }
 
-        const result = await runStockfishAnalysis({ fen, depth, multiPv, threads, hashMb });
+        const result = await runStockfishAnalysis({ fen, depth, multiPv, threads, hashMb, movetimeMs, engine });
         sendJson(res, 200, result);
       } catch (err) {
         sendJson(res, 500, {
@@ -401,13 +497,15 @@ function createMiddleware() {
         const multiPv = Math.max(1, Math.min(5, parseInt(body.multiPv, 10) || 1));
         const threads = body.threads ? parseInt(body.threads, 10) : null;
         const hashMb = body.hashMb ? parseInt(body.hashMb, 10) : null;
+        const movetimeMs = body.movetimeMs ? Math.max(50, Math.min(60000, parseInt(body.movetimeMs, 10))) : null;
+        const engine = normalizeEngineId(body.engine);
 
         if (!positions.length) {
           sendJson(res, 400, { ok: false, error: 'No positions provided' });
           return;
         }
 
-        const results = await runBatchAnalysis({ positions, depth, multiPv, threads, hashMb });
+        const results = await runBatchAnalysis({ positions, depth, multiPv, threads, hashMb, movetimeMs, engine });
         sendJson(res, 200, { ok: true, results });
       } catch (err) {
         sendJson(res, 500, {

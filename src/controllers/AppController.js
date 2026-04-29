@@ -54,7 +54,7 @@ const AppController = (function() {
   var analysisMode = true;
   var lastAnalysisHistory = null;
   var lastAnalysisCounts = null;
-  var activeReviewTab = 'report';
+  var activeReviewTab = 'analyze';
   var currentReviewCandidates = [];
   var selectedMoveQuality = null;
   var selectedMoveQualityColor = null;
@@ -74,6 +74,30 @@ const AppController = (function() {
   var GOOGLE_AUTH_NONCE_KEY = 'kv_google_auth_nonce';
   var GOOGLE_CLIENT_ID = RAW_GOOGLE_CLIENT_ID || '';
   var COLOR_MODE_KEY = 'kv_color_mode';
+  var ENGINE_SETTINGS_KEY = 'kv_engine_settings';
+  var ENGINE_LABELS = {
+    sf18: 'Stockfish 18',
+    sf17full: 'SF 17.1 Full',
+    sf17lite: 'SF 17.1 Lite',
+    sf16: 'Stockfish 16',
+    sf16_1lite: 'SF 16.1 Lite',
+    sf11: 'Stockfish 11'
+  };
+  var REVIEW_STRENGTHS = ['fast', 'balanced', 'slow'];
+  var DEFAULT_ENGINE_SETTINGS = {
+    gameReview: {
+      engine: 'sf16',
+      strength: 'fast'
+    },
+    analysis: {
+      engine: 'sf18',
+      maxTimeMs: 1000,
+      lines: 3,
+      suggestionArrows: 'best-moves',
+      depth: '25'
+    }
+  };
+  var engineSettings = normalizeEngineSettings(null);
   var currentTab = 'home';
   var tabHistoryReady = false;
   var homeDailyCalendarBound = false;
@@ -129,6 +153,8 @@ const AppController = (function() {
     setupCoordinates();
     setupCoachTimelineInteractions();
     applyBoardPreferences();
+    applyEngineSettings();
+    switchReviewTab(activeReviewTab);
     
     startAnalysis();
     
@@ -872,6 +898,10 @@ const AppController = (function() {
     // Engine settings
     bind('depthSlider', 'input', function() {
       setText('depthVal', this.value);
+      engineSettings = normalizeEngineSettings(engineSettings);
+      engineSettings.analysis.depth = String(this.value);
+      persistEngineSettings();
+      syncEngineSettingsControls();
       EngineController.setDepth(parseInt(this.value));
       startAnalysis();
     });
@@ -894,6 +924,23 @@ const AppController = (function() {
 
     bindClick('analyzeFullGame', analyzeFullGame);
     setupReviewTabs();
+    bindClick('analysisSettingsGear', openEngineSettingsModal);
+    bindClick('reviewPanelMenu', openEngineSettingsModal);
+    bindClick('engineSettingsClose', closeEngineSettingsModal);
+    bindClick('engineSettingsDone', saveAndCloseEngineSettingsModal);
+    bind('engineSettingsEngine', 'change', handleEngineSettingChange);
+    bind('engineSettingsReviewEngine', 'change', handleEngineSettingChange);
+    bind('engineSettingsReviewStrength', 'change', handleEngineSettingChange);
+    bind('engineSettingsLines', 'change', handleEngineSettingChange);
+    bind('engineSettingsArrows', 'change', handleEngineSettingChange);
+    bind('engineSettingsTime', 'change', handleEngineSettingChange);
+    bind('engineSettingsDepth', 'change', handleEngineSettingChange);
+    var engineSettingsOverlay = document.getElementById('engineSettingsOverlay');
+    if (engineSettingsOverlay) {
+      engineSettingsOverlay.addEventListener('click', function(e) {
+        if (e.target === engineSettingsOverlay) closeEngineSettingsModal();
+      });
+    }
 
     // Board appearance
     bind('boardTheme', 'change', function() {
@@ -1175,6 +1222,168 @@ const AppController = (function() {
     } catch { /* corrupt settings – use defaults */ }
   }
 
+  function normalizeEngineSettings(raw) {
+    var source = raw || {};
+    var reviewSource = source.gameReview || {
+      engine: source.reviewEngine,
+      strength: source.reviewStrength
+    };
+    var analysisSource = source.analysis || {
+      engine: source.engine,
+      maxTimeMs: source.maxTimeMs || (source.time ? parseInt(source.time, 10) * 1000 : undefined),
+      lines: source.lines,
+      suggestionArrows: source.suggestionArrows || source.arrows,
+      depth: source.depth
+    };
+    var maxTimeMs = parseInt(analysisSource.maxTimeMs, 10);
+    if ([1000, 3000, 5000, 10000].indexOf(maxTimeMs) === -1) maxTimeMs = DEFAULT_ENGINE_SETTINGS.analysis.maxTimeMs;
+
+    return {
+      gameReview: {
+        engine: ENGINE_LABELS[reviewSource.engine] ? reviewSource.engine : DEFAULT_ENGINE_SETTINGS.gameReview.engine,
+        strength: REVIEW_STRENGTHS.indexOf(reviewSource.strength) !== -1 ? reviewSource.strength : DEFAULT_ENGINE_SETTINGS.gameReview.strength
+      },
+      analysis: {
+        engine: ENGINE_LABELS[analysisSource.engine] ? analysisSource.engine : DEFAULT_ENGINE_SETTINGS.analysis.engine,
+        maxTimeMs: maxTimeMs,
+        lines: Math.max(1, Math.min(5, parseInt(analysisSource.lines, 10) || DEFAULT_ENGINE_SETTINGS.analysis.lines)),
+        suggestionArrows: ['off', 'best', 'best-moves', 'all'].indexOf(analysisSource.suggestionArrows) !== -1 ? analysisSource.suggestionArrows : DEFAULT_ENGINE_SETTINGS.analysis.suggestionArrows,
+        depth: ['auto', '15', '20', '25'].indexOf(String(analysisSource.depth)) !== -1 ? String(analysisSource.depth) : DEFAULT_ENGINE_SETTINGS.analysis.depth
+      }
+    };
+  }
+
+  function readEngineSettings() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(ENGINE_SETTINGS_KEY) || 'null');
+      engineSettings = normalizeEngineSettings(saved);
+    } catch {
+      engineSettings = normalizeEngineSettings(null);
+    }
+  }
+
+  function persistEngineSettings() {
+    try { localStorage.setItem(ENGINE_SETTINGS_KEY, JSON.stringify(engineSettings)); } catch { /* storage full */ }
+  }
+
+  function getAnalysisEngineSettings() {
+    engineSettings = normalizeEngineSettings(engineSettings);
+    return engineSettings.analysis;
+  }
+
+  function getReviewEngineSettings() {
+    engineSettings = normalizeEngineSettings(engineSettings);
+    return engineSettings.gameReview;
+  }
+
+  function getEngineDepthValue() {
+    var analysis = getAnalysisEngineSettings();
+    if (String(analysis.depth) === 'auto') return 20;
+    return parseInt(analysis.depth, 10) || 20;
+  }
+
+  function syncEngineSettingsControls() {
+    var analysis = getAnalysisEngineSettings();
+    var review = getReviewEngineSettings();
+    var engineEl = document.getElementById('engineSettingsEngine');
+    var reviewEngineEl = document.getElementById('engineSettingsReviewEngine');
+    var reviewStrengthEl = document.getElementById('engineSettingsReviewStrength');
+    var linesEl = document.getElementById('engineSettingsLines');
+    var arrowsEl = document.getElementById('engineSettingsArrows');
+    var timeEl = document.getElementById('engineSettingsTime');
+    var depthEl = document.getElementById('engineSettingsDepth');
+    if (engineEl) engineEl.value = analysis.engine;
+    if (reviewEngineEl) reviewEngineEl.value = review.engine;
+    if (reviewStrengthEl) reviewStrengthEl.value = review.strength;
+    if (linesEl) linesEl.value = String(analysis.lines);
+    if (arrowsEl) arrowsEl.value = analysis.suggestionArrows;
+    if (timeEl) timeEl.value = String(Math.round(analysis.maxTimeMs / 1000));
+    if (depthEl) depthEl.value = String(analysis.depth);
+
+    var nameEl = document.getElementById('analysisEngineName');
+    if (nameEl) nameEl.textContent = ENGINE_LABELS[analysis.engine] || 'Stockfish 18';
+
+    var depthSlider = document.getElementById('depthSlider');
+    var depthVal = document.getElementById('depthVal');
+    var depthValue = getEngineDepthValue();
+    if (depthSlider) depthSlider.value = String(depthValue);
+    if (depthVal) depthVal.textContent = String(depthValue);
+  }
+
+  function applyEngineSettings() {
+    readEngineSettings();
+    syncEngineSettingsControls();
+    var analysis = getAnalysisEngineSettings();
+    EngineController.setNumLines(analysis.lines);
+    EngineController.setDepth(getEngineDepthValue());
+    EngineController.setOption('Engine', analysis.engine);
+    if (EngineController.setSuggestionArrowsMode) {
+      EngineController.setSuggestionArrowsMode(analysis.suggestionArrows);
+    }
+    ChessBoard.setOptions({ showArrows: analysis.suggestionArrows !== 'off' });
+    if (analysis.suggestionArrows === 'off') ChessBoard.clearArrows();
+  }
+
+  function collectEngineSettingsFromControls() {
+    var currentAnalysis = getAnalysisEngineSettings();
+    var currentReview = getReviewEngineSettings();
+    engineSettings = normalizeEngineSettings({
+      gameReview: {
+        engine: document.getElementById('engineSettingsReviewEngine')?.value || currentReview.engine,
+        strength: document.getElementById('engineSettingsReviewStrength')?.value || currentReview.strength
+      },
+      analysis: {
+        engine: document.getElementById('engineSettingsEngine')?.value || currentAnalysis.engine,
+        maxTimeMs: (parseInt(document.getElementById('engineSettingsTime')?.value, 10) || Math.round(currentAnalysis.maxTimeMs / 1000)) * 1000,
+        lines: document.getElementById('engineSettingsLines')?.value || currentAnalysis.lines,
+        suggestionArrows: document.getElementById('engineSettingsArrows')?.value || currentAnalysis.suggestionArrows,
+        depth: document.getElementById('engineSettingsDepth')?.value || currentAnalysis.depth
+      }
+    });
+  }
+
+  function handleEngineSettingChange() {
+    collectEngineSettingsFromControls();
+    persistEngineSettings();
+    syncEngineSettingsControls();
+    var analysis = getAnalysisEngineSettings();
+    EngineController.setNumLines(analysis.lines);
+    EngineController.setDepth(getEngineDepthValue());
+    EngineController.setOption('Engine', analysis.engine);
+    if (EngineController.setSuggestionArrowsMode) {
+      EngineController.setSuggestionArrowsMode(analysis.suggestionArrows);
+    }
+    ChessBoard.setOptions({ showArrows: analysis.suggestionArrows !== 'off' });
+    if (analysis.suggestionArrows === 'off') ChessBoard.clearArrows();
+    startAnalysis();
+  }
+
+  function openEngineSettingsModal() {
+    syncEngineSettingsControls();
+    var overlay = document.getElementById('engineSettingsOverlay');
+    if (!overlay) return;
+    overlay.hidden = false;
+    var shell = document.getElementById('analyzeShell');
+    if (shell) shell.classList.add('engine-settings-open');
+    var closeBtn = document.getElementById('engineSettingsClose');
+    if (closeBtn && closeBtn.focus) closeBtn.focus();
+  }
+
+  function closeEngineSettingsModal() {
+    var overlay = document.getElementById('engineSettingsOverlay');
+    if (overlay) overlay.hidden = true;
+    var shell = document.getElementById('analyzeShell');
+    if (shell) shell.classList.remove('engine-settings-open');
+  }
+
+  function saveAndCloseEngineSettingsModal() {
+    collectEngineSettingsFromControls();
+    persistEngineSettings();
+    applyEngineSettings();
+    closeEngineSettingsModal();
+    startAnalysis();
+  }
+
   function applyColorMode(mode) {
     var safeMode = mode === 'light' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-color-mode', safeMode);
@@ -1333,7 +1542,7 @@ const AppController = (function() {
     if (/^\d+(\.\d+)?$/.test(text)) {
       return formatDurationValue(parseFloat(text));
     }
-    return text;
+    return text.replace(/\.\d+/, '');
   }
 
   function getSourcePlayer(sourceGame, color) {
@@ -1626,11 +1835,29 @@ const AppController = (function() {
     var blackNameEl = document.getElementById('blackName');
     var whiteRatingEl = document.getElementById('whiteRating');
     var blackRatingEl = document.getElementById('blackRating');
+    var analysisWhiteNameEl = document.getElementById('analysisWhiteName');
+    var analysisBlackNameEl = document.getElementById('analysisBlackName');
+    var analysisWhiteRatingEl = document.getElementById('analysisWhiteRating');
+    var analysisBlackRatingEl = document.getElementById('analysisBlackRating');
+    var analysisWhiteFlagEl = document.getElementById('analysisWhiteFlag');
+    var analysisBlackFlagEl = document.getElementById('analysisBlackFlag');
+    var analysisResultEl = document.getElementById('analysisGameResult');
+    var whiteName = game && game.white ? game.white : 'White Player';
+    var blackName = game && game.black ? game.black : 'Black Player';
+    var whiteRating = game && game.whiteElo && game.whiteElo !== '?' ? '(' + game.whiteElo + ')' : '';
+    var blackRating = game && game.blackElo && game.blackElo !== '?' ? '(' + game.blackElo + ')' : '';
 
-    if (whiteNameEl) whiteNameEl.textContent = game && game.white ? game.white : 'White Player';
-    if (blackNameEl) blackNameEl.textContent = game && game.black ? game.black : 'Black Player';
-    if (whiteRatingEl) whiteRatingEl.textContent = game && game.whiteElo && game.whiteElo !== '?' ? '(' + game.whiteElo + ')' : '';
-    if (blackRatingEl) blackRatingEl.textContent = game && game.blackElo && game.blackElo !== '?' ? '(' + game.blackElo + ')' : '';
+    if (whiteNameEl) whiteNameEl.textContent = whiteName;
+    if (blackNameEl) blackNameEl.textContent = blackName;
+    if (whiteRatingEl) whiteRatingEl.textContent = whiteRating;
+    if (blackRatingEl) blackRatingEl.textContent = blackRating;
+    if (analysisWhiteNameEl) analysisWhiteNameEl.textContent = whiteName;
+    if (analysisBlackNameEl) analysisBlackNameEl.textContent = blackName;
+    if (analysisWhiteRatingEl) analysisWhiteRatingEl.textContent = whiteRating;
+    if (analysisBlackRatingEl) analysisBlackRatingEl.textContent = blackRating;
+    if (analysisResultEl) analysisResultEl.textContent = game && game.result ? game.result : '*';
+    if (analysisWhiteFlagEl) analysisWhiteFlagEl.textContent = game && game.whiteCountry ? getCountryFlag(game.whiteCountry) : '';
+    if (analysisBlackFlagEl) analysisBlackFlagEl.textContent = game && game.blackCountry ? getCountryFlag(game.blackCountry) : '';
     setPlayerCountryFlag('w', game ? game.whiteCountry : '');
     setPlayerCountryFlag('b', game ? game.blackCountry : '');
     updateAnalyzePlayerBarState(game);
@@ -2733,12 +2960,16 @@ const AppController = (function() {
   // ===== ANALYSIS =====
   function startAnalysis() {
     if (!analysisMode || !chess) return;
-    
-    var depth = parseInt(document.getElementById('depthSlider').value) || 20;
-    var numLines = EngineController.getMaxLines ? EngineController.getMaxLines() : 5;
-    
-    EngineController.analyzeFen(chess.fen(), depth, numLines, function(bestMove) {
+    var analysis = getAnalysisEngineSettings();
+    var depth = getEngineDepthValue();
+    var numLines = analysis.lines || (EngineController.getMaxLines ? EngineController.getMaxLines() : 5);
+
+    EngineController.setOption('Engine', analysis.engine);
+    EngineController.analyzeFen(chess.fen(), depth, numLines, function(_bestMove) {
       // Best move received
+    }, {
+      engine: analysis.engine,
+      movetimeMs: analysis.maxTimeMs
     });
   }
 
@@ -2771,6 +3002,12 @@ const AppController = (function() {
       blackElo: parseInt(currentGame.blackElo, 10) || undefined
     } : null;
 
+    var review = getReviewEngineSettings();
+    var reviewOptions = {
+      engine: review.engine,
+      strength: review.strength
+    };
+
     EngineController.analyzeGame(pgn, reviewMeta, function(done, total) {
       if (!total || done <= 0) {
         setReviewBusyState(true, 'Starting');
@@ -2801,7 +3038,8 @@ const AppController = (function() {
       // Show accuracy section
       showAccuracySection(history);
       showToast('Full game analysis complete!', 'success');
-    });
+      switchReviewTab('report');
+    }, reviewOptions);
   }
 
   function triggerAutoReview() {
@@ -3001,6 +3239,7 @@ const AppController = (function() {
 
     lastAnalysisHistory = history;
     lastAnalysisCounts = counts;
+    updateMovesList();
     updateGameRatings(counts, wAcc, bAcc);
     highlightPlayerCards(wAcc, bAcc);
     updateCoachTip(wAcc, bAcc, counts);
@@ -3553,7 +3792,7 @@ const AppController = (function() {
     selectedMoveQualityColor = null;
     selectedMoveQualityCursor = 0;
     reviewReplayState = null;
-    switchReviewTab('report');
+    switchReviewTab('analyze');
     var panel = document.getElementById('gameReviewPanel');
     if (panel) panel.classList.add('is-empty');
     setCoachMessage('Coach Ramp', DEFAULT_COACH_TEXT);
@@ -4664,6 +4903,11 @@ const AppController = (function() {
   function loadReviewCandidateLine(index) {
     var candidate = currentReviewCandidates && currentReviewCandidates[index];
     if (!candidate || !candidate.pv || !candidate.pv.length) return;
+    document.querySelectorAll('#grAnalysisCandidates .gr-candidate-row').forEach(function(row) {
+      row.classList.remove('is-selected');
+    });
+    var selectedRow = document.querySelector('#grAnalysisCandidates .gr-candidate-row:nth-child(' + (index + 1) + ')');
+    if (selectedRow) selectedRow.classList.add('is-selected');
     var targetIndex = typeof candidate.moveIndex === 'number' ? candidate.moveIndex : Math.max(0, currentMoveIndex - 1);
     goToMove(targetIndex);
     loadEngineLine(candidate.pv.join(' '));
@@ -4768,34 +5012,68 @@ const AppController = (function() {
       : DEFAULT_COACH_TEXT);
   }
   // ===== MOVES LIST =====
+  function getMovePieceIcon(pos, moveInfo) {
+    var color = (moveInfo && moveInfo.color) || (pos && pos.move && pos.move.color) || '';
+    var piece = (pos && pos.move && pos.move.piece) || '';
+    piece = String(piece || '').toLowerCase();
+    var white = color !== 'b';
+    var icons = {
+      p: white ? '♙' : '♟',
+      n: white ? '♘' : '♞',
+      b: white ? '♗' : '♝',
+      r: white ? '♖' : '♜',
+      q: white ? '♕' : '♛',
+      k: white ? '♔' : '♚'
+    };
+    return icons[piece] || (white ? '♙' : '♟');
+  }
+
+  function buildMoveQualityBadge(quality) {
+    if (!quality) return '';
+    var meta = getQualityMeta(quality);
+    return '<span class="move-quality-dot move-quality-dot--' + escapeAttr(quality) + '" title="' + escapeAttr(meta.label) + '" aria-label="' + escapeAttr(meta.label) + '">' +
+      escapeHtml(meta.icon) +
+    '</span>';
+  }
+
+  function buildMoveHistoryButton(index) {
+    var pos = gamePositions[index];
+    if (!pos) return '';
+    var moveInfo = lastAnalysisHistory && lastAnalysisHistory[index - 1] ? lastAnalysisHistory[index - 1] : null;
+    var quality = moveInfo && moveInfo.quality ? moveInfo.quality : '';
+    var san = pos.san || (pos.move && pos.move.san) || '?';
+    var pieceIcon = getMovePieceIcon(pos, moveInfo);
+    var qualityAttr = quality ? ' data-quality="' + escapeAttr(quality) + '"' : '';
+    return '<button type="button" class="move-san analysis-move-pill" data-move-index="' + index + '"' + qualityAttr + ' onclick="AppController.goToMoveByIndex(' + index + ')">' +
+      '<span class="move-piece-icon" aria-hidden="true">' + escapeHtml(pieceIcon) + '</span>' +
+      '<span class="move-san-text">' + escapeHtml(san) + '</span>' +
+      buildMoveQualityBadge(quality) +
+    '</button>';
+  }
+
   function updateMovesList() {
     var list = document.getElementById('movesList');
     if (!list) return;
     
     if (!gamePositions.length || gamePositions.length <= 1) {
-      list.innerHTML = '<div class="move-number" style="color:var(--text-muted);font-size:0.75rem;padding:12px;">Make moves or import a game...</div>';
+      list.innerHTML = '<div class="gr-analysis-empty">Make moves or import a game to see move history.</div>';
       return;
     }
     
     var html = '';
-    var moveNum = 1;
-    
-    for (var i = 1; i < gamePositions.length; i++) {
-      var pos = gamePositions[i];
-      var isWhiteMove = (i % 2 === 1);
-      
-      if (isWhiteMove) {
-        html += '<span class="move-number">' + moveNum + '.</span>';
-      }
-      
-      html += '<span class="move-san" data-move-index="' + i + '" onclick="AppController.goToMoveByIndex(' + i + ')">' + (pos.san || pos.move?.san || '?') + '</span>';
-      
-      if (!isWhiteMove) moveNum++;
+
+    for (var i = 1; i < gamePositions.length; i += 2) {
+      var moveNum = Math.floor((i + 1) / 2);
+      html += '<div class="analysis-move-row">';
+      html += '<span class="move-number">' + moveNum + '.</span>';
+      html += '<div class="analysis-move-cell">' + buildMoveHistoryButton(i) + '</div>';
+      html += '<div class="analysis-move-cell">' + (gamePositions[i + 1] ? buildMoveHistoryButton(i + 1) : '') + '</div>';
+      html += '</div>';
     }
     
     // Add result
     if (currentGame && currentGame.result && currentGame.result !== '*') {
-      html += '<span class="move-number" style="color:var(--text-secondary)">' + currentGame.result + '</span>';
+      html += '<div class="analysis-history-result">' + escapeHtml(currentGame.result) + '</div>';
     }
     
     list.innerHTML = html;

@@ -47,12 +47,12 @@ export function PlayerInfoBar({
 export function MoveNavigationControls({ compact = false }) {
   return (
     <div className={`nav-controls review-nav-controls${compact ? ' is-compact' : ''}`}>
-      <button type="button" className="nav-btn" id="btnFirst" aria-label="First move">&#8676;</button>
-      <button type="button" className="nav-btn" id="btnPrev" aria-label="Previous move">&#8592;</button>
+      <button type="button" className="nav-btn" id="btnFirst" aria-label="First move">&#171;</button>
+      <button type="button" className="nav-btn" id="btnPrev" aria-label="Previous move">&#8249;</button>
       <button type="button" className="nav-btn" id="btnPlay" aria-label="Play game">&#9654;</button>
-      <button type="button" className="nav-btn" id="btnNext" aria-label="Next move">&#8594;</button>
-      <button type="button" className="nav-btn" id="btnLast" aria-label="Last move">&#8677;</button>
-      <button type="button" className="nav-btn flip-btn" id="btnFlip" aria-label="Flip board">&#8645;</button>
+      <button type="button" className="nav-btn" id="btnNext" aria-label="Next move">&#8250;</button>
+      <button type="button" className="nav-btn" id="btnLast" aria-label="Last move">&#187;</button>
+      <button type="button" className="nav-btn review-menu-btn" id="reviewPanelMenu" aria-label="Open engine settings">&#8942;</button>
     </div>
   );
 }
@@ -60,8 +60,8 @@ export function MoveNavigationControls({ compact = false }) {
 export function ReviewTabs() {
   return (
     <div className="gr-tabs review-tabs" role="tablist" aria-label="Game review views">
-      <button type="button" className="gr-tab active" id="grReportTab" data-review-tab="report">Report</button>
-      <button type="button" className="gr-tab" id="grAnalyzeTab" data-review-tab="analyze">Analysis</button>
+      <button type="button" className="gr-tab" id="grReportTab" data-review-tab="report">Report</button>
+      <button type="button" className="gr-tab active" id="grAnalyzeTab" data-review-tab="analyze">Analysis</button>
       <button type="button" className="gr-tab" id="grSettingsTab" data-review-tab="settings">Settings</button>
     </div>
   );
@@ -136,10 +136,11 @@ export function MoveQualityBreakdown() {
 export function LearnFromMistakesCard({ currentUser, opponent, criticalMoves = [], onMoveClick }) {
   const qualityIcon = { inaccuracy: '?!', mistake: '?', blunder: '??' };
   const qualityLabel = { inaccuracy: 'Inaccuracy', mistake: 'Mistake', blunder: 'Blunder' };
-  const renderCountBadge = (quality, count) => (
+  const renderCountBadge = (quality, count, label) => (
     <span className={`learn-count-badge is-${quality}`}>
       <strong>{count || 0}</strong>
       <span className={`qi qi-${quality}`}>{qualityIcon[quality]}</span>
+      <span className="learn-count-label">{label}</span>
     </span>
   );
   const renderInlineBadge = (quality, count) => (
@@ -162,17 +163,16 @@ export function LearnFromMistakesCard({ currentUser, opponent, criticalMoves = [
 
   return (
     <div className="learn-mistakes-card">
-      <div className="learn-mistakes-head"><span className="learn-mistakes-dot"></span><span>Critical Analysis</span></div>
+      <div className="learn-mistakes-head"><span className="learn-mistakes-dot"></span><span>Coach Ramp Review</span></div>
       <div className="learn-mistakes-layout">
         <div className="learn-mistakes-copy">
-          <h3>Learn from your mistakes.</h3>
+          <h3>Repair the turning points.</h3>
           <div className="learn-mistakes-summary">
-            <span>You made</span>
-            {renderCountBadge('mistake', currentUser?.mistakes || 0)}
+            <span>We found</span>
+            {renderCountBadge('mistake', currentUser?.mistakes || 0, 'mistakes')}
             <span>and</span>
-            {renderCountBadge('blunder', currentUser?.blunders || 0)}
-            <span>critical errors.</span>
-            <span>Master these positions to improve.</span>
+            {renderCountBadge('blunder', currentUser?.blunders || 0, 'blunders')}
+            <span>worth replaying before your next game.</span>
           </div>
         </div>
         <div className="learn-mistakes-chips">
@@ -184,6 +184,7 @@ export function LearnFromMistakesCard({ currentUser, opponent, criticalMoves = [
               onClick={() => onMoveClick && onMoveClick(move)}
               title={qualityLabel[move.quality] || move.quality}
             >
+              <span className="learn-move-chip-index">0{index + 1}</span>
               <span className={`qi qi-${move.quality}`}>{qualityIcon[move.quality]}</span>
               <span>{move.san}</span>
             </button>
@@ -302,43 +303,52 @@ export function CoachRampPanel() {
 
 export function AnalysisPanel() {
   return (
-    <div className="gr-tab-panel gr-analyze-panel" id="grAnalyzePanel" style={{ display: 'none' }}>
-      <section className="review-card current-engine-card">
-        <div className="review-card-head">
-          <div>
-            <div className="gr-section-title">Current Position</div>
-            <div className="review-card-title">Engine read</div>
-          </div>
-          <div className="eval-score" id="evalScore">+0.00</div>
-        </div>
-        <div className="eval-section">
-          <div className="eval-body">
-            <div className="eval-meta">
-              <span className="eval-meta-label">Best Move</span>
-              <span className="eval-meta-move" id="bestMoveDisplay">—</span>
+    <div className="gr-tab-panel gr-analyze-panel active" id="grAnalyzePanel">
+      <section className="analysis-workspace-panel" aria-label="Engine analysis">
+        <div className="analysis-score-header">
+          <div className="analysis-score-left">
+            <button type="button" className="analysis-confirm-toggle" aria-label="Engine enabled">
+              <span>&#10003;</span>
+            </button>
+            <div className="analysis-score-stack">
+              <div className="eval-score analysis-eval-score" id="evalScore">+0.00</div>
+              <div className="analysis-score-caption">
+                Best move <span id="bestMoveDisplay">—</span>
+              </div>
             </div>
           </div>
-          <div className="eval-footer">
-            Depth <span id="evalDepth">0</span> · Nodes <span id="evalNodes">0</span>
+          <div className="analysis-depth-block">
+            <span className="analysis-depth-plus">+</span>
+            <span className="analysis-depth-main">Depth <strong id="evalDepth">0</strong></span>
+            <span className="analysis-engine-name" id="analysisEngineName">SF 17.1 Lite</span>
+            <span className="analysis-engine-nodes" id="evalNodes">0</span>
           </div>
+          <button type="button" className="analysis-settings-btn" id="analysisSettingsGear" aria-label="Open engine settings">&#9881;</button>
         </div>
-      </section>
+        <div className="analysis-glow-divider"></div>
 
-      <section className="review-card">
-        <div className="lines-header">
-          <span>Engine Lines</span>
+        <div className="analysis-lines-head">
+          <div>
+            <span className="analysis-section-kicker">Engine Lines</span>
+            <span className="analysis-position-label" id="grAnalysisPositionLabel">Current position</span>
+          </div>
           <span className="lines-summary" id="engineLinesSummary">All available</span>
         </div>
-        <div className="lines-container" id="linesContainer">
-          <div className="line-item loading">Waiting for Stockfish...</div>
-        </div>
-      </section>
 
-      <section className="review-card">
-        <div className="move-quality-banner" id="moveQualityBanner">
-          <div className="mq-label">Selected Move</div>
-          <div className="mq-pill">
-            <span className="qi" id="moveQualityIcon">?</span>
+        <div className="analysis-lines-stack" id="linesContainer">
+          <div className="engine-lines-skeleton">
+            <div className="line-item loading skeleton-line-row"><span className="skeleton-chip"></span><span className="skeleton-line w-70"></span><span className="skeleton-chip small"></span></div>
+            <div className="line-item loading skeleton-line-row"><span className="skeleton-chip"></span><span className="skeleton-line w-62"></span><span className="skeleton-chip small"></span></div>
+            <div className="line-item loading skeleton-line-row"><span className="skeleton-chip"></span><span className="skeleton-line w-76"></span><span className="skeleton-chip small"></span></div>
+          </div>
+        </div>
+
+        <div className="analysis-review-candidates" id="grAnalysisCandidates" hidden></div>
+
+        <div className="move-quality-banner analysis-selected-quality" id="moveQualityBanner">
+          <span className="qi" id="moveQualityIcon">?</span>
+          <div>
+            <div className="mq-label">Selected Move</div>
             <div className="mq-details">
               <div className="mq-grade" id="moveQualityGrade">Awaiting analysis</div>
               <div className="mq-desc" id="moveQualityDesc">
@@ -349,78 +359,130 @@ export function AnalysisPanel() {
         </div>
       </section>
 
-      <section className="review-card gr-live-section">
-        <div className="gr-live-header">
-          <span className="gr-section-title">Live Engine Analysis</span>
-          <span className="gr-live-badge">Live</span>
-        </div>
-        <div className="gr-live-candidates" id="grLiveCandidates">
-          <div className="gr-analysis-empty">Start analyzing a position to see engine candidates.</div>
-        </div>
-      </section>
-
-      <section className="review-card">
-        <div className="gr-analysis-head">
-          <div>
-            <div className="gr-section-title">Review Candidates</div>
-            <div className="gr-analysis-position" id="grAnalysisPositionLabel">
-              Select a move after running full analysis.
+      <section className="analysis-history-card">
+        <div className="analysis-player-card">
+          <div className="analysis-player-side">
+            <span className="analysis-player-dot is-white"></span>
+            <div>
+              <div className="analysis-player-name">
+                <span id="analysisWhiteName">White Player</span>
+                <span className="analysis-player-flag" id="analysisWhiteFlag"></span>
+              </div>
+              <div className="analysis-player-rating" id="analysisWhiteRating"></div>
+            </div>
+          </div>
+          <div className="analysis-result-pill" id="analysisGameResult">*</div>
+          <div className="analysis-player-side is-black">
+            <span className="analysis-player-dot is-black"></span>
+            <div>
+              <div className="analysis-player-name">
+                <span id="analysisBlackFlag" className="analysis-player-flag"></span>
+                <span id="analysisBlackName">Black Player</span>
+              </div>
+              <div className="analysis-player-rating" id="analysisBlackRating"></div>
             </div>
           </div>
         </div>
-        <div className="gr-analysis-list" id="grAnalysisCandidates">
-          <div className="gr-analysis-empty">Run full analysis to see better moves in this position.</div>
-        </div>
-      </section>
 
-      <section className="review-card phase-review-card">
-        <div className="review-card-head">
-          <div>
-            <div className="gr-section-title">Phase Review</div>
-            <div className="review-card-title">Opening, middlegame, endgame</div>
-          </div>
+        <div className="analysis-move-history-head">
+          <span>Move History</span>
+          <span className="analysis-history-hint">Quality badges appear after full analysis</span>
         </div>
-        <div className="phase-review-grid">
-          <div className="phase-review-row">
-            <span>Opening</span>
-            <div className="gr-val" id="grPhaseOpW"><span className="gr-phase-icon">--</span></div>
-            <div className="gr-val" id="grPhaseOpB"><span className="gr-phase-icon">--</span></div>
-          </div>
-          <div className="phase-review-row">
-            <span>Middlegame</span>
-            <div className="gr-val" id="grPhaseMidW"><span className="gr-phase-icon">--</span></div>
-            <div className="gr-val" id="grPhaseMidB"><span className="gr-phase-icon">--</span></div>
-          </div>
-          <div className="phase-review-row">
-            <span>Endgame</span>
-            <div className="gr-val" id="grPhaseEndW"><span className="gr-phase-icon">--</span></div>
-            <div className="gr-val" id="grPhaseEndB"><span className="gr-phase-icon">--</span></div>
-          </div>
-        </div>
+        <div className="moves-list analysis-move-list" id="movesList"></div>
       </section>
+    </div>
+  );
+}
 
-      <section className="review-card gr-cpl-section">
-        <div className="gr-cpl-header">
-          <span className="gr-section-title" style={{margin:0}}>Centipawn Loss</span>
-          <div className="gr-cpl-legend">
-            <span className="gr-legend-item"><span className="gr-legend-dot accurate"></span>Accurate</span>
-            <span className="gr-legend-item"><span className="gr-legend-dot inaccuracy"></span>Inaccuracy</span>
-            <span className="gr-legend-item"><span className="gr-legend-dot mistake"></span>Mistake</span>
-            <span className="gr-legend-item"><span className="gr-legend-dot blunder"></span>Blunder</span>
+export function EngineSettingsModal() {
+  const engineOptions = (
+    <>
+      <option value="sf18">Stockfish 18 (108MB download)</option>
+      <option value="sf17full">Stockfish 17.1 Full</option>
+      <option value="sf17lite">Stockfish 17.1 Lite</option>
+      <option value="sf16">Stockfish 16</option>
+      <option value="sf16_1lite">Stockfish 16.1 Lite</option>
+      <option value="sf11">Stockfish 11</option>
+    </>
+  );
+
+  return (
+    <div className="engine-settings-overlay" id="engineSettingsOverlay" hidden>
+      <div className="engine-settings-modal" role="dialog" aria-modal="true" aria-labelledby="engineSettingsTitle">
+        <div className="engine-settings-header">
+          <h2 id="engineSettingsTitle">Settings</h2>
+          <button type="button" className="engine-settings-close" id="engineSettingsClose" aria-label="Close engine settings">&#215;</button>
+        </div>
+        <div className="engine-settings-body">
+          <div className="engine-settings-section">
+            <div className="engine-settings-section-title">Game Review</div>
+            <label className="engine-setting-field">
+              <span>Chess Engine</span>
+              <select id="engineSettingsReviewEngine" className="dark-select">
+                {engineOptions}
+              </select>
+            </label>
+            <label className="engine-setting-field">
+              <span>Strength</span>
+              <select id="engineSettingsReviewStrength" className="dark-select">
+                <option value="fast">Fast (~1 sec, 3270 Rating)</option>
+                <option value="balanced">Medium (~3 sec, 3400 Rating)</option>
+                <option value="slow">Deep (~7 sec, 3500 Rating)</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="engine-settings-section">
+            <div className="engine-settings-section-title">Analysis</div>
+            <label className="engine-setting-field">
+              <span>Chess Engine</span>
+              <select id="engineSettingsEngine" className="dark-select">
+                {engineOptions}
+              </select>
+            </label>
+            <label className="engine-setting-field">
+              <span>Maximum Time</span>
+              <select id="engineSettingsTime" className="dark-select">
+                <option value="1">1 sec</option>
+                <option value="3">3 sec</option>
+                <option value="5">5 sec</option>
+                <option value="10">10 sec</option>
+              </select>
+            </label>
+            <label className="engine-setting-field">
+              <span>Number of Lines</span>
+              <select id="engineSettingsLines" className="dark-select">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+              </select>
+            </label>
+            <label className="engine-setting-field">
+              <span>Suggestion Arrows</span>
+              <select id="engineSettingsArrows" className="dark-select">
+                <option value="off">Off</option>
+                <option value="best">Best Move</option>
+                <option value="best-moves">Best Moves</option>
+                <option value="all">All Lines</option>
+              </select>
+            </label>
+            <label className="engine-setting-field">
+              <span>Depth</span>
+              <select id="engineSettingsDepth" className="dark-select">
+                <option value="auto">Auto</option>
+                <option value="15">Depth 15</option>
+                <option value="20">Depth 20</option>
+                <option value="25">Depth 25</option>
+              </select>
+            </label>
           </div>
         </div>
-        <div className="gr-cpl-chart-wrap" id="cplChartWrap">
-          <canvas id="cplChart" height="130"></canvas>
-          <div className="cpl-tooltip" id="cplTooltip" style={{display:'none'}}></div>
+        <div className="engine-settings-footer">
+          <button type="button" className="engine-settings-done" id="engineSettingsDone">Done</button>
         </div>
-      </section>
-
-      <section className="moves-section review-card">
-        <div className="moves-header">
-          <span>Moves &amp; Notation</span>
-        </div>
-        <div className="moves-list" id="movesList"></div>
-      </section>
+      </div>
     </div>
   );
 }

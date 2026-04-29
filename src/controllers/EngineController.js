@@ -10,12 +10,14 @@
 import Chess from '../lib/chess';
 import PGNParser from '../lib/pgn-parser.js';
 import EngineManager from './EngineManager';
+import ChessBoard from './ChessBoard';
 import { analyzeGameWithChessKit } from '../lib/chesskit/gameAnalyzer.js';
 import { MoveClassification } from '../lib/chesskit/enums.js';
 import { escapeAttr, escapeHtml, setText } from '../utils/dom.js';
 
 const EngineController = (function() {
-  var REVIEW_MULTI_PV = 3;
+  var REVIEW_MULTI_PV = 2;
+  var REVIEW_STRENGTHS = ['fast', 'balanced', 'slow'];
   var MAX_LIVE_LINES = 5;
   var currentLines = {};
   var currentAnalysisFen = null;
@@ -23,6 +25,7 @@ const EngineController = (function() {
   var analysisTimer = null;
   var numLines = MAX_LIVE_LINES;
   var analysisDepth = 20;
+  var suggestionArrowsMode = 'best-moves';
   var fullGameAnalysis = [];
   var gameAnalysisToken = 0;
   var onBestMoveCallback = null;
@@ -71,12 +74,24 @@ const EngineController = (function() {
     return REVIEW_FAILURE_MESSAGE;
   }
 
-  function getReviewProfile(totalPositions) {
-    if (totalPositions > 140) return { depth: 8, chunkSize: 96, initialChunkSize: 1 };
-    if (totalPositions > 100) return { depth: 9, chunkSize: 80, initialChunkSize: 1 };
-    if (totalPositions > 70)  return { depth: 10, chunkSize: 72, initialChunkSize: 1 };
-    if (totalPositions > 45)  return { depth: 11, chunkSize: 64, initialChunkSize: 1 };
-    return { depth: 12, chunkSize: 48, initialChunkSize: 1 };
+  function getReviewProfile(totalPositions, strength) {
+    var normalized = REVIEW_STRENGTHS.indexOf(strength) !== -1 ? strength : 'fast';
+    var profiles = {
+      fast: { movetimeMs: 1000, depth: 12, concurrency: 4, threadsPerEngine: 2 },
+      balanced: { movetimeMs: 3000, depth: 16, concurrency: 3, threadsPerEngine: 2 },
+      slow: { movetimeMs: 7000, depth: 20, concurrency: 2, threadsPerEngine: 3 }
+    };
+    var profile = profiles[normalized];
+    var concurrency = Math.max(1, Math.min(profile.concurrency, totalPositions || 1));
+    var chunkSize = Math.max(1, Math.ceil((totalPositions || 1) / concurrency));
+    return {
+      depth: profile.depth,
+      chunkSize: chunkSize,
+      initialChunkSize: chunkSize,
+      concurrency: concurrency,
+      movetimeMs: profile.movetimeMs,
+      threadsPerEngine: profile.threadsPerEngine
+    };
   }
 
   // ---------- Live analysis (single FEN) ----------
@@ -101,7 +116,7 @@ const EngineController = (function() {
     });
   }
 
-  function analyzeFen(fen, depth, lines, onBestMove) {
+  function analyzeFen(fen, depth, lines, onBestMove, options) {
     if (isAnalyzing) {
       EngineManager.stop();
     }
@@ -116,6 +131,8 @@ const EngineController = (function() {
     updateLinesDisplay([]);
 
     var sideToMove = fen ? fen.split(' ')[1] : 'w';
+    var requestOptions = options || {};
+    if (requestOptions.engine) EngineManager.setOption('Engine', requestOptions.engine);
 
     EngineManager.analyze(fen, analysisDepth, numLines, function(data) {
       if (data.type === 'info') {
@@ -138,22 +155,15 @@ const EngineController = (function() {
           onBestMoveCallback(data.move);
         }
 
-        if (data.move && currentLines[1]) {
-          var pvMoves = currentLines[1].pv ? currentLines[1].pv.split(' ') : [];
-          var arrowList = [];
-          if (pvMoves[0] && pvMoves[0].length >= 4) {
-            arrowList.push({from: pvMoves[0].slice(0,2), to: pvMoves[0].slice(2,4), color: 'rgba(100,220,100,0.8)'});
-          }
-          if (pvMoves[1] && pvMoves[1].length >= 4) {
-            arrowList.push({from: pvMoves[1].slice(0,2), to: pvMoves[1].slice(2,4), color: 'rgba(100,150,255,0.5)'});
-          }
-          ChessBoard.setArrows(arrowList);
-        }
+        if (data.move && currentLines[1]) refreshSuggestionArrows();
       }
+    }, {
+      engine: requestOptions.engine,
+      movetimeMs: requestOptions.movetimeMs
     });
   }
 
-  function updateDisplay(data, fen) {
+  function updateDisplay(data, _fen) {
     var evalScore = parseFloat(data.eval);
     var isMate = data.eval && data.eval.toString().indexOf('M') !== -1;
 
@@ -203,6 +213,80 @@ const EngineController = (function() {
     blackFill.style.height = whitePercent + '%';
   }
 
+  function buildLineSkeletonRows() {
+    var widths = ['w-70', 'w-62', 'w-76', 'w-70', 'w-62'];
+    var html = '';
+    for (var i = 0; i < numLines; i++) {
+      html += '<div class="line-item loading skeleton-line-row">' +
+        '<span class="skeleton-chip"></span>' +
+        '<span class="skeleton-line ' + widths[i % widths.length] + '"></span>' +
+        '<span class="skeleton-chip small"></span>' +
+      '</div>';
+    }
+    return html;
+  }
+
+  function getFirstMoveFromPv(line) {
+    if (!line || !line.pv) return '';
+    return String(line.pv).split(' ')[0] || '';
+  }
+
+  function buildSuggestionArrows(lines) {
+    if (suggestionArrowsMode === 'off') return [];
+    var limit = suggestionArrowsMode === 'best' ? 1 : suggestionArrowsMode === 'best-moves' ? 2 : numLines;
+    return (lines || []).slice(0, limit).map(function(line, index) {
+      var move = getFirstMoveFromPv(line);
+      if (!move || move.length < 4) return null;
+      return {
+        from: move.slice(0, 2),
+        to: move.slice(2, 4),
+        color: index === 0 ? 'rgba(126, 211, 83, 0.9)' : 'rgba(247, 197, 68, 0.62)'
+      };
+    }).filter(Boolean);
+  }
+
+  function refreshSuggestionArrows() {
+    if (suggestionArrowsMode === 'off') {
+      ChessBoard.clearArrows();
+      return;
+    }
+    ChessBoard.setArrows(buildSuggestionArrows(getAvailableLines()));
+  }
+
+  function getSanForFirstMove(fen, uciMove) {
+    if (!uciMove || uciMove.length < 4) return '—';
+    try {
+      var chess = new Chess();
+      if (fen) chess.load(fen);
+      var move = chess.move({
+        from: uciMove.slice(0, 2),
+        to: uciMove.slice(2, 4),
+        promotion: uciMove[4] || 'q'
+      });
+      return move && move.san ? move.san : formatMove(uciMove);
+    } catch {
+      return formatMove(uciMove);
+    }
+  }
+
+  function pieceIconForUci(fen, uciMove) {
+    if (!uciMove || uciMove.length < 2) return '♙';
+    try {
+      var chess = new Chess();
+      if (fen) chess.load(fen);
+      var piece = chess.get(uciMove.slice(0, 2));
+      var color = piece && piece.color === 'b' ? 'b' : 'w';
+      var type = piece && piece.type ? piece.type : 'p';
+      var icons = {
+        wp: '♙', wn: '♘', wb: '♗', wr: '♖', wq: '♕', wk: '♔',
+        bp: '♟', bn: '♞', bb: '♝', br: '♜', bq: '♛', bk: '♚'
+      };
+      return icons[color + type] || (color === 'b' ? '♟' : '♙');
+    } catch {
+      return '♙';
+    }
+  }
+
   function updateLinesDisplay(lines, fen) {
     var container = document.getElementById('linesContainer');
     if (!container) return;
@@ -211,30 +295,40 @@ const EngineController = (function() {
     if (!lines || lines.length === 0) {
       container.innerHTML =
         '<div class="engine-lines-skeleton">' +
-          '<div class="line-item loading skeleton-line-row"><span class="skeleton-chip"></span><span class="skeleton-line w-70"></span><span class="skeleton-chip small"></span></div>' +
-          '<div class="line-item loading skeleton-line-row"><span class="skeleton-chip"></span><span class="skeleton-line w-62"></span><span class="skeleton-chip small"></span></div>' +
-          '<div class="line-item loading skeleton-line-row"><span class="skeleton-chip"></span><span class="skeleton-line w-76"></span><span class="skeleton-chip small"></span></div>' +
+          buildLineSkeletonRows() +
         '</div>';
       return;
     }
 
-    container.innerHTML = lines.map(function(line) {
+    container.innerHTML = lines.map(function(line, idx) {
       var evalStr = line.eval;
       var evalNum = parseFloat(evalStr);
       var isMate = evalStr && evalStr.toString().indexOf('M') !== -1;
       var evalClass = (!isMate && evalNum < 0) ? 'line-eval negative' : 'line-eval';
       var evalDisplay = isMate ? evalStr : (evalNum > 0 ? '+' + evalStr : evalStr);
-
+      var firstUci = getFirstMoveFromPv(line);
+      var firstSan = getSanForFirstMove(fen, firstUci);
+      var pieceIcon = pieceIconForUci(fen, firstUci);
       var pvFormatted = formatPV(line.pv, fen);
+      var continuation = pvFormatted;
+      var lineClass = 'line-item analysis-line-row' + (idx === 0 ? ' is-best' : '');
+      var bestLabel = idx === 0
+        ? '<span class="line-best-label"><span aria-hidden="true">♛</span> is best</span>'
+        : '';
 
-      return `<button type="button" class="line-item" data-pv="${escapeAttr(line.pv || '')}" onclick="EngineController.loadLine(this)">
+      return `<button type="button" class="${lineClass}" data-pv="${escapeAttr(line.pv || '')}" onclick="EngineController.loadLine(this)">
+        <span class="line-piece-icon">${escapeHtml(pieceIcon)}</span>
+        <span class="line-main-move">${escapeHtml(firstSan)}</span>
         <span class="${evalClass}">${escapeHtml(evalDisplay)}</span>
-        <span class="line-moves">${escapeHtml(pvFormatted)}</span>
+        ${bestLabel}
+        <span class="line-moves">${escapeHtml(continuation)}</span>
         <span class="line-depth-badge">d${line.depth}</span>
+        <span class="line-chevron" aria-hidden="true">⌄</span>
       </button>`;
     }).join('');
 
     renderLiveCandidates();
+    refreshSuggestionArrows();
   }
 
   function getAvailableLines() {
@@ -370,7 +464,7 @@ const EngineController = (function() {
 
   // ---------- Full game review (chess kit pipeline) ----------
 
-  function analyzeGame(pgn, meta, onProgress, onComplete) {
+  function analyzeGame(pgn, meta, onProgress, onComplete, options) {
     var parsedGame = PGNParser.parse(pgn || '');
     var history = parsedGame && parsedGame.moves ? parsedGame.moves.slice() : [];
     if (!history.length) {
@@ -384,8 +478,9 @@ const EngineController = (function() {
 
     stop();
     var reviewToken = ++gameAnalysisToken;
-    var profile = getReviewProfile(positions.length);
+    var profile = getReviewProfile(positions.length, options && options.strength);
     var totalUnits = positions.length;
+    var reviewEngine = options && options.engine ? options.engine : null;
 
     // Chess kit needs at least two lines for classification. Three keeps the
     // review responsive while still showing viable alternatives per move.
@@ -428,7 +523,14 @@ const EngineController = (function() {
           onComplete([], history, err && err.message ? err.message : REVIEW_FAILURE_MESSAGE);
         }
       });
-    }, { chunkSize: profile.chunkSize, initialChunkSize: profile.initialChunkSize });
+    }, {
+      chunkSize: profile.chunkSize,
+      initialChunkSize: profile.initialChunkSize,
+      concurrency: profile.concurrency,
+      movetimeMs: profile.movetimeMs,
+      threads: profile.threadsPerEngine,
+      engine: reviewEngine
+    });
   }
 
   return {
@@ -439,9 +541,13 @@ const EngineController = (function() {
     renderLiveCandidates: renderLiveCandidates,
     loadLine: loadLine,
     stop: stop,
-    getMaxLines: function() { return MAX_LIVE_LINES; },
+    getMaxLines: function() { return numLines; },
     setNumLines: function(n) { numLines = Math.max(1, Math.min(MAX_LIVE_LINES, parseInt(n, 10) || MAX_LIVE_LINES)); },
     setDepth: function(d) { analysisDepth = d; },
+    setSuggestionArrowsMode: function(mode) {
+      suggestionArrowsMode = ['off', 'best', 'best-moves', 'all'].indexOf(mode) !== -1 ? mode : 'best-moves';
+      refreshSuggestionArrows();
+    },
     setOption: function(name, value) { EngineManager.setOption(name, value); },
     centipawnsToWinPercent: centipawnsToWinPercent,
     MoveClassification: MoveClassification
