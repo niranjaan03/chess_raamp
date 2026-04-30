@@ -13,3 +13,5 @@ coverage/
 
 *.parquet
 src/data/openings/chess open.parquet
+puzzles/*.parquet
+dist/
