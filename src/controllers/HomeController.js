@@ -9,7 +9,7 @@ import PuzzleController from './PuzzleController.js';
 import { bindClick, escapeAttr, escapeHtml, getEl } from '../utils/dom.js';
 import { showToast } from '../utils/toast.js';
 
-const DEFAULT_ENGINE_LABEL = 'Stockfish 18';
+const DEFAULT_ENGINE_LABEL = 'Selectable Browser Stockfish';
 
 const HomeController = (function() {
   var chesscomStatsRequest = 0;

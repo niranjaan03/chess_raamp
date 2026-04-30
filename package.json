@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "sync:stockfish": "node scripts/sync-stockfish-wasm.cjs",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

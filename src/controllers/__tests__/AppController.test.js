@@ -87,6 +87,23 @@ describe('AppController.formatChesscomOpeningLabel', () => {
   });
 });
 
+describe('AppController.formatDurationValue', () => {
+  it('keeps clocks rounded at 20 seconds and above', () => {
+    expect(AppController.formatDurationValue('0:00:20.4')).toBe('0:20');
+    expect(AppController.formatDurationValue('0:10:00.9')).toBe('10:01');
+  });
+
+  it('folds hours into minutes', () => {
+    expect(AppController.formatDurationValue('1:02:03')).toBe('62:03');
+  });
+
+  it('shows fractional clock precision below 20 seconds', () => {
+    expect(AppController.formatDurationValue('0:00:19.7')).toBe('0:19.7');
+    expect(AppController.formatDurationValue('0:00:03.125')).toBe('0:03.125');
+    expect(AppController.formatDurationValue(19500)).toBe('0:19.500');
+  });
+});
+
 describe('HomeController saved profiles', () => {
   it('renders fetch actions for linked accounts in saved profiles', () => {
     document.body.innerHTML = '<div id="savedProfilesList"></div>';

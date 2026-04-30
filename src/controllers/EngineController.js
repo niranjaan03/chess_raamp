@@ -105,7 +105,7 @@ const EngineController = (function() {
     EngineManager.init(function(status) {
       var engineEl = document.getElementById('engineStatus');
       var label = engineEl ? engineEl.querySelector('.engine-label') : null;
-      var engineName = status && status.engine ? status.engine : 'Stockfish 18';
+      var engineName = status && status.engine ? status.engine : 'Stockfish 18 Browser';
       if (label) {
         setText(label, status && status.ready ? (engineName + ' Ready') : (engineName + ' Offline'));
       }

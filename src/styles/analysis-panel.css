@@ -270,7 +270,7 @@
 }
 .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
 
-.moves-list {
+.moves-list:not(.analysis-move-list) {
   flex: 1;
   overflow-y: auto;
   padding: 6px;
@@ -291,7 +291,7 @@
   min-width: 28px;
   flex-shrink: 0;
 }
-.move-san {
+.moves-list:not(.analysis-move-list) .move-san {
   padding: 4px 7px;
   border-radius: 4px;
   font-family: var(--font-mono);
@@ -301,8 +301,8 @@
   color: var(--text-primary);
   position: relative;
 }
-.move-san:hover { background: var(--bg-hover); }
-.move-san.active {
+.moves-list:not(.analysis-move-list) .move-san:hover { background: var(--bg-hover); }
+.moves-list:not(.analysis-move-list) .move-san.active {
   background: var(--accent-glow);
   color: var(--accent);
   outline: 1px solid var(--accent);

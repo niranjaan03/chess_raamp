@@ -6,7 +6,7 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
       <div className="home-layout">
         <section className="home-hero" aria-labelledby="homeHeroTitle">
           <div className="home-hero-main">
-            <div className="hero-kicker">Stockfish review workspace</div>
+            <div className="hero-kicker">Browser Stockfish review workspace</div>
             <h1 className="hero-title" id="homeHeroTitle">
               Welcome back, <span id="heroName">Guest</span>
             </h1>
@@ -32,7 +32,7 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
               </div>
               <div className="hero-stat-card">
                 <span className="hero-stat-value">18</span>
-                <span className="hero-stat-label">Stockfish</span>
+                    <span className="hero-stat-label">Browser engine</span>
               </div>
               <div className="hero-stat-card">
                 <span className="hero-stat-value">3</span>
@@ -128,7 +128,7 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
                       </span>
                     </div>
                     <div className="profile-engine-row">
-                      Engine: <span id="profileEngineView">Stockfish 18</span> · Depth:{' '}
+                      Engine: <span id="profileEngineView">Selectable Browser Stockfish</span> · Depth:{' '}
                       <span id="profileDepthView">20</span>
                     </div>
                   </div>
@@ -148,15 +148,24 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
                   <div className="profile-rating-grid">
                     <div className="psm-box">
                       <div className="psm-num" id="hmStatBullet">—</div>
-                      <div className="psm-label">Bullet</div>
+                      <div className="psm-label">
+                        <span className="psm-label-icon psm-label-icon-bullet" aria-hidden="true">&#9679;</span>
+                        <span>Bullet</span>
+                      </div>
                     </div>
                     <div className="psm-box">
                       <div className="psm-num" id="hmStatBlitz">—</div>
-                      <div className="psm-label">Blitz</div>
+                      <div className="psm-label">
+                        <span className="psm-label-icon psm-label-icon-blitz" aria-hidden="true">&#9889;</span>
+                        <span>Blitz</span>
+                      </div>
                     </div>
                     <div className="psm-box">
                       <div className="psm-num" id="hmStatRapid">—</div>
-                      <div className="psm-label">Rapid</div>
+                      <div className="psm-label">
+                        <span className="psm-label-icon psm-label-icon-rapid" aria-hidden="true">&#9201;</span>
+                        <span>Rapid</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -174,8 +183,8 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Stockfish</label>
-                    <div className="settings-static-value settings-static-full">Stockfish</div>
+                    <label>Engine</label>
+                    <div className="settings-static-value settings-static-full">Selectable Browser Stockfish</div>
                   </div>
                   <div className="form-group">
                     <label htmlFor="prefDepth">Depth</label>

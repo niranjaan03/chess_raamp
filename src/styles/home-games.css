@@ -366,7 +366,31 @@
   font-weight: 800;
   color: var(--accent);
 }
-.psm-label { font-size: 0.58rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 1px; }
+.psm-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 1px;
+}
+.psm-label-icon {
+  color: var(--accent2);
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  line-height: 1;
+}
+.psm-label-icon-blitz {
+  color: #f6c84c;
+}
+.psm-label-icon-rapid {
+  color: #9ed4ff;
+}
+.psm-label-icon-bullet {
+  color: #ff7a5f;
+}
 
 /* Edit Form inside profile card */
 .edit-form-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
@@ -1059,4 +1083,3 @@
 .brand-name, .hero-title span, .opening-name, .linked-name, .psm-num, .stat-num, .acc-score {
   text-shadow: 0 0 14px rgba(212,175,55,0.16);
 }
-

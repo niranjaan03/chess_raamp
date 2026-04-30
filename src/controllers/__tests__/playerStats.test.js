@@ -4,6 +4,7 @@ import {
   aggWLD, aggByTC, aggMonthly, aggByDOW,
   aggRatingDiff, aggOppStrength, aggHeadToHead,
   aggStreaks, aggRadar, aggResultBreakdown,
+  normalizeAnalyzeUsername,
 } from '../PlayerAnalyzeController.js';
 
 // ── test-game factory ──────────────────────────────────────────────────────────
@@ -28,6 +29,20 @@ function game(overrides = {}) {
 const win  = (o = {}) => game({ won: true,  lost: false, drew: false, result: 'win',        ...o });
 const loss = (o = {}) => game({ won: false, lost: true,  drew: false, result: 'checkmated', ...o });
 const draw = (o = {}) => game({ won: false, lost: false, drew: true,  result: 'agreed',     ...o });
+
+describe('normalizeAnalyzeUsername', () => {
+  it('accepts a plain Chess.com username', () => {
+    expect(normalizeAnalyzeUsername('Ninja_VM')).toBe('ninja_vm');
+  });
+
+  it('strips a visible profile handle prefix', () => {
+    expect(normalizeAnalyzeUsername('@ninja_vm')).toBe('ninja_vm');
+  });
+
+  it('extracts usernames from Chess.com profile URLs', () => {
+    expect(normalizeAnalyzeUsername('https://www.chess.com/member/ninja_vm?tab=games')).toBe('ninja_vm');
+  });
+});
 
 // ── filterByTC ─────────────────────────────────────────────────────────────────
 

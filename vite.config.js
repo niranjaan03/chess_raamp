@@ -1,13 +1,24 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { stockfishBridgePlugin } from './server/stockfishBridge.js';
 import { puzzleBridgePlugin } from './server/puzzleBridge.js';
 import { chesscomBridgePlugin } from './server/chesscomBridge.js';
 import { lichessBridgePlugin } from './server/lichessBridge.js';
 import { openingStatsBridgePlugin } from './server/openingStatsBridge.js';
 
 export default defineConfig({
-  plugins: [react(), stockfishBridgePlugin(), puzzleBridgePlugin(), chesscomBridgePlugin(), lichessBridgePlugin(), openingStatsBridgePlugin()],
+  plugins: [react(), puzzleBridgePlugin(), chesscomBridgePlugin(), lichessBridgePlugin(), openingStatsBridgePlugin()],
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp'
+    }
+  },
+  preview: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp'
+    }
+  },
   build: {
     chunkSizeWarningLimit: 1400,
     rollupOptions: {

@@ -804,17 +804,17 @@
     @apply rounded-2xl border border-white/10 bg-black/60;
   }
 
-  .moves-list {
+  .moves-list:not(.analysis-move-list) {
     @apply gap-1 p-3;
   }
 
-  .move-san,
+  .moves-list:not(.analysis-move-list) .move-san,
   .pmove {
     @apply rounded-lg px-2.5 py-1.5 text-[13px] text-neutral-100 transition duration-150 hover:bg-white/10;
     font-family: var(--font-mono);
   }
 
-  .move-san.active,
+  .moves-list:not(.analysis-move-list) .move-san.active,
   .pmove-current {
     @apply border border-white/20 bg-white/10 text-white shadow-none outline-none;
   }

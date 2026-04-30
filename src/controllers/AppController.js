@@ -14,15 +14,16 @@ import SoundController from './SoundController';
 import { bind, bindClick, escapeAttr, escapeHtml, getEl, setText } from '../utils/dom.js';
 import { showToast, copyToClipboard } from '../utils/toast.js';
 import FeedbackController from './FeedbackController.js';
+import AuthController from './AuthController.js';
+import ProfileController from './ProfileController.js';
+import DatabaseController from './DatabaseController.js';
+import PlatformFetchController from './PlatformFetchController.js';
+import { state, DEFAULT_ENGINE_ID } from './state.js';
 
-const RAW_GOOGLE_CLIENT_ID = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID)
-  ? import.meta.env.VITE_GOOGLE_CLIENT_ID
-  : '';
 const APP_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL)
   ? import.meta.env.BASE_URL
   : '/';
 const CLEAN_APP_BASE_URL = (!APP_BASE_URL || APP_BASE_URL === '/') ? '' : APP_BASE_URL.replace(/\/$/, '');
-const DEFAULT_ENGINE_ID = 'sf18';
 const REVIEW_PIECE_ASSET_PATHS = {
   wP: 'Chess_plt45.svg',
   wN: 'Chess_nlt45.svg',
@@ -48,9 +49,6 @@ const AppController = (function() {
   var autoPlayInterval = null;
   var autoPlayActive = false;
   var autoPlayDelay = 1200;
-  var profile = {};
-  var authSession = null;
-  var gameDatabase = [];
   var analysisMode = true;
   var lastAnalysisHistory = null;
   var lastAnalysisCounts = null;
@@ -60,7 +58,7 @@ const AppController = (function() {
   var selectedMoveQualityColor = null;
   var selectedMoveQualityCursor = 0;
   var reviewReplayState = null;
-  var authMode = 'signin';
+  var enginePreviewSnapshot = null;
   var DEFAULT_MOVE_DESC = 'Run a full game review to see brilliance, inaccuracies, and more for each move.';
   var DEFAULT_COACH_TEXT = 'Run a full analysis to unlock personalized move-by-move coaching.';
   var COACH_COMMENTARY_URL = APP_BASE_URL.replace(/\/?$/, '/') + 'data/chess_commentary_cleaned_combined.json';
@@ -68,25 +66,24 @@ const AppController = (function() {
   var coachCommentaryPromise = null;
   var coachCommentaryStore = null;
   var coachCommentaryRequestId = 0;
-  var AUTH_ACCOUNTS_KEY = 'kv_auth_accounts';
-  var AUTH_SESSION_KEY = 'kv_auth_session';
-  var GOOGLE_AUTH_STATE_KEY = 'kv_google_auth_state';
-  var GOOGLE_AUTH_NONCE_KEY = 'kv_google_auth_nonce';
-  var GOOGLE_CLIENT_ID = RAW_GOOGLE_CLIENT_ID || '';
   var COLOR_MODE_KEY = 'kv_color_mode';
   var ENGINE_SETTINGS_KEY = 'kv_engine_settings';
   var ENGINE_LABELS = {
-    sf18: 'Stockfish 18',
-    sf17full: 'SF 17.1 Full',
-    sf17lite: 'SF 17.1 Lite',
-    sf16: 'Stockfish 16',
-    sf16_1lite: 'SF 16.1 Lite',
-    sf11: 'Stockfish 11'
+    sf18: 'Stockfish 18 Browser',
+    'sf18-lite': 'Stockfish 18 Lite Browser',
+    'sf18-full': 'Stockfish 18 Full Browser',
+    'sf17-1-lite': 'Stockfish 17.1 Lite Browser',
+    'sf17-1-full': 'Stockfish 17.1 Full Browser',
+    'sf17-lite': 'Stockfish 17 Lite Browser',
+    'sf17-full': 'Stockfish 17 Full Browser',
+    'sf16-1-lite': 'Stockfish 16.1 Lite Browser',
+    'sf16-1-full': 'Stockfish 16.1 Full Browser',
+    'sf16-nnue': 'Stockfish 16 NNUE Browser'
   };
   var REVIEW_STRENGTHS = ['fast', 'balanced', 'slow'];
   var DEFAULT_ENGINE_SETTINGS = {
     gameReview: {
-      engine: 'sf16',
+      engine: 'sf18',
       strength: 'fast'
     },
     analysis: {
@@ -134,20 +131,31 @@ const AppController = (function() {
   function init() {
     chess = new Chess();
     
-    loadProfile();
-    handleGoogleRedirectResult();
-    loadAuthSession();
-    loadDatabase();
-    
+    ProfileController.loadProfile();
+    AuthController.init({
+      applyProfile: ProfileController.applyProfile,
+      switchTab: switchTab,
+      onAuthChange: function() { /* room for future hooks */ }
+    });
+    DatabaseController.init({
+      loadPGNGame: loadPGNGame,
+      switchTab: switchTab
+    });
+    PlatformFetchController.init({
+      loadPGNGame: loadPGNGame,
+      switchTab: switchTab,
+      triggerAutoReview: triggerAutoReview,
+      readStoredProfile: readStoredProfile
+    });
+
     ChessBoard.init('chessBoard', 'boardOverlay', onBoardMove);
     ChessBoard.setPosition(chess);
     updateAnalyzePlayerInfo(null, getAnalyzeBottomColor());
     syncAnalyzeBoardInteraction();
     EngineController.init();
     SoundController.init();
-    
+
     setupEventListeners();
-    setupAuth();
     setupTabNavigation();
     setupBrowserTabHistory();
     setupCoordinates();
@@ -159,8 +167,8 @@ const AppController = (function() {
     startAnalysis();
     
     updateMovesList();
-    renderSavedGames();
-    renderDatabase();
+    DatabaseController.renderSavedGames();
+    DatabaseController.render();
     
     showToast('Welcome to chess ramp!', 'success');
 
@@ -319,7 +327,7 @@ const AppController = (function() {
       }, 50);
     }
     if (tab === 'database') {
-      renderDatabase();
+      DatabaseController.render();
     }
     if (tab === 'home' && window.HomeController) {
       window.HomeController.refreshHomeData();
@@ -379,503 +387,6 @@ const AppController = (function() {
     }, 120);
   }
 
-  function getDefaultProfile() {
-    return {
-      displayName: '',
-      chesscomUsername: '',
-      lichessUsername: '',
-      linkedAccounts: [],
-      activeAccountId: '',
-      prefEngine: DEFAULT_ENGINE_ID,
-      prefDepth: '20',
-      authEmail: '',
-      authProvider: '',
-      isAuthenticated: false
-    };
-  }
-
-  function getStoredAuthAccounts() {
-    try {
-      var saved = JSON.parse(localStorage.getItem(AUTH_ACCOUNTS_KEY) || '[]');
-      return Array.isArray(saved) ? saved : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveStoredAuthAccounts(accounts) {
-    try {
-      localStorage.setItem(AUTH_ACCOUNTS_KEY, JSON.stringify(accounts));
-    } catch { /* storage full */ }
-  }
-
-  function getStoredAuthSession() {
-    try {
-      var saved = localStorage.getItem(AUTH_SESSION_KEY);
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function saveAuthSession(session) {
-    authSession = session || null;
-    try {
-      if (authSession) localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(authSession));
-      else localStorage.removeItem(AUTH_SESSION_KEY);
-    } catch { /* storage full */ }
-  }
-
-  function deriveDisplayName(email) {
-    var localPart = String(email || '').split('@')[0] || 'Guest';
-    var cleaned = localPart.replace(/[._-]+/g, ' ').trim();
-    return cleaned ? cleaned.replace(/\b\w/g, function(ch) { return ch.toUpperCase(); }) : 'Guest';
-  }
-
-  function sanitizeProfileForAccount(sourceProfile) {
-    return {
-      displayName: sourceProfile.displayName || '',
-      chesscomUsername: sourceProfile.chesscomUsername || '',
-      lichessUsername: sourceProfile.lichessUsername || '',
-      linkedAccounts: Array.isArray(sourceProfile.linkedAccounts) ? sourceProfile.linkedAccounts : [],
-      activeAccountId: sourceProfile.activeAccountId || '',
-      prefEngine: sourceProfile.prefEngine || DEFAULT_ENGINE_ID,
-      prefDepth: sourceProfile.prefDepth || '20'
-    };
-  }
-
-  function persistProfileState(syncAccount) {
-    try {
-      localStorage.setItem('kv_profile', JSON.stringify(profile));
-    } catch { /* storage full */ }
-    if (syncAccount !== false) persistProfileToAuthenticatedAccount();
-  }
-
-  function persistProfileToAuthenticatedAccount() {
-    if (!authSession || !authSession.accountId) return;
-    var accounts = getStoredAuthAccounts();
-    var index = accounts.findIndex(function(account) {
-      return String(account.id) === String(authSession.accountId);
-    });
-    if (index === -1) return;
-    accounts[index].displayName = profile.displayName || authSession.displayName || deriveDisplayName(authSession.email);
-    accounts[index].profileData = sanitizeProfileForAccount(profile);
-    accounts[index].lastLoginAt = new Date().toISOString();
-    saveStoredAuthAccounts(accounts);
-  }
-
-  function restoreProfileFromAccount(account) {
-    if (!account) return;
-    profile = Object.assign(getDefaultProfile(), account.profileData || {});
-    profile.displayName = profile.displayName || account.displayName || deriveDisplayName(account.email);
-    profile.authEmail = account.email || '';
-    profile.authProvider = account.provider || 'email';
-    profile.isAuthenticated = true;
-    persistProfileState(false);
-    applyProfile();
-  }
-
-  function refreshAuthLinkedUI() {
-    renderAuthState();
-    if (window.HomeController) window.HomeController.refreshHomeData();
-  }
-
-  function loadAuthSession() {
-    var savedSession = getStoredAuthSession();
-    if (!savedSession || !savedSession.accountId) {
-      saveAuthSession(null);
-      renderAuthState();
-      return;
-    }
-
-    var accounts = getStoredAuthAccounts();
-    var account = accounts.find(function(entry) {
-      return String(entry.id) === String(savedSession.accountId);
-    });
-
-    if (!account) {
-      saveAuthSession(null);
-      renderAuthState();
-      return;
-    }
-
-    saveAuthSession({
-      accountId: account.id,
-      email: account.email || '',
-      displayName: account.displayName || deriveDisplayName(account.email),
-      provider: account.provider || 'email'
-    });
-    restoreProfileFromAccount(account);
-    renderAuthState();
-  }
-
-  async function hashSecret(secret) {
-    var value = String(secret || '');
-    if (!value) return '';
-    if (!window.crypto || !window.crypto.subtle || typeof TextEncoder === 'undefined') {
-      return btoa(unescape(encodeURIComponent(value)));
-    }
-    var bytes = new TextEncoder().encode(value);
-    var buffer = await window.crypto.subtle.digest('SHA-256', bytes);
-    return Array.from(new Uint8Array(buffer)).map(function(byte) {
-      return byte.toString(16).padStart(2, '0');
-    }).join('');
-  }
-
-  function parseJwtCredential(credential) {
-    try {
-      var payload = credential.split('.')[1];
-      var normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-      var decoded = atob(normalized);
-      return JSON.parse(decoded);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function getRandomToken(size) {
-    var length = size || 24;
-    var alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    var values = new Uint8Array(length);
-    if (window.crypto && window.crypto.getRandomValues) {
-      window.crypto.getRandomValues(values);
-    } else {
-      for (var i = 0; i < length; i++) values[i] = Math.floor(Math.random() * alphabet.length);
-    }
-    return Array.from(values).map(function(value) {
-      return alphabet[value % alphabet.length];
-    }).join('');
-  }
-
-  function clearGoogleRedirectState() {
-    try {
-      sessionStorage.removeItem(GOOGLE_AUTH_STATE_KEY);
-      sessionStorage.removeItem(GOOGLE_AUTH_NONCE_KEY);
-    } catch { /* sessionStorage blocked in restricted environments */ }
-  }
-
-  function handleGooglePayload(payload) {
-    if (!payload || !payload.email) return false;
-
-    var accounts = getStoredAuthAccounts();
-    var email = String(payload.email).toLowerCase();
-    var account = accounts.find(function(entry) {
-      return String(entry.email || '').toLowerCase() === email || (payload.sub && entry.googleSub === payload.sub);
-    });
-
-    if (!account) {
-      account = {
-        id: 'acct_' + Date.now(),
-        email: email,
-        displayName: payload.name || deriveDisplayName(email),
-        provider: 'google',
-        googleSub: payload.sub || '',
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString(),
-        profileData: {
-          displayName: payload.name || deriveDisplayName(email),
-          prefEngine: DEFAULT_ENGINE_ID,
-          prefDepth: '20'
-        }
-      };
-      accounts.unshift(account);
-    } else {
-      account.provider = 'google';
-      account.googleSub = payload.sub || account.googleSub || '';
-      account.displayName = account.displayName || payload.name || deriveDisplayName(email);
-      account.lastLoginAt = new Date().toISOString();
-    }
-
-    saveStoredAuthAccounts(accounts);
-    completeSignIn(account, 'Signed in with Google.');
-    return true;
-  }
-
-  function handleGoogleRedirectResult() {
-    if (!window.location.hash || window.location.hash.indexOf('id_token=') === -1) return;
-
-    var hash = new URLSearchParams(window.location.hash.slice(1));
-    var idToken = hash.get('id_token');
-    var returnedState = hash.get('state');
-    var returnedError = hash.get('error');
-    var expectedState = '';
-    var expectedNonce = '';
-
-    try {
-      expectedState = sessionStorage.getItem(GOOGLE_AUTH_STATE_KEY) || '';
-      expectedNonce = sessionStorage.getItem(GOOGLE_AUTH_NONCE_KEY) || '';
-    } catch { /* sessionStorage blocked in restricted environments */ }
-
-    var nextUrl = window.location.pathname + window.location.search;
-    window.history.replaceState({}, document.title, nextUrl);
-
-    if (returnedError) {
-      clearGoogleRedirectState();
-      window.setTimeout(function() {
-        showToast('Google sign-in was cancelled.', 'error');
-      }, 60);
-      return;
-    }
-
-    if (!idToken || !returnedState || returnedState !== expectedState) {
-      clearGoogleRedirectState();
-      window.setTimeout(function() {
-        showToast('Google sign-in could not be verified.', 'error');
-      }, 60);
-      return;
-    }
-
-    var payload = parseJwtCredential(idToken);
-    clearGoogleRedirectState();
-
-    if (!payload || !payload.email || (expectedNonce && payload.nonce !== expectedNonce)) {
-      window.setTimeout(function() {
-        showToast('Google sign-in could not be verified.', 'error');
-      }, 60);
-      return;
-    }
-
-    window.setTimeout(function() {
-      handleGooglePayload(payload);
-    }, 60);
-  }
-
-  function getAuthProviderLabel(provider) {
-    return provider === 'google' ? 'Google' : 'Email';
-  }
-
-  function setAuthMessage(message, type) {
-    var statusEl = document.getElementById('authStatusMessage');
-    if (!statusEl) return;
-    statusEl.textContent = message || '';
-    statusEl.className = 'auth-status-message' + (type ? ' is-' + type : '');
-  }
-
-  function setAuthMode(mode) {
-    authMode = mode === 'signup' ? 'signup' : 'signin';
-    var signInTab = document.getElementById('authTabSignIn');
-    var signUpTab = document.getElementById('authTabSignUp');
-    var signInPanel = document.getElementById('authPanelSignIn');
-    var signUpPanel = document.getElementById('authPanelSignUp');
-    if (signInTab) signInTab.classList.toggle('active', authMode === 'signin');
-    if (signUpTab) signUpTab.classList.toggle('active', authMode === 'signup');
-    if (signInPanel) signInPanel.style.display = authMode === 'signin' ? 'block' : 'none';
-    if (signUpPanel) signUpPanel.style.display = authMode === 'signup' ? 'block' : 'none';
-    setAuthMessage('');
-  }
-
-  function renderAuthState() {
-    var nameEl = document.getElementById('profileName');
-    var signedInView = document.getElementById('authSignedInView');
-    var signedOutView = document.getElementById('authSignedOutView');
-    var sessionNameEl = document.getElementById('authSessionName');
-    var sessionEmailEl = document.getElementById('authSessionEmail');
-    var sessionProviderEl = document.getElementById('authSessionProvider');
-    var buttonEl = document.getElementById('profileBtn');
-
-    if (nameEl) {
-      nameEl.textContent = authSession
-        ? (profile.displayName || authSession.displayName || deriveDisplayName(authSession.email))
-        : 'Sign In';
-    }
-    if (buttonEl) buttonEl.classList.toggle('is-signed-in', !!authSession);
-    if (signedInView) signedInView.style.display = authSession ? 'block' : 'none';
-    if (signedOutView) signedOutView.style.display = authSession ? 'none' : 'block';
-    if (sessionNameEl) sessionNameEl.textContent = profile.displayName || (authSession ? authSession.displayName : 'Guest');
-    if (sessionEmailEl) sessionEmailEl.textContent = authSession ? authSession.email : '';
-    if (sessionProviderEl) sessionProviderEl.textContent = authSession ? getAuthProviderLabel(authSession.provider) : '';
-    if (!authSession) {
-      setAuthMode(authMode);
-    }
-  }
-
-  function openAuthModal() {
-    var modal = document.getElementById('authModal');
-    if (!modal) return;
-    renderAuthState();
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  }
-
-  function closeAuthModal() {
-    var modal = document.getElementById('authModal');
-    if (!modal) return;
-    modal.style.display = 'none';
-    document.body.style.overflow = '';
-    setAuthMessage('');
-  }
-
-  function completeSignIn(account, toastMessage) {
-    saveAuthSession({
-      accountId: account.id,
-      email: account.email || '',
-      displayName: account.displayName || deriveDisplayName(account.email),
-      provider: account.provider || 'email'
-    });
-    restoreProfileFromAccount(account);
-    renderAuthState();
-    closeAuthModal();
-    refreshAuthLinkedUI();
-    showToast(toastMessage || 'Signed in', 'success');
-  }
-
-  async function handleEmailSignUp() {
-    var name = (document.getElementById('authSignUpName').value || '').trim();
-    var email = (document.getElementById('authSignUpEmail').value || '').trim().toLowerCase();
-    var password = document.getElementById('authSignUpPassword').value || '';
-
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setAuthMessage('Enter a valid email address.', 'error');
-      return;
-    }
-    if (password.length < 6) {
-      setAuthMessage('Use a password with at least 6 characters.', 'error');
-      return;
-    }
-
-    var accounts = getStoredAuthAccounts();
-    var existing = accounts.find(function(account) {
-      return String(account.email || '').toLowerCase() === email;
-    });
-    if (existing) {
-      setAuthMessage(existing.provider === 'google' ? 'This email uses Google sign-in.' : 'An account with this email already exists.', 'error');
-      return;
-    }
-
-    var account = {
-      id: 'acct_' + Date.now(),
-      email: email,
-      displayName: name || deriveDisplayName(email),
-      provider: 'email',
-      passwordHash: await hashSecret(password),
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-      profileData: {
-        displayName: name || deriveDisplayName(email),
-        prefEngine: DEFAULT_ENGINE_ID,
-        prefDepth: '20'
-      }
-    };
-    accounts.unshift(account);
-    saveStoredAuthAccounts(accounts);
-    completeSignIn(account, 'Account created and signed in.');
-  }
-
-  async function handleEmailSignIn() {
-    var email = (document.getElementById('authSignInEmail').value || '').trim().toLowerCase();
-    var password = document.getElementById('authSignInPassword').value || '';
-
-    if (!email || !password) {
-      setAuthMessage('Enter your email and password.', 'error');
-      return;
-    }
-
-    var accounts = getStoredAuthAccounts();
-    var account = accounts.find(function(entry) {
-      return String(entry.email || '').toLowerCase() === email;
-    });
-
-    if (!account) {
-      setAuthMessage('No account found for that email.', 'error');
-      return;
-    }
-    if (account.provider === 'google') {
-      setAuthMessage('This email uses Google sign-in.', 'error');
-      return;
-    }
-
-    var passwordHash = await hashSecret(password);
-    if (passwordHash !== account.passwordHash) {
-      setAuthMessage('Incorrect password.', 'error');
-      return;
-    }
-
-    account.lastLoginAt = new Date().toISOString();
-    saveStoredAuthAccounts(accounts);
-    completeSignIn(account, 'Signed in successfully.');
-  }
-
-  function handleGoogleSignInClick() {
-    setAuthMessage('');
-    if (!GOOGLE_CLIENT_ID) {
-      setAuthMessage('Google sign-in is not configured yet.', 'error');
-      return;
-    }
-    var state = getRandomToken(28);
-    var nonce = getRandomToken(28);
-    try {
-      sessionStorage.setItem(GOOGLE_AUTH_STATE_KEY, state);
-      sessionStorage.setItem(GOOGLE_AUTH_NONCE_KEY, nonce);
-    } catch { /* sessionStorage blocked in restricted environments */ }
-
-    var redirectUri = window.location.origin + window.location.pathname;
-    var params = new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      redirect_uri: redirectUri,
-      response_type: 'id_token',
-      scope: 'openid email profile',
-      state: state,
-      nonce: nonce,
-      prompt: 'select_account'
-    });
-    window.location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString());
-  }
-
-  function signOutUser() {
-    persistProfileToAuthenticatedAccount();
-    saveAuthSession(null);
-    profile = getDefaultProfile();
-    persistProfileState(false);
-    applyProfile();
-    renderAuthState();
-    closeAuthModal();
-    refreshAuthLinkedUI();
-    showToast('Signed out.', 'success');
-  }
-
-  function setupAuth() {
-    var profileBtn = document.getElementById('profileBtn');
-    var closeBtn = document.getElementById('authModalClose');
-    var modal = document.getElementById('authModal');
-    var openFromProfileBtn = document.getElementById('openAuthFromProfile');
-    var signInTab = document.getElementById('authTabSignIn');
-    var signUpTab = document.getElementById('authTabSignUp');
-    var googleTriggerBtn = document.getElementById('authGoogleTrigger');
-    var emailSignInBtn = document.getElementById('authEmailSignInBtn');
-    var emailSignUpBtn = document.getElementById('authEmailSignUpBtn');
-    var signOutBtn = document.getElementById('authSignOutBtn');
-    var manageProfileBtn = document.getElementById('authManageProfileBtn');
-
-    if (profileBtn) profileBtn.addEventListener('click', openAuthModal);
-    if (openFromProfileBtn) openFromProfileBtn.addEventListener('click', openAuthModal);
-    if (closeBtn) closeBtn.addEventListener('click', closeAuthModal);
-    if (modal) {
-      modal.addEventListener('click', function(e) {
-        if (e.target === modal) closeAuthModal();
-      });
-    }
-    if (signInTab) signInTab.addEventListener('click', function() { setAuthMode('signin'); });
-    if (signUpTab) signUpTab.addEventListener('click', function() { setAuthMode('signup'); });
-    if (googleTriggerBtn) googleTriggerBtn.addEventListener('click', handleGoogleSignInClick);
-    if (emailSignInBtn) emailSignInBtn.addEventListener('click', function() { handleEmailSignIn(); });
-    if (emailSignUpBtn) emailSignUpBtn.addEventListener('click', function() { handleEmailSignUp(); });
-    if (signOutBtn) signOutBtn.addEventListener('click', signOutUser);
-    if (manageProfileBtn) manageProfileBtn.addEventListener('click', function() {
-      closeAuthModal();
-      switchTab('home');
-    });
-
-    document.querySelectorAll('#authModal input').forEach(function(input) {
-      input.addEventListener('keydown', function(e) {
-        if (e.key !== 'Enter') return;
-        if (authMode === 'signup') handleEmailSignUp();
-        else handleEmailSignIn();
-      });
-    });
-
-    renderAuthState();
-  }
-
   // ===== EVENT LISTENERS =====
   function setupEventListeners() {
     // Navigation buttons
@@ -928,6 +439,7 @@ const AppController = (function() {
     bindClick('reviewPanelMenu', openEngineSettingsModal);
     bindClick('engineSettingsClose', closeEngineSettingsModal);
     bindClick('engineSettingsDone', saveAndCloseEngineSettingsModal);
+    bind('settingsEngineSelect', 'change', handleEngineSettingChange);
     bind('engineSettingsEngine', 'change', handleEngineSettingChange);
     bind('engineSettingsReviewEngine', 'change', handleEngineSettingChange);
     bind('engineSettingsReviewStrength', 'change', handleEngineSettingChange);
@@ -1089,10 +601,10 @@ const AppController = (function() {
     bindClick('loadURL', loadFromURL);
 
     // Fetch games
-    bindClick('fetchGamesBtn', fetchGames);
+    bindClick('fetchGamesBtn', PlatformFetchController.fetchGames);
 
     // Profile
-    bindClick('saveProfile', saveProfile);
+    bindClick('saveProfile', ProfileController.saveProfile);
     bindClick('openDailyPuzzleHome', openDailyPuzzleCalendar);
     bindClick('homeDailyPuzzleDate', openDailyPuzzleCalendar);
     if (!homeDailyCalendarBound) {
@@ -1110,7 +622,7 @@ const AppController = (function() {
 
     // Database search
     bind('dbSearch', 'input', function() {
-      renderDatabase(this.value);
+      DatabaseController.render(this.value);
     });
 
     // Keyboard navigation
@@ -1260,6 +772,8 @@ const AppController = (function() {
     } catch {
       engineSettings = normalizeEngineSettings(null);
     }
+
+    persistEngineSettings();
   }
 
   function persistEngineSettings() {
@@ -1285,6 +799,7 @@ const AppController = (function() {
   function syncEngineSettingsControls() {
     var analysis = getAnalysisEngineSettings();
     var review = getReviewEngineSettings();
+    var settingsEngineEl = document.getElementById('settingsEngineSelect');
     var engineEl = document.getElementById('engineSettingsEngine');
     var reviewEngineEl = document.getElementById('engineSettingsReviewEngine');
     var reviewStrengthEl = document.getElementById('engineSettingsReviewStrength');
@@ -1292,6 +807,7 @@ const AppController = (function() {
     var arrowsEl = document.getElementById('engineSettingsArrows');
     var timeEl = document.getElementById('engineSettingsTime');
     var depthEl = document.getElementById('engineSettingsDepth');
+    if (settingsEngineEl) settingsEngineEl.value = analysis.engine;
     if (engineEl) engineEl.value = analysis.engine;
     if (reviewEngineEl) reviewEngineEl.value = review.engine;
     if (reviewStrengthEl) reviewStrengthEl.value = review.strength;
@@ -1301,7 +817,7 @@ const AppController = (function() {
     if (depthEl) depthEl.value = String(analysis.depth);
 
     var nameEl = document.getElementById('analysisEngineName');
-    if (nameEl) nameEl.textContent = ENGINE_LABELS[analysis.engine] || 'Stockfish 18';
+    if (nameEl) nameEl.textContent = ENGINE_LABELS[analysis.engine] || 'Browser Stockfish';
 
     var depthSlider = document.getElementById('depthSlider');
     var depthVal = document.getElementById('depthVal');
@@ -1324,16 +840,18 @@ const AppController = (function() {
     if (analysis.suggestionArrows === 'off') ChessBoard.clearArrows();
   }
 
-  function collectEngineSettingsFromControls() {
+  function collectEngineSettingsFromControls(analysisEngineOverride) {
     var currentAnalysis = getAnalysisEngineSettings();
     var currentReview = getReviewEngineSettings();
+    var settingsEngineEl = document.getElementById('settingsEngineSelect');
+    var modalEngineEl = document.getElementById('engineSettingsEngine');
     engineSettings = normalizeEngineSettings({
       gameReview: {
         engine: document.getElementById('engineSettingsReviewEngine')?.value || currentReview.engine,
         strength: document.getElementById('engineSettingsReviewStrength')?.value || currentReview.strength
       },
       analysis: {
-        engine: document.getElementById('engineSettingsEngine')?.value || currentAnalysis.engine,
+        engine: analysisEngineOverride || settingsEngineEl?.value || modalEngineEl?.value || currentAnalysis.engine,
         maxTimeMs: (parseInt(document.getElementById('engineSettingsTime')?.value, 10) || Math.round(currentAnalysis.maxTimeMs / 1000)) * 1000,
         lines: document.getElementById('engineSettingsLines')?.value || currentAnalysis.lines,
         suggestionArrows: document.getElementById('engineSettingsArrows')?.value || currentAnalysis.suggestionArrows,
@@ -1342,8 +860,12 @@ const AppController = (function() {
     });
   }
 
-  function handleEngineSettingChange() {
-    collectEngineSettingsFromControls();
+  function handleEngineSettingChange(e) {
+    var analysisEngineOverride = e?.target && (
+      e.target.id === 'settingsEngineSelect' ||
+      e.target.id === 'engineSettingsEngine'
+    ) ? e.target.value : null;
+    collectEngineSettingsFromControls(analysisEngineOverride);
     persistEngineSettings();
     syncEngineSettingsControls();
     var analysis = getAnalysisEngineSettings();
@@ -1526,23 +1048,61 @@ const AppController = (function() {
     return items.join('');
   }
 
-  function formatDurationValue(value) {
-    if (value === null || value === undefined || value === '') return '';
+  function getDurationParts(value) {
+    if (value === null || value === undefined || value === '') return null;
     if (typeof value === 'number' && isFinite(value)) {
-      var numeric = value > 10000 ? Math.round(value / 1000) : Math.round(value);
-      var hours = Math.floor(numeric / 3600);
-      var minutes = Math.floor((numeric % 3600) / 60);
-      var seconds = numeric % 60;
-      if (hours > 0) return hours + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
-      return minutes + ':' + String(seconds).padStart(2, '0');
+      var numericSeconds = value > 10000 ? value / 1000 : value;
+      return {
+        totalSeconds: Math.max(0, numericSeconds),
+        precision: numericSeconds < 20 && Math.floor(numericSeconds) !== numericSeconds ? 3 : 0
+      };
     }
 
     var text = String(value).trim();
-    if (!text) return '';
+    if (!text) return null;
+
     if (/^\d+(\.\d+)?$/.test(text)) {
-      return formatDurationValue(parseFloat(text));
+      var rawSeconds = parseFloat(text);
+      return {
+        totalSeconds: Math.max(0, rawSeconds),
+        precision: (text.split('.')[1] || '').length
+      };
     }
-    return text.replace(/\.\d+/, '');
+
+    var clockMatch = text.match(/^(\d+):([0-5]?\d)(?::([0-5]?\d(?:\.\d+)?))?$/);
+    if (!clockMatch) return null;
+
+    var hasHours = clockMatch[3] !== undefined;
+    var hours = hasHours ? parseInt(clockMatch[1], 10) || 0 : 0;
+    var minutes = hasHours ? parseInt(clockMatch[2], 10) || 0 : parseInt(clockMatch[1], 10) || 0;
+    var secondsText = hasHours ? clockMatch[3] : clockMatch[2];
+    var seconds = parseFloat(secondsText) || 0;
+
+    return {
+      totalSeconds: Math.max(0, hours * 3600 + minutes * 60 + seconds),
+      precision: (String(secondsText).split('.')[1] || '').length
+    };
+  }
+
+  function formatSecondsParts(totalSeconds, precision) {
+    var safeTotal = Math.max(0, Number(totalSeconds) || 0);
+    var showFraction = safeTotal < 20 && precision > 0;
+    var fractionDigits = showFraction ? Math.min(6, Math.max(1, precision)) : 0;
+    var roundedTotal = showFraction ? safeTotal : Math.round(safeTotal);
+    var minutes = Math.floor(roundedTotal / 60);
+    var seconds = roundedTotal - minutes * 60;
+    var secondsText = showFraction
+      ? seconds.toFixed(fractionDigits).padStart(3 + fractionDigits, '0')
+      : String(Math.round(seconds)).padStart(2, '0');
+
+    return minutes + ':' + secondsText;
+  }
+
+  function formatDurationValue(value) {
+    if (value === null || value === undefined || value === '') return '';
+    var parts = getDurationParts(value);
+    if (!parts) return String(value).trim().replace(/\.\d+/, '');
+    return formatSecondsParts(parts.totalSeconds, parts.precision);
   }
 
   function getSourcePlayer(sourceGame, color) {
@@ -1887,6 +1447,8 @@ const AppController = (function() {
       chess.load(gamePositions[0].fen);
     }
     currentMoveIndex = 0;
+    enginePreviewSnapshot = null;
+    updateEnginePreviewControls();
     resetGameReviewUI();
 
     var bottomColor = applyAnalyzeBoardOrientation(game);
@@ -1900,9 +1462,9 @@ const AppController = (function() {
     startAnalysis();
 
     // Save to database
-    saveToDatabase(game);
-    renderDatabase();
-    renderSavedGames();
+    DatabaseController.save(game);
+    DatabaseController.render();
+    DatabaseController.renderSavedGames();
     if (window.HomeController) window.HomeController.renderRecentGames();
 
     showToast('Game loaded: '   + game.white + ' vs ' + game.black, 'success');
@@ -1950,8 +1512,8 @@ const AppController = (function() {
         // Multiple games - load first, show picker
         showToast('Loaded ' + games.length + ' games. Loading first...', 'success');
         loadPGNGame(games[0].pgn);
-        games.forEach(function(g) { saveToDatabase(g); });
-        renderDatabase();
+        games.forEach(function(g) { DatabaseController.save(g); });
+        DatabaseController.render();
       }
       switchTab('analyze');
     };
@@ -1984,7 +1546,7 @@ const AppController = (function() {
     if (platform === 'lichess') {
       var proxyUrl = '/api/lichess/game/' + encodeURIComponent(gameId) + '/export?clocks=true&evals=false';
       var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(gameId) + '?clocks=true&evals=false';
-      fetchTextWithFallback(proxyUrl, directUrl)
+      PlatformFetchController.fetchTextWithFallback(proxyUrl, directUrl)
         .then(function(pgn) {
           if (pgn && pgn.includes('[')) {
             document.getElementById('urlInput').value = '';
@@ -2035,496 +1597,6 @@ const AppController = (function() {
     setTimeout(function() {
       analyzeFullGame();
     }, 120);
-  }
-
-  // ===== FETCH GAMES FROM PLATFORM =====
-  function renderFetchSkeleton(container, labelText) {
-    if (!container) return;
-    var label = labelText || 'Loading';
-    container.innerHTML =
-      '<div class="skeleton-fetch-list">' +
-        '<div class="skeleton-fetch-title">' + label + '</div>' +
-        '<div class="skeleton-card">' +
-          '<div class="skeleton-line w-55"></div>' +
-          '<div class="skeleton-line w-80"></div>' +
-          '<div class="skeleton-line w-38"></div>' +
-        '</div>' +
-        '<div class="skeleton-card">' +
-          '<div class="skeleton-line w-48"></div>' +
-          '<div class="skeleton-line w-76"></div>' +
-          '<div class="skeleton-line w-34"></div>' +
-        '</div>' +
-        '<div class="skeleton-card">' +
-          '<div class="skeleton-line w-52"></div>' +
-          '<div class="skeleton-line w-72"></div>' +
-          '<div class="skeleton-line w-30"></div>' +
-        '</div>' +
-      '</div>';
-  }
-
-  function fetchGames() {
-    var usernameInput = document.getElementById('fetchUsername');
-    var username = usernameInput ? String(usernameInput.value || '').trim().replace(/^@+/, '') : '';
-    var platform = document.getElementById('platformSelect').value;
-    
-    if (!username) {
-      showToast('Enter a username', 'error');
-      return;
-    }
-
-    if (usernameInput && usernameInput.value !== username) {
-      usernameInput.value = username;
-    }
-
-    var resultsEl = document.getElementById('fetchResults');
-
-    if (platform === 'chesscom') {
-      switchTab('games');
-      window.HomeController.fetchChesscomGames(username, getChessComArchiveDate());
-      return;
-    }
-
-    renderFetchSkeleton(resultsEl, 'Fetching games for ' + username + '...');
-
-    fetchLichessGames(username, resultsEl);
-  }
-
-  function getYesterdayArchiveDate() {
-    var yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return {
-      year: yesterday.getFullYear(),
-      month: String(yesterday.getMonth() + 1).padStart(2, '0'),
-      day: String(yesterday.getDate()).padStart(2, '0')
-    };
-  }
-
-  function getChessComArchiveDate() {
-    var fallback = getYesterdayArchiveDate();
-    var yearEl = document.getElementById('fetchYear');
-    var monthEl = document.getElementById('fetchMonth');
-    var year = yearEl ? parseInt(yearEl.value, 10) : fallback.year;
-    if (isNaN(year) || year < 2000) year = fallback.year;
-    var month = monthEl ? parseInt(monthEl.value, 10) : parseInt(fallback.month, 10);
-    if (isNaN(month) || month < 1 || month > 12) month = parseInt(fallback.month, 10);
-    return { year: year, month: String(month).padStart(2, '0') };
-  }
-
-  function encodeAttributeValue(text) {
-    return encodeURIComponent(text || '').replace(/'/g, '%27');
-  }
-
-  function parseChesscomArchiveGames(source, maxGames) {
-    if (!source) return [];
-    if (typeof source === 'string') {
-      return parseChesscomPgnPreviewGames(source, maxGames);
-    }
-    var games = Array.isArray(source.games) ? source.games : [];
-    var filtered = games.filter(function(game) {
-      return game && (game.pgn || game.url);
-    });
-    if (Number.isFinite(maxGames) && maxGames > 0) {
-      return filtered.slice(0, maxGames);
-    }
-    return filtered;
-  }
-
-  function isEcoCode(value) {
-    return /^[A-E]\d{2}$/i.test(String(value || '').trim());
-  }
-
-  function chesscomOpeningNameFromUrl(value) {
-    var raw = String(value || '');
-    var slug = raw.split('/openings/')[1] || '';
-    if (!slug) return '';
-    slug = slug.split(/[?#]/)[0];
-    try {
-      slug = decodeURIComponent(slug);
-    } catch { /* keep original slug */ }
-    return slug.replace(/-/g, ' ').trim();
-  }
-
-  function formatChesscomOpeningLabel(game) {
-    if (!game) return '';
-    var headers = game.headers || {};
-    var opening = String(game.opening || headers.Opening || '').trim();
-    var ecoUrl = game.ecoUrl || game.eco_url || headers.ECOUrl || headers.ECOURL || '';
-    var eco = String(game.eco || headers.ECO || '').trim();
-
-    if (opening && !isEcoCode(opening)) return opening;
-    var fromEcoUrl = chesscomOpeningNameFromUrl(ecoUrl);
-    if (fromEcoUrl) return fromEcoUrl;
-    var fromEco = chesscomOpeningNameFromUrl(eco);
-    if (fromEco) return fromEco;
-    if (eco && !isEcoCode(eco)) return eco;
-    return '';
-  }
-
-  function parseChesscomPgnPreviewGames(text, maxGames) {
-    var raw = String(text || '').trim();
-    if (!raw) return [];
-    var parts = raw.split(/(?=\[Event\s+")/);
-    var limit = Number.isFinite(maxGames) && maxGames > 0 ? maxGames : parts.length;
-    var games = [];
-    for (var i = 0; i < parts.length && games.length < limit; i++) {
-      var trimmed = parts[i].trim();
-      if (!trimmed) continue;
-      var headers = {};
-      var headerMatches = trimmed.matchAll(/\[(\w+)\s+"([^"]*)"\]/g);
-      for (var match of headerMatches) {
-        headers[match[1]] = match[2];
-      }
-      games.push({
-        headers: headers,
-        white: headers.White || 'White',
-        black: headers.Black || 'Black',
-        whiteElo: headers.WhiteElo || '?',
-        blackElo: headers.BlackElo || '?',
-        result: headers.Result || '*',
-        event: headers.Event || '',
-        date: headers.Date || '',
-        opening: formatChesscomOpeningLabel({ headers: headers }),
-        eco: headers.ECO || '',
-        timeControl: headers.TimeControl || '',
-        pgn: trimmed
-      });
-    }
-    return games;
-  }
-
-  function getChesscomArchivePlayerName(player, fallback) {
-    if (player && player.username) return player.username;
-    return player || fallback || 'Player';
-  }
-
-  function getChesscomArchiveGameResult(game) {
-    if (!game) return '*';
-    if (game.result) return game.result;
-    var whiteResult = game.white ? String(game.white.result || '').toLowerCase() : '';
-    if (whiteResult === 'win') return '1-0';
-    if (whiteResult === 'checkmated' || whiteResult === 'resigned' || whiteResult === 'timeout' || whiteResult === 'abandoned' || whiteResult === 'lose') {
-      return '0-1';
-    }
-    return '½-½';
-  }
-
-  function getChesscomArchiveGameDate(game) {
-    if (!game || !game.end_time) return '';
-    var date = new Date(game.end_time * 1000);
-    if (isNaN(date.getTime())) return '';
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-
-  function getChesscomArchiveGameOpening(game) {
-    if (!game) return '';
-    if (game.opening) return game.opening;
-    var eco = String(game.eco || '');
-    if (!eco) return '';
-    var label = eco.split('/openings/')[1] || '';
-    if (!label) return '';
-    return decodeURIComponent(label).replace(/-/g, ' ');
-  }
-
-  function fetchLichessGames(username, container) {
-    var encodedUser = encodeURIComponent(username);
-    var proxyUrl = '/api/lichess/user/' + encodedUser + '/games?max=10&clocks=false&evals=false&opening=true';
-    var directUrl = 'https://lichess.org/api/games/user/' + encodedUser + '?max=10&clocks=false&evals=false&opening=true';
-
-    fetchTextWithFallback(proxyUrl, directUrl, { Accept: 'application/x-ndjson' })
-      .then(function(text) {
-        window._lichessFetchedUsername = username;
-        var lines = text.trim().split('\n').filter(function(l) { return l.trim(); });
-        var games = [];
-        
-        lines.forEach(function(line) {
-          try {
-            var game = JSON.parse(line);
-            games.push(game);
-          } catch { /* skip malformed NDJSON line */ }
-        });
-        
-        if (games.length === 0) {
-          container.innerHTML = '<div class="no-games">No games found for @' + escapeHtml(username) + '</div>';
-          return;
-        }
-
-        container.innerHTML = games.map(function(g) {
-          var white = g.players && g.players.white ? (g.players.white.user ? g.players.white.user.name : 'White') : 'White';
-          var black = g.players && g.players.black ? (g.players.black.user ? g.players.black.user.name : 'Black') : 'Black';
-          var result = g.winner ? (g.winner === 'white' ? '1-0' : '0-1') : '½-½';
-          var opening = g.opening ? g.opening.name : '';
-          var isUserWhite = white.toLowerCase() === username.toLowerCase();
-          var resultClass = result === '1-0' ? (isUserWhite ? 'result-w' : 'result-l') :
-                           result === '0-1' ? (isUserWhite ? 'result-l' : 'result-w') : 'result-d';
-
-          return '<div class="fetch-game-item" data-id="' + escapeAttr(g.id) + '" data-platform="lichess" onclick="AppController.loadFetchedGame(this)">' +
-            escapeHtml(white) + ' vs ' + escapeHtml(black) + ' — ' + (opening ? escapeHtml(opening.substring(0, 25)) : '') +
-            '<span class="fetch-game-result ' + resultClass + '">' + escapeHtml(result) + '</span>' +
-            '</div>';
-        }).join('');
-        
-        // Store game data
-        games.forEach(function(g) { window._fetchedGames = window._fetchedGames || {}; window._fetchedGames[g.id] = g; });
-        showToast('Found ' + games.length + ' games', 'success');
-      })
-      .catch(function(err) {
-        container.innerHTML = '<div class="no-games">' + describeLichessError(err, username) + '</div>';
-        console.error(err);
-      });
-  }
-
-  function fetchChessComGames(username, container) {
-    var archive = getChessComArchiveDate();
-    fetchChesscomMonthPgn(username, archive.year, archive.month)
-      .then(function(text) {
-        window._ccFetchedUsername = username;
-        var games = parseChesscomArchiveGames(text, 20) || [];
-        if (!games.length) {
-          container.innerHTML = '<div class="no-games">No public games for ' + escapeHtml(username) + ' in ' + escapeHtml(archive.year + '-' + archive.month) + '</div>';
-          return;
-        }
-
-        container.innerHTML = games.map(function(g) {
-          var white = g.white || 'White';
-          var black = g.black || 'Black';
-          var result = g.result || '*';
-          var opening = g.opening || g.eco || '';
-          var date = g.date || (g.headers ? g.headers.Date : '');
-          var resultClass = result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d';
-          return '<div class="fetch-game-item" data-pgn="' + encodeAttributeValue(g.pgn || '') + '" onclick="AppController.loadFetchedPGNGame(this)">' +
-            '<strong>' + escapeHtml(white) + '</strong> vs <strong>' + escapeHtml(black) + '</strong>' +
-            (opening ? ' — ' + escapeHtml(opening.substring(0, 28)) : '') +
-            '<span class="fetch-game-result ' + resultClass + '">' + escapeHtml(result) + '</span>' +
-            (date ? '<div class="fetch-game-date">' + escapeHtml(date) + '</div>' : '') +
-          '</div>';
-        }).join('');
-
-        showToast('Fetched ' + games.length + ' games from ' + archive.year + '-' + archive.month, 'success');
-      })
-      .catch(function(err) {
-        console.error('Chess.com PGN fetch failed', err);
-        var hint = describeChesscomError(err, username, archive.year + '-' + archive.month);
-        container.innerHTML = '<div class="no-games">' + hint + '</div>';
-      });
-  }
-
-  function fetchChesscomMonthPgn(username, year, month) {
-    var safeUsername = String(username || '').trim().replace(/^@+/, '');
-    var encodedUser = encodeURIComponent(safeUsername);
-    var requestUrl = 'https://api.chess.com/pub/player/' + encodedUser + '/games/' + year + '/' + month + '/pgn';
-    var proxyUrl = '/api/chesscom/player/' + encodedUser + '/games/' + year + '/' + month + '/pgn';
-    return fetchTextWithFallback(proxyUrl, requestUrl).then(function(text) {
-      return parseChesscomArchivePayload(text, 'archive');
-    });
-  }
-
-  function createChesscomHttpError(status, message) {
-    var err = new Error(message || ('HTTP ' + status));
-    err.status = status;
-    return err;
-  }
-
-  function createChesscomInvalidResponseError(source) {
-    var err = new Error('Unexpected ' + source + ' response');
-    err.invalidResponse = true;
-    return err;
-  }
-
-  function isHtmlResponse(text) {
-    return /^\s*<!doctype html/i.test(text || '') || /^\s*<html/i.test(text || '');
-  }
-
-  function isLikelyChesscomPgn(text) {
-    return /\[(Event|Site|Date)\s+"[^"]*"\]/.test(text || '');
-  }
-
-  function parseChesscomArchivePayload(text, source) {
-    var raw = typeof text === 'string' ? text : '';
-    if (!raw.trim()) {
-      return '';
-    }
-    if (isHtmlResponse(raw)) {
-      throw createChesscomInvalidResponseError(source);
-    }
-    if (isLikelyChesscomPgn(raw)) {
-      return raw;
-    }
-    try {
-      var parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.games)) {
-        return parsed;
-      }
-    } catch { /* fall through to invalid response */ }
-    throw createChesscomInvalidResponseError(source);
-  }
-
-  function parseChesscomResponse(response, responseType, source) {
-    if (!response.ok) {
-      throw createChesscomHttpError(
-        response.status,
-        response.status === 404 ? 'Not found on Chess.com (404)' : 'HTTP ' + response.status
-      );
-    }
-
-    return response.text().then(function(body) {
-      if (responseType === 'json') {
-        if (!body || isHtmlResponse(body)) {
-          throw createChesscomInvalidResponseError(source);
-        }
-        try {
-          return JSON.parse(body);
-        } catch (err) {
-          throw createChesscomInvalidResponseError(source);
-        }
-      }
-
-      if (!body || isHtmlResponse(body) || !isLikelyChesscomPgn(body)) {
-        throw createChesscomInvalidResponseError(source);
-      }
-      return body;
-    });
-  }
-
-  function fetchChesscomWithFallback(proxyUrl, directUrl, responseType) {
-    function parse(response) {
-      if (responseType === 'json') return response.json();
-      return response.text();
-    }
-    return fetch(proxyUrl, { cache: 'no-store' })
-      .then(function(r) {
-        if (r.ok) return parse(r);
-        if (r.status === 404) {
-          var err = new Error('Not found on Chess.com (404)');
-          err.status = 404;
-          throw err;
-        }
-        throw new Error('proxy-unavailable');
-      })
-      .catch(function(err) {
-        if (err && err.status === 404) throw err;
-        return fetch(directUrl, { cache: 'no-store' }).then(function(r) {
-          if (!r.ok) {
-            var e = new Error('HTTP ' + r.status);
-            e.status = r.status;
-            throw e;
-          }
-          return parse(r);
-        });
-      });
-  }
-
-  function fetchTextWithFallback(proxyUrl, directUrl, headers) {
-    var requestHeaders = headers || {};
-    return fetchTextWithTimeout(proxyUrl, { cache: 'no-store', headers: requestHeaders }, 12000)
-      .then(function(r) {
-        if (r.ok) return r.text();
-        if (r.status === 404) {
-          var err = new Error('Not found (404)');
-          err.status = 404;
-          throw err;
-        }
-        throw new Error('proxy-unavailable');
-      })
-      .catch(function(err) {
-        if (err && err.status === 404) throw err;
-        return fetchTextWithTimeout(directUrl, { cache: 'no-store', headers: requestHeaders }, 12000).then(function(r) {
-          if (!r.ok) {
-            var e = new Error('HTTP ' + r.status);
-            e.status = r.status;
-            throw e;
-          }
-          return r.text();
-        });
-      });
-  }
-
-  function fetchTextWithTimeout(url, options, timeoutMs) {
-    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timer = null;
-    var requestOptions = Object.assign({}, options || {});
-    if (controller) requestOptions.signal = controller.signal;
-    if (controller && timeoutMs > 0) {
-      timer = setTimeout(function() {
-        controller.abort();
-      }, timeoutMs);
-    }
-    return fetch(url, requestOptions)
-      .catch(function(err) {
-        if (err && err.name === 'AbortError') {
-          var timeoutErr = new Error('Request timed out');
-          timeoutErr.timeout = true;
-          throw timeoutErr;
-        }
-        throw err;
-      })
-      .finally(function() {
-        if (timer) clearTimeout(timer);
-      });
-  }
-
-  function describeChesscomError(err, username, period) {
-    if (!err) return 'Could not reach Chess.com. Please try again.';
-    var u = escapeHtml(username);
-    var p = escapeHtml(period || '');
-    if (err.status === 404) {
-      return 'Chess.com returned 404 for \u201c' + u + '\u201d' +
-        (p ? ' in ' + p : '') + '. Check the username and period.';
-    }
-    var rawMsg = err.message || '';
-    if (err.timeout) {
-      return 'Chess.com request timed out for \u201c' + u + '\u201d' +
-        (p ? ' in ' + p : '') + '. Try again or change period.';
-    }
-    if (/Failed to fetch|NetworkError|load failed/i.test(rawMsg)) {
-      return 'Network request to Chess.com was blocked. Disable ad/privacy blockers for this site, then retry.';
-    }
-    return 'Could not fetch games from Chess.com (' + escapeHtml(rawMsg || 'unknown error') + ').';
-  }
-
-  function describeLichessError(err, username) {
-    if (!err) return 'Could not reach Lichess. Please try again.';
-    var u = escapeHtml(username);
-    if (err.status === 404) {
-      return 'No public games found for \u201c' + u + '\u201d on Lichess.';
-    }
-    var rawMsg = err.message || '';
-    if (/Failed to fetch|NetworkError|load failed/i.test(rawMsg)) {
-      return 'Network request to Lichess was blocked. Disable blockers for this site, then retry.';
-    }
-    return 'Could not fetch games from Lichess (' + escapeHtml(rawMsg || 'unknown error') + ').';
-  }
-
-  function loadFetchedGame(el) {
-    var id = el.getAttribute('data-id');
-    var platform = el.getAttribute('data-platform');
-    
-    if (platform === 'lichess') {
-      var proxyUrl = '/api/lichess/game/' + encodeURIComponent(id) + '/export?clocks=true&evals=false';
-      var directUrl = 'https://lichess.org/game/export/' + encodeURIComponent(id) + '?clocks=true&evals=false';
-      fetchTextWithFallback(proxyUrl, directUrl)
-        .then(function(pgn) {
-          if (pgn) {
-            loadPGNGame(pgn, {
-              sourcePlatform: 'lichess',
-              sourceUsername: window._lichessFetchedUsername || readStoredProfile().lichessUsername || ''
-            });
-            switchTab('analyze');
-            triggerAutoReview();
-          }
-        });
-    }
-  }
-
-  function loadFetchedPGNGame(el) {
-    var pgn = decodeURIComponent(el.getAttribute('data-pgn'));
-    if (pgn) {
-      loadPGNGame(pgn, {
-        sourcePlatform: 'chesscom',
-        sourceUsername: window._ccFetchedUsername || readStoredProfile().chesscomUsername || ''
-      });
-      switchTab('analyze');
-      triggerAutoReview();
-    }
   }
 
   // ===== NAVIGATION =====
@@ -3102,10 +2174,10 @@ const AppController = (function() {
   }
 
   function restoreLatestGameForAnalysis() {
-    if (!gameDatabase || !gameDatabase.length) {
+    if (!state.gameDatabase || !state.gameDatabase.length) {
       return '';
     }
-    var latestGame = gameDatabase.find(function(entry) {
+    var latestGame = state.gameDatabase.find(function(entry) {
       return !!(entry && entry.pgn);
     });
     if (!latestGame || !latestGame.pgn) {
@@ -3352,7 +2424,7 @@ const AppController = (function() {
   function getKnownReviewUsernames(game) {
     var names = [];
     var storedProfile = readStoredProfile();
-    var sessionProfile = profile || {};
+    var sessionProfile = state.profile || {};
 
     function pushName(value) {
       var name = normalizePlayerLookupName(value);
@@ -3845,30 +2917,30 @@ const AppController = (function() {
     var gradeEl = document.getElementById('moveQualityGrade');
     var descEl = document.getElementById('moveQualityDesc');
     updateReviewFeedbackControls(moveInfo, moveIndex);
-    if (!iconEl || !gradeEl || !descEl) {
-      if (moveInfo) updateCoachForMove(moveInfo, moveIndex);
-      return;
-    }
 
     if (!moveInfo) {
-      iconEl.textContent = '?';
-      iconEl.className = 'qi';
+      if (iconEl) {
+        iconEl.textContent = '?';
+        iconEl.className = 'qi';
+      }
       if (ChessBoard && typeof ChessBoard.clearMarkers === 'function') ChessBoard.clearMarkers();
       if (ChessBoard && typeof ChessBoard.clearReviewMoveQuality === 'function') ChessBoard.clearReviewMoveQuality();
       var label = (typeof moveIndex === 'number' && moveIndex >= 0)
         ? 'Move ' + (Math.floor(moveIndex / 2) + 1) + ' not analyzed yet'
         : 'Awaiting analysis';
-      gradeEl.textContent = label;
-      descEl.textContent = DEFAULT_MOVE_DESC;
+      if (gradeEl) gradeEl.textContent = label;
+      if (descEl) descEl.textContent = DEFAULT_MOVE_DESC;
       setCoachMessage('Coach Ramp', lastCoachSummary || DEFAULT_COACH_TEXT);
       return;
     }
 
     var meta = getQualityMeta(moveInfo.quality);
-    iconEl.textContent = meta.icon;
-    iconEl.className = 'qi ' + (meta.iconClass || '');
-    gradeEl.textContent = meta.label + ' · ' + buildMoveLabel(moveInfo, moveIndex);
-    descEl.textContent = meta.tip + ' ' + describeMoveSwing(moveInfo);
+    if (iconEl) {
+      iconEl.textContent = meta.icon;
+      iconEl.className = 'qi ' + (meta.iconClass || '');
+    }
+    if (gradeEl) gradeEl.textContent = meta.label + ' · ' + buildMoveLabel(moveInfo, moveIndex);
+    if (descEl) descEl.textContent = meta.tip + ' ' + describeMoveSwing(moveInfo);
     if (ChessBoard && typeof ChessBoard.clearMarkers === 'function') {
       ChessBoard.clearMarkers();
     }
@@ -5131,290 +4203,57 @@ const AppController = (function() {
   function loadEngineLine(pv) {
     if (!pv || !chess) return;
     var moves = pv.split(' ');
-    var baseIndex = currentMoveIndex;
     var tempChess = new Chess();
     tempChess.load(chess.fen());
     stopAutoPlay();
 
-    var newPositions = [].concat(gamePositions.slice(0, baseIndex + 1));
+    if (!enginePreviewSnapshot) {
+      enginePreviewSnapshot = {
+        positions: gamePositions.slice(),
+        moveIndex: currentMoveIndex
+      };
+    }
+
+    var baseIndex = enginePreviewSnapshot.moveIndex;
+    var newPositions = enginePreviewSnapshot.positions.slice(0, baseIndex + 1);
     var addedMoves = 0;
-    
+
     moves.forEach(function(uciMove) {
       if (!uciMove || uciMove.length < 4) return;
       var result = tempChess.move({from: uciMove.slice(0,2), to: uciMove.slice(2,4), promotion: uciMove[4] || 'q'});
       if (result) {
-        newPositions.push({fen: tempChess.fen(), move: result, san: result.san, moveNum: newPositions.length});
+        newPositions.push({fen: tempChess.fen(), move: result, san: result.san, moveNum: newPositions.length, isVariation: true});
         addedMoves++;
       }
     });
 
     if (!addedMoves) return;
-    
+
     gamePositions = newPositions;
-    currentMoveIndex = baseIndex;
+    currentMoveIndex = Math.min(baseIndex + 1, gamePositions.length - 1);
     updateMovesList();
-    startAutoPlay();
+    reloadPosition();
+    updateEnginePreviewControls();
   }
 
-  // ===== PROFILE =====
-  function loadProfile() {
-    try {
-      var saved = localStorage.getItem('kv_profile');
-      if (saved) {
-        profile = migrateProfileAccounts(JSON.parse(saved));
-        localStorage.setItem('kv_profile', JSON.stringify(profile));
-        applyProfile();
-      }
-    } catch { /* corrupt profile data – keep defaults */ }
-  }
-
-  function applyProfile() {
-    if (profile.displayName) {
-      document.getElementById('profileName').textContent = profile.displayName;
-      document.getElementById('profileDisplayName').value = profile.displayName;
-    }
-    if (profile.chesscomUsername) document.getElementById('chesscomUsername').value = profile.chesscomUsername;
-    if (profile.lichessUsername) document.getElementById('lichessUsername').value = profile.lichessUsername;
-    if (profile.prefDepth) {
-      document.getElementById('prefDepth').value = profile.prefDepth;
-      document.getElementById('depthSlider').value = profile.prefDepth;
-      document.getElementById('depthVal').textContent = profile.prefDepth;
-    }
-  }
-
-  function saveProfile() {
-    var existingProfile = {};
-    try { existingProfile = JSON.parse(localStorage.getItem('kv_profile') || '{}'); } catch(e) { existingProfile = {}; }
-    existingProfile = migrateProfileAccounts(existingProfile);
-    profile = {
-      displayName: document.getElementById('profileDisplayName').value,
-      chesscomUsername: document.getElementById('chesscomUsername').value,
-      lichessUsername: document.getElementById('lichessUsername').value,
-      linkedAccounts: Array.isArray(existingProfile.linkedAccounts) ? existingProfile.linkedAccounts : [],
-      activeAccountId: existingProfile.activeAccountId || '',
-      prefEngine: DEFAULT_ENGINE_ID,
-      prefDepth: document.getElementById('prefDepth').value,
-      savedAt: new Date().toISOString()
-    };
-    profile = migrateProfileAccounts(profile);
-    
-    try {
-      localStorage.setItem('kv_profile', JSON.stringify(profile));
-      document.getElementById('profileName').textContent = profile.displayName || 'Guest';
-      var ss = document.getElementById('saveStatus');
-      if (ss) { ss.textContent = '✓ Saved!'; setTimeout(function() { ss.textContent = ''; }, 2000); }
-      showToast('Profile saved!', 'success');
-      // Refresh home display
-      if (window.HomeController) {
-        window.HomeController.refreshHomeData();
-        window.HomeController.saveCurrentAsProfile(profile);
-        // Close edit mode
-        var em = document.getElementById('profileEditMode');
-        var vm = document.getElementById('profileViewMode');
-        var et = document.getElementById('editProfileToggle');
-        if (em) em.style.display = 'none';
-        if (vm) vm.style.display = 'block';
-        if (et) et.textContent = 'Edit';
-      }
-    } catch(e) {
-      showToast('Could not save profile', 'error');
-    }
-  }
-
-  function normalizeStoredUsername(raw) {
-    return String(raw || '').trim().replace(/^@+/, '');
-  }
-
-  function normalizeStoredPlatform(platform) {
-    var value = String(platform || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (value === 'chesscom' || value === 'chess') return 'chesscom';
-    if (value === 'lichess' || value === 'lichessorg') return 'lichess';
-    return value || 'chesscom';
-  }
-
-  function getStoredLinkedAccountId(platform, username) {
-    return normalizeStoredPlatform(platform) + ':' + normalizeStoredUsername(username).toLowerCase();
-  }
-
-  function migrateProfileAccounts(source) {
-    var p = Object.assign(getDefaultProfile(), source || {});
-    var accounts = Array.isArray(p.linkedAccounts) ? p.linkedAccounts.slice() : [];
-    var byId = {};
-    accounts = accounts.map(function(account) {
-      if (!account) return null;
-      var platform = normalizeStoredPlatform(account.platform || account.site || '');
-      var username = normalizeStoredUsername(account.username || account.handle || '');
-      if (!platform || !username) return null;
-      var id = getStoredLinkedAccountId(platform, username);
-      if (byId[id]) return null;
-      byId[id] = true;
-      return Object.assign({
-        id: id,
-        platform: platform,
-        username: username,
-        displayName: username,
-        avatar: '',
-        ratingData: null,
-        lastSynced: '',
-        isActive: false
-      }, account, { id: id, platform: platform, username: username });
-    }).filter(Boolean);
-    [
-      { platform: 'chesscom', username: p.chesscomUsername },
-      { platform: 'lichess', username: p.lichessUsername }
-    ].forEach(function(entry) {
-      var username = normalizeStoredUsername(entry.username);
-      var id = username ? getStoredLinkedAccountId(entry.platform, username) : '';
-      if (id && !byId[id]) {
-        byId[id] = true;
-        accounts.push({
-          id: id,
-          platform: entry.platform,
-          username: username,
-          displayName: username,
-          avatar: '',
-          ratingData: null,
-          lastSynced: '',
-          isActive: false
-        });
-      }
+  function exitEnginePreview() {
+    if (!enginePreviewSnapshot) return;
+    stopAutoPlay();
+    gamePositions = enginePreviewSnapshot.positions;
+    currentMoveIndex = enginePreviewSnapshot.moveIndex;
+    enginePreviewSnapshot = null;
+    document.querySelectorAll('#linesContainer .line-item.is-playing').forEach(function(el) {
+      el.classList.remove('is-playing');
     });
-    if (!p.activeAccountId || !accounts.some(function(account) { return account.id === p.activeAccountId; })) {
-      p.activeAccountId = accounts.length ? accounts[0].id : '';
-    }
-    p.linkedAccounts = accounts.map(function(account) {
-      return Object.assign({}, account, { isActive: account.id === p.activeAccountId });
-    });
-    var active = p.linkedAccounts.find(function(account) { return account.id === p.activeAccountId; }) || p.linkedAccounts[0] || null;
-    var firstChesscom = p.linkedAccounts.find(function(account) { return account.platform === 'chesscom'; });
-    var firstLichess = p.linkedAccounts.find(function(account) { return account.platform === 'lichess'; });
-    p.chesscomUsername = active && active.platform === 'chesscom' ? active.username : (firstChesscom ? firstChesscom.username : '');
-    p.lichessUsername = active && active.platform === 'lichess' ? active.username : (firstLichess ? firstLichess.username : '');
-    return p;
+    updateMovesList();
+    reloadPosition();
+    updateEnginePreviewControls();
   }
 
-  // ===== DATABASE =====
-  function loadDatabase() {
-    try {
-      var saved = localStorage.getItem('kv_database');
-      if (saved) gameDatabase = JSON.parse(saved);
-    } catch(e) { gameDatabase = []; }
-  }
-
-  function saveToDatabase(game) {
-    if (!game) return;
-    var summary = PGNParser.gameToSummary(game);
-    summary.id = Date.now();
-    summary.analyzedAt = new Date().toISOString();
-    if (game.sourcePlatform) summary.sourcePlatform = game.sourcePlatform;
-    if (game.sourceUrl) summary.sourceUrl = game.sourceUrl;
-    if (game.reviewUsername) summary.reviewUsername = game.reviewUsername;
-    if (game.whiteCountry) summary.whiteCountry = game.whiteCountry;
-    if (game.blackCountry) summary.blackCountry = game.blackCountry;
-    if (game.liveClocks) summary.liveClocks = game.liveClocks;
-    if (game.reviewAccuracies) {
-      summary.sourceAccuracies = {
-        white: game.reviewAccuracies.white,
-        black: game.reviewAccuracies.black,
-        source: game.reviewAccuracies.source || ''
-      };
-    }
-    
-    var existingIndex = gameDatabase.findIndex(function(g) {
-      return (g.pgn && summary.pgn && g.pgn === summary.pgn) ||
-        (g.white === summary.white && g.black === summary.black && g.result === summary.result);
-    });
-
-    if (existingIndex >= 0) {
-      var existing = gameDatabase[existingIndex];
-      var merged = Object.assign({}, existing, summary, {
-        id: existing.id,
-        analyzedAt: summary.analyzedAt
-      });
-      gameDatabase.splice(existingIndex, 1);
-      gameDatabase.unshift(merged);
-      try { localStorage.setItem('kv_database', JSON.stringify(gameDatabase)); } catch { /* storage full */ }
-      return;
-    }
-
-    gameDatabase.unshift(summary);
-    if (gameDatabase.length > 500) gameDatabase = gameDatabase.slice(0, 500);
-
-    try { localStorage.setItem('kv_database', JSON.stringify(gameDatabase)); } catch { /* storage full */ }
-
-    // Update stats
-    updateStats();
-  }
-
-  function updateStats() {
-    document.getElementById('statGamesAnalyzed').textContent = gameDatabase.length;
-  }
-
-  function renderDatabase(search) {
-    var rows = document.getElementById('dbRows');
-    if (!rows) return;
-    
-    var games = gameDatabase;
-    if (search) {
-      var q = search.toLowerCase();
-      games = games.filter(function(g) {
-        return (g.white || '').toLowerCase().includes(q) ||
-               (g.black || '').toLowerCase().includes(q) ||
-               (g.opening || '').toLowerCase().includes(q);
-      });
-    }
-    
-    if (!games.length) {
-      rows.innerHTML = '<div class="no-games">No games in database. Import games to get started.</div>';
-      return;
-    }
-    
-    rows.innerHTML = games.slice(0, 50).map(function(g) {
-      var resultClass = g.result === '1-0' ? 'result-w' : g.result === '0-1' ? 'result-l' : 'result-d';
-      var safeId = escapeAttr(g.id);
-      return '<div class="db-row" onclick="AppController.loadDbGame(\'' + safeId + '\')">' +
-        '<span>' + escapeHtml(g.white || '?') + '</span>' +
-        '<span>' + escapeHtml(g.black || '?') + '</span>' +
-        '<span class="' + resultClass + '">' + escapeHtml(g.result || '*') + '</span>' +
-        '<span>' + escapeHtml((g.opening || '').substring(0, 20) || '—') + '</span>' +
-        '<span>' + escapeHtml((g.date || '').substring(0, 10)) + '</span>' +
-        '<span class="db-row-actions"><button class="btn-sm" onclick="event.stopPropagation();AppController.loadDbGame(\'' + safeId + '\')">Load</button></span>' +
-        '</div>';
-    }).join('');
-  }
-
-  function loadDbGame(id) {
-    var game = gameDatabase.find(function(g) { return String(g.id) === String(id); });
-    if (game && game.pgn) {
-      loadPGNGame(game.pgn, {
-        sourcePlatform: game.sourcePlatform || '',
-        sourceUrl: game.sourceUrl || '',
-        sourceUsername: game.reviewUsername || '',
-        sourceAccuracies: game.sourceAccuracies || null,
-        whiteCountry: game.whiteCountry || '',
-        blackCountry: game.blackCountry || '',
-        liveClocks: game.liveClocks || null
-      });
-      switchTab('analyze');
-    }
-  }
-
-  function renderSavedGames() {
-    var list = document.getElementById('savedGamesList');
-    if (!list) return;
-    
-    if (!gameDatabase.length) {
-      list.innerHTML = '<div class="no-games">No saved games yet</div>';
-      return;
-    }
-    
-    list.innerHTML = gameDatabase.slice(0, 20).map(function(g) {
-      var safeId = escapeAttr(g.id);
-      return '<div class="saved-game-item" onclick="AppController.loadDbGame(\'' + safeId + '\')">' +
-        '<div class="saved-game-players">' + escapeHtml(g.white || '?') + ' vs ' + escapeHtml(g.black || '?') + ' <strong>' + escapeHtml(g.result || '*') + '</strong></div>' +
-        '<div class="saved-game-meta">' + escapeHtml((g.opening || '').substring(0, 30)) + ' \u2022 ' + escapeHtml((g.date || '').substring(0, 10)) + '</div>' +
-        '</div>';
-    }).join('');
+  function updateEnginePreviewControls() {
+    var btn = document.getElementById('exitEnginePreviewBtn');
+    if (!btn) return;
+    btn.hidden = !enginePreviewSnapshot;
   }
 
   // Public API
@@ -5426,26 +4265,28 @@ const AppController = (function() {
     closeMoveQualityList: closeMoveQualityList,
     stepMoveQualitySelection: stepMoveQualitySelection,
     loadEngineLine: loadEngineLine,
+    exitEnginePreview: exitEnginePreview,
     loadReviewCandidateLine: loadReviewCandidateLine,
-    loadFetchedGame: loadFetchedGame,
-    loadFetchedPGNGame: loadFetchedPGNGame,
-    loadDbGame: loadDbGame,
+    loadFetchedGame: PlatformFetchController.loadFetchedGame,
+    loadFetchedPGNGame: PlatformFetchController.loadFetchedPGNGame,
+    loadDbGame: DatabaseController.loadGame,
     showToast: showToast,
     loadPGNPublic: loadPGNGame,
     loadFenPublic: loadFenGame,
     loadFromURLPublic: loadFromURL,
     readPGNFilePublic: readPGNFile,
-    renderDatabasePublic: renderDatabase,
+    renderDatabasePublic: DatabaseController.render,
     switchToTab: switchTab,
     createAnalyzeLinkForPGN: createAnalyzeLinkForPGN,
-    renderFetchSkeleton: renderFetchSkeleton,
-    parseChesscomArchiveGames: parseChesscomArchiveGames,
-    formatChesscomOpeningLabel: formatChesscomOpeningLabel,
-    fetchChesscomMonthPgn: fetchChesscomMonthPgn,
-    fetchChesscomWithFallback: fetchChesscomWithFallback,
-    fetchTextWithFallback: fetchTextWithFallback,
-    describeChesscomError: describeChesscomError,
-    describeLichessError: describeLichessError,
+    renderFetchSkeleton: PlatformFetchController.renderFetchSkeleton,
+    parseChesscomArchiveGames: PlatformFetchController.parseChesscomArchiveGames,
+    formatChesscomOpeningLabel: PlatformFetchController.formatChesscomOpeningLabel,
+    fetchChesscomMonthPgn: PlatformFetchController.fetchChesscomMonthPgn,
+    fetchChesscomWithFallback: PlatformFetchController.fetchChesscomWithFallback,
+    fetchTextWithFallback: PlatformFetchController.fetchTextWithFallback,
+    describeChesscomError: PlatformFetchController.describeChesscomError,
+    describeLichessError: PlatformFetchController.describeLichessError,
+    formatDurationValue: formatDurationValue,
     triggerAutoReview: triggerAutoReview
   };
 })();

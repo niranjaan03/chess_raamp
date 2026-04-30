@@ -1,6 +1,21 @@
 import React from 'react';
 
 export default function SettingsTab() {
+  const engineOptions = (
+    <>
+      <option value="sf18">Stockfish 18 Browser</option>
+      <option value="sf18-lite">Stockfish 18 Lite Browser</option>
+      <option value="sf18-full">Stockfish 18 Full Browser</option>
+      <option value="sf17-1-lite">Stockfish 17.1 Lite Browser</option>
+      <option value="sf17-1-full">Stockfish 17.1 Full Browser</option>
+      <option value="sf17-lite">Stockfish 17 Lite Browser</option>
+      <option value="sf17-full">Stockfish 17 Full Browser</option>
+      <option value="sf16-1-lite">Stockfish 16.1 Lite Browser</option>
+      <option value="sf16-1-full">Stockfish 16.1 Full Browser</option>
+      <option value="sf16-nnue">Stockfish 16 NNUE Browser</option>
+    </>
+  );
+
   return (
     <div className="tab-content" id="tab-settings">
       <div className="settings-layout">
@@ -8,18 +23,20 @@ export default function SettingsTab() {
           <div className="support-badge">Settings</div>
           <h2 className="support-title">Customize your analysis setup</h2>
           <p className="support-subtitle">
-            Tune Stockfish, board colors, piece style, and move sound. Changes apply across analysis, practice, and puzzle boards.
+            Tune browser Stockfish, board colors, piece style, and move sound. Changes apply across analysis, practice, and puzzle boards.
           </p>
         </div>
 
         <div className="settings-grid">
           <div className="settings-card settings-engine-card">
-            <div className="settings-card-title">Stockfish Settings</div>
-            <p className="settings-card-text">Control the engine strength and resource usage used for live analysis.</p>
+            <div className="settings-card-title">Browser Stockfish Settings</div>
+            <p className="settings-card-text">Analysis runs on your device through WebAssembly workers. Mobile devices may use lower depth.</p>
             <div className="settings-engine-controls">
               <div className="setting-row settings-engine-row">
-                <span>Stockfish</span>
-                <span className="settings-static-value">Stockfish</span>
+                <span>Engine</span>
+                <select id="settingsEngineSelect" className="dark-select settings-engine-select" defaultValue="sf18">
+                  {engineOptions}
+                </select>
               </div>
               <div className="slider-row settings-engine-row">
                 <span>Depth</span>

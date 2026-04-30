@@ -14,12 +14,12 @@ export default function Navbar() {
           <circle cx="14.5" cy="12" r="1.2" fill="var(--bg-primary)"/>
         </svg>
         <span className="brand-name">chess ramp</span>
-        <span className="brand-sub">Stockfish Review</span>
+        <span className="brand-sub">Browser Stockfish Review</span>
       </div>
       <div className="nav-right">
         <div className="engine-badge" id="engineStatus">
           <span className="engine-dot"></span>
-          <span className="engine-label">Initializing Stockfish 18...</span>
+          <span className="engine-label">Initializing browser Stockfish...</span>
         </div>
         <button type="button" className="btn-profile" id="profileBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

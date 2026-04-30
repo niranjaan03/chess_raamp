@@ -271,7 +271,7 @@ const OpeningPracticeController = (function () {
     if (clean.startsWith('./')) clean = clean.slice(2);
     if (clean.startsWith('/')) clean = clean.slice(1);
     if (!clean) return DEFAULT_OPENING_IMG;
-    var prefix = CLEAN_BASE_URL ? (CLEAN_BASE_URL + '/') : '';
+    var prefix = CLEAN_BASE_URL ? (CLEAN_BASE_URL + '/') : '/';
     return prefix + clean;
   }
 

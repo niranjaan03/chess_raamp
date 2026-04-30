@@ -10,7 +10,7 @@ export default function PlayerAnalyzeTab() {
           <p className="pa-hero-sub">Find rating leaks, opening weaknesses, and recurring loss patterns from recent games</p>
           <div className="pa-search-row">
             <input type="text" id="paUsernameInput" className="pa-search-input"
-              placeholder="Enter Chess.com username..." autoComplete="off" />
+              placeholder="Enter Chess.com username or @handle..." autoComplete="off" />
             <button type="button" id="paAnalyzeBtn" className="pa-search-btn">Analyze &#9889;</button>
           </div>
         </div>

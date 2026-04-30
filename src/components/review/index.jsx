@@ -320,7 +320,7 @@ export function AnalysisPanel() {
           <div className="analysis-depth-block">
             <span className="analysis-depth-plus">+</span>
             <span className="analysis-depth-main">Depth <strong id="evalDepth">0</strong></span>
-            <span className="analysis-engine-name" id="analysisEngineName">SF 17.1 Lite</span>
+            <span className="analysis-engine-name" id="analysisEngineName">Stockfish 18 Browser</span>
             <span className="analysis-engine-nodes" id="evalNodes">0</span>
           </div>
           <button type="button" className="analysis-settings-btn" id="analysisSettingsGear" aria-label="Open engine settings">&#9881;</button>
@@ -332,7 +332,18 @@ export function AnalysisPanel() {
             <span className="analysis-section-kicker">Engine Lines</span>
             <span className="analysis-position-label" id="grAnalysisPositionLabel">Current position</span>
           </div>
-          <span className="lines-summary" id="engineLinesSummary">All available</span>
+          <div className="analysis-lines-head-actions">
+            <button
+              type="button"
+              id="exitEnginePreviewBtn"
+              className="exit-engine-preview-btn"
+              onClick={() => window.AppController && window.AppController.exitEnginePreview && window.AppController.exitEnginePreview()}
+              hidden
+            >
+              ← Back to game
+            </button>
+            <span className="lines-summary" id="engineLinesSummary">All available</span>
+          </div>
         </div>
 
         <div className="analysis-lines-stack" id="linesContainer">
@@ -344,19 +355,6 @@ export function AnalysisPanel() {
         </div>
 
         <div className="analysis-review-candidates" id="grAnalysisCandidates" hidden></div>
-
-        <div className="move-quality-banner analysis-selected-quality" id="moveQualityBanner">
-          <span className="qi" id="moveQualityIcon">?</span>
-          <div>
-            <div className="mq-label">Selected Move</div>
-            <div className="mq-details">
-              <div className="mq-grade" id="moveQualityGrade">Awaiting analysis</div>
-              <div className="mq-desc" id="moveQualityDesc">
-                Run a full game review to see brilliance, inaccuracies, and more for each move.
-              </div>
-            </div>
-          </div>
-        </div>
       </section>
 
       <section className="analysis-history-card">
@@ -397,12 +395,16 @@ export function AnalysisPanel() {
 export function EngineSettingsModal() {
   const engineOptions = (
     <>
-      <option value="sf18">Stockfish 18 (108MB download)</option>
-      <option value="sf17full">Stockfish 17.1 Full</option>
-      <option value="sf17lite">Stockfish 17.1 Lite</option>
-      <option value="sf16">Stockfish 16</option>
-      <option value="sf16_1lite">Stockfish 16.1 Lite</option>
-      <option value="sf11">Stockfish 11</option>
+      <option value="sf18">Stockfish 18 Browser</option>
+      <option value="sf18-lite">Stockfish 18 Lite Browser</option>
+      <option value="sf18-full">Stockfish 18 Full Browser</option>
+      <option value="sf17-1-lite">Stockfish 17.1 Lite Browser</option>
+      <option value="sf17-1-full">Stockfish 17.1 Full Browser</option>
+      <option value="sf17-lite">Stockfish 17 Lite Browser</option>
+      <option value="sf17-full">Stockfish 17 Full Browser</option>
+      <option value="sf16-1-lite">Stockfish 16.1 Lite Browser</option>
+      <option value="sf16-1-full">Stockfish 16.1 Full Browser</option>
+      <option value="sf16-nnue">Stockfish 16 NNUE Browser</option>
     </>
   );
 
@@ -418,6 +420,7 @@ export function EngineSettingsModal() {
             <div className="engine-settings-section-title">Game Review</div>
             <label className="engine-setting-field">
               <span>Chess Engine</span>
+              <small>Analysis runs locally in your browser through WebAssembly.</small>
               <select id="engineSettingsReviewEngine" className="dark-select">
                 {engineOptions}
               </select>
@@ -436,6 +439,7 @@ export function EngineSettingsModal() {
             <div className="engine-settings-section-title">Analysis</div>
             <label className="engine-setting-field">
               <span>Chess Engine</span>
+              <small>Runs locally in your browser through a WebAssembly worker.</small>
               <select id="engineSettingsEngine" className="dark-select">
                 {engineOptions}
               </select>

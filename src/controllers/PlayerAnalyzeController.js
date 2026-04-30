@@ -34,6 +34,28 @@ const CACHE_KEY_PREFIX = 'pa_v1_';
 
 const _renderCache = { key: null, filtered: null, tcOnly: null, allPeriod: null };
 
+function normalizeAnalyzeUsername(value) {
+  let username = String(value || '').trim();
+  const profileMatch = username.match(/chess\.com\/(?:member|player|users?)\/([^/?#\s]+)/i);
+  if (profileMatch) username = profileMatch[1];
+  return username.replace(/^@+/, '').trim().toLowerCase();
+}
+
+function getStoredChesscomUsername() {
+  if (typeof window !== 'undefined' && window._ccFetchedUsername) {
+    return normalizeAnalyzeUsername(window._ccFetchedUsername);
+  }
+  try {
+    const profile = JSON.parse(localStorage.getItem('kv_profile') || '{}');
+    const accounts = Array.isArray(profile.linkedAccounts) ? profile.linkedAccounts : [];
+    const active = accounts.find(account => account && account.id === profile.activeAccountId && account.platform === 'chesscom');
+    const chesscom = active || accounts.find(account => account && account.platform === 'chesscom');
+    return normalizeAnalyzeUsername((chesscom && chesscom.username) || profile.chesscomUsername || '');
+  } catch {
+    return '';
+  }
+}
+
 function getCachedAnalysis(username) {
   try {
     const raw = sessionStorage.getItem(CACHE_KEY_PREFIX + username);
@@ -1385,8 +1407,8 @@ function refreshRender() {
 // ─── MAIN ANALYZE ────────────────────────────────────────────────────────────
 
 async function analyze(username) {
-  if (!username) return;
-  const normalizedUser = username.trim().toLowerCase();
+  const normalizedUser = normalizeAnalyzeUsername(username);
+  if (!normalizedUser) return;
 
   // Cancel any in-flight request from a previous analyze call
   if (_currentAbort) _currentAbort.abort();
@@ -1456,7 +1478,15 @@ function init() {
   const btn = qs('paAnalyzeBtn');
   if (!input || !btn) return;
   uiInitialized = true;
-  const go = () => { const u = input.value.trim(); if (u) analyze(u); };
+  const storedUsername = getStoredChesscomUsername();
+  if (!input.value.trim() && storedUsername) input.value = storedUsername;
+  const go = () => {
+    const u = normalizeAnalyzeUsername(input.value);
+    if (u) {
+      input.value = u;
+      analyze(u);
+    }
+  };
   bindClick(btn, go);
   bind(input, 'keydown', e => { if (e.key === 'Enter') go(); });
 }
@@ -1469,4 +1499,5 @@ export {
   aggWLD, aggByTC, aggMonthly, aggByDOW,
   aggRatingDiff, aggOppStrength, aggHeadToHead,
   aggStreaks, aggRadar, aggResultBreakdown, aggKeyMetrics,
+  normalizeAnalyzeUsername,
 };
