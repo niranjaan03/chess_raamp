@@ -3,6 +3,7 @@ import React from 'react';
 export default function SettingsTab() {
   const engineOptions = (
     <>
+      <option value="auto">Auto-select strongest compatible</option>
       <option value="sf18">Stockfish 18 Browser</option>
       <option value="sf18-lite">Stockfish 18 Lite Browser</option>
       <option value="sf18-full">Stockfish 18 Full Browser</option>
@@ -34,7 +35,7 @@ export default function SettingsTab() {
             <div className="settings-engine-controls">
               <div className="setting-row settings-engine-row">
                 <span>Engine</span>
-                <select id="settingsEngineSelect" className="dark-select settings-engine-select" defaultValue="sf18">
+                <select id="settingsEngineSelect" className="dark-select settings-engine-select" defaultValue="auto">
                   {engineOptions}
                 </select>
               </div>

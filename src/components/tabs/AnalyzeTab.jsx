@@ -8,10 +8,9 @@ import {
   CriticalMomentsPanel,
   CoachRampPanel,
   AnalysisPanel,
-  ReviewSettingsPanel,
-  EngineSettingsModal,
 } from '../review/index.jsx';
 import { ReviewProgressOverlay } from '../modals/Modals.jsx';
+import GameReviewSettingsModal from '../settings/GameReviewSettingsModal.jsx';
 
 export default function AnalyzeTab() {
   return (
@@ -75,8 +74,7 @@ export default function AnalyzeTab() {
                     <span className="review-panel-subtitle">Report, engine lines, and review settings</span>
                   </div>
                   <div className="moves-actions review-panel-actions">
-                    <button type="button" className="btn-sm" id="copyPGN">Copy PGN</button>
-                    <button type="button" className="btn-sm review-primary-action" id="analyzeFullGame">Full Analysis</button>
+                    <button type="button" className="analysis-settings-btn review-settings-gear" id="reviewSettingsGear" aria-label="Open game review settings">&#9881;</button>
                   </div>
                 </div>
 
@@ -90,7 +88,6 @@ export default function AnalyzeTab() {
                 </div>
 
                 <AnalysisPanel />
-                <ReviewSettingsPanel />
 
                 <div className="review-panel-footer">
                   <MoveNavigationControls compact />
@@ -100,7 +97,7 @@ export default function AnalyzeTab() {
             </div>
           </aside>
         </div>
-        <EngineSettingsModal />
+        <GameReviewSettingsModal />
       </div>
     </div>
   );

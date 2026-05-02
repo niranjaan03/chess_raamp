@@ -9,8 +9,15 @@ const EngineManager = (function() {
   var ENGINE_CANDIDATES = [
     {
       id: 'sf18',
-      label: 'Stockfish 18 WASM',
+      label: 'Stockfish 18 WASM (threaded)',
       script: getPublicPath('/engines/stockfish-18/stockfish.js'),
+      supportsThreads: true,
+      requiresSharedArrayBuffer: true
+    },
+    {
+      id: 'sf18-full',
+      label: 'Stockfish 18 Full WASM',
+      script: getPublicPath('/engines/stockfish-18/stockfish-18-single-6563532.js'),
       supportsThreads: false
     },
     {
@@ -20,9 +27,9 @@ const EngineManager = (function() {
       supportsThreads: false
     },
     {
-      id: 'sf18-full',
-      label: 'Stockfish 18 Full WASM',
-      script: getPublicPath('/engines/stockfish-18/stockfish-18-single-6563532.js'),
+      id: 'sf17-1-full',
+      label: 'Stockfish 17.1 Full WASM',
+      script: getPublicPath('/engines/stockfish-17.1/stockfish-17.1-single.js'),
       supportsThreads: false
     },
     {
@@ -32,9 +39,9 @@ const EngineManager = (function() {
       supportsThreads: false
     },
     {
-      id: 'sf17-1-full',
-      label: 'Stockfish 17.1 Full WASM',
-      script: getPublicPath('/engines/stockfish-17.1/stockfish-17.1-single.js'),
+      id: 'sf17-full',
+      label: 'Stockfish 17 Full WASM',
+      script: getPublicPath('/engines/stockfish-17/stockfish-17-single.js'),
       supportsThreads: false
     },
     {
@@ -44,21 +51,15 @@ const EngineManager = (function() {
       supportsThreads: false
     },
     {
-      id: 'sf17-full',
-      label: 'Stockfish 17 Full WASM',
-      script: getPublicPath('/engines/stockfish-17/stockfish-17-single.js'),
+      id: 'sf16-1-full',
+      label: 'Stockfish 16.1 Full WASM',
+      script: getPublicPath('/engines/stockfish-16.1/stockfish-16.1-single.js'),
       supportsThreads: false
     },
     {
       id: 'sf16-1-lite',
       label: 'Stockfish 16.1 Lite WASM',
       script: getPublicPath('/engines/stockfish-16.1/stockfish-16.1-lite-single.js'),
-      supportsThreads: false
-    },
-    {
-      id: 'sf16-1-full',
-      label: 'Stockfish 16.1 Full WASM',
-      script: getPublicPath('/engines/stockfish-16.1/stockfish-16.1-single.js'),
       supportsThreads: false
     },
     {
@@ -71,8 +72,9 @@ const EngineManager = (function() {
 
   var isReady = false;
   var mode = 'browser-wasm';
-  var activeEngine = ENGINE_CANDIDATES[0];
-  var selectedEngineId = activeEngine.id;
+  var autoEngineSelection = true;
+  var activeEngine = getDefaultEngineCandidate();
+  var selectedEngineId = 'auto';
   var readyCallback = null;
   var readyNotified = false;
   var workerPool = [];
@@ -113,6 +115,16 @@ const EngineManager = (function() {
     return typeof SharedArrayBuffer !== 'undefined' &&
       typeof crossOriginIsolated !== 'undefined' &&
       crossOriginIsolated === true;
+  }
+
+  function canRunEngine(engine) {
+    if (!engine) return false;
+    if (engine.requiresSharedArrayBuffer && !hasSharedArrayBuffer()) return false;
+    return true;
+  }
+
+  function getDefaultEngineCandidate() {
+    return ENGINE_CANDIDATES.find(canRunEngine) || ENGINE_CANDIDATES[0];
   }
 
   function getHardwareConcurrency() {
@@ -204,9 +216,16 @@ const EngineManager = (function() {
   }
 
   function getEngineById(engineId) {
+    if (engineId === 'auto') return getDefaultEngineCandidate();
     return ENGINE_CANDIDATES.find(function(engine) {
       return engine.id === engineId;
-    }) || ENGINE_CANDIDATES[0];
+    }) || getDefaultEngineCandidate();
+  }
+
+  function getCandidateStartIndex() {
+    var engine = autoEngineSelection ? getDefaultEngineCandidate() : getEngineById(selectedEngineId);
+    var index = ENGINE_CANDIDATES.indexOf(engine);
+    return index === -1 ? 0 : index;
   }
 
   function getWorkerUrl(engine) {
@@ -456,7 +475,10 @@ const EngineManager = (function() {
   function ensureEngineCandidate(workerCount, candidateIndex) {
     while (
       candidateIndex < ENGINE_CANDIDATES.length &&
-      failedEngineIds.has(ENGINE_CANDIDATES[candidateIndex].id)
+      (
+        failedEngineIds.has(ENGINE_CANDIDATES[candidateIndex].id) ||
+        !canRunEngine(ENGINE_CANDIDATES[candidateIndex])
+      )
     ) {
       candidateIndex++;
     }
@@ -483,7 +505,6 @@ const EngineManager = (function() {
       isReady = true;
       mode = 'browser-wasm';
       activeEngine = engine;
-      selectedEngineId = engine.id;
       return workerPool.slice(0, count);
     }).catch(function(err) {
       var hasFallback = candidateIndex + 1 < ENGINE_CANDIDATES.length;
@@ -503,7 +524,7 @@ const EngineManager = (function() {
     if (!activeEngine) return false;
     var failedEngine = activeEngine;
     var nextEngine = ENGINE_CANDIDATES.find(function(candidate) {
-      return candidate.id !== failedEngine.id && !failedEngineIds.has(candidate.id);
+      return candidate.id !== failedEngine.id && !failedEngineIds.has(candidate.id) && canRunEngine(candidate);
     });
     console.warn('[EngineManager] ' + failedEngine.label + ' faulted at runtime' + (nextEngine ? ', falling back.' : ', restarting.'), reason || '');
     if (nextEngine) failedEngineIds.add(failedEngine.id);
@@ -512,10 +533,8 @@ const EngineManager = (function() {
     bootPromise = null;
     if (nextEngine) {
       activeEngine = nextEngine;
-      selectedEngineId = nextEngine.id;
     } else {
       activeEngine = failedEngine;
-      selectedEngineId = failedEngine.id;
     }
     return true;
   }
@@ -528,8 +547,8 @@ const EngineManager = (function() {
       return Promise.reject(new Error('Web Workers are not supported in this browser'));
     }
 
-    activeEngine = getEngineById(selectedEngineId);
-    return ensureEngineCandidate(workerCount, ENGINE_CANDIDATES.indexOf(activeEngine));
+    activeEngine = autoEngineSelection ? getDefaultEngineCandidate() : getEngineById(selectedEngineId);
+    return ensureEngineCandidate(workerCount, getCandidateStartIndex());
   }
 
   function getBrowserStatus() {
@@ -538,6 +557,7 @@ const EngineManager = (function() {
       simulation: false,
       mode: mode,
       engineId: activeEngine.id,
+      selectedEngineId: autoEngineSelection ? 'auto' : selectedEngineId,
       engine: activeEngine.label,
       local: mode === 'browser-wasm',
       workers: workerPool.length || 1,
@@ -587,6 +607,7 @@ const EngineManager = (function() {
     stop();
     var run = beginRun();
     var requestOptions = options || {};
+    if (requestOptions.engine) setOption('Engine', requestOptions.engine);
 
     function attempt(retriesLeft) {
       return ensureReady()
@@ -647,6 +668,7 @@ const EngineManager = (function() {
 
     var run = beginRun();
     var requestOptions = options || {};
+    if (requestOptions.engine) setOption('Engine', requestOptions.engine);
     var total = positions.length;
     var requestedConcurrency = parseInt(requestOptions.concurrency, 10) || 1;
     var workerCount = getRecommendedWorkerCount(requestedConcurrency);
@@ -728,6 +750,19 @@ const EngineManager = (function() {
     if (name === 'Threads') userThreads = parseInt(value, 10) || null;
     else if (name === 'Hash') userHash = parseInt(value, 10) || null;
     else if (name === 'Engine') {
+      if (value === 'auto' || !value) {
+        autoEngineSelection = true;
+        var defaultEngine = getDefaultEngineCandidate();
+        if (activeEngine.id !== defaultEngine.id || selectedEngineId !== 'auto') {
+          selectedEngineId = 'auto';
+          activeEngine = defaultEngine;
+          isReady = false;
+          bootPromise = null;
+          terminateWorkerPool();
+        }
+        return;
+      }
+      autoEngineSelection = false;
       var nextEngine = getEngineById(value);
       if (nextEngine.id !== selectedEngineId) {
         selectedEngineId = nextEngine.id;
@@ -742,6 +777,22 @@ const EngineManager = (function() {
     }
   }
 
+  function resetForTests() {
+    stop();
+    terminateWorkerPool();
+    isReady = false;
+    mode = 'browser-wasm';
+    autoEngineSelection = true;
+    activeEngine = getDefaultEngineCandidate();
+    selectedEngineId = 'auto';
+    readyCallback = null;
+    readyNotified = false;
+    bootPromise = null;
+    userThreads = null;
+    userHash = null;
+    failedEngineIds.clear();
+  }
+
   return {
     init: initEngine,
     analyze: analyze,
@@ -749,7 +800,8 @@ const EngineManager = (function() {
     stop: stop,
     setOption: setOption,
     status: getBrowserStatus,
-    _parseInfoLine: parseInfoLine
+    _parseInfoLine: parseInfoLine,
+    _resetForTests: resetForTests
   };
 })();
 

@@ -102,6 +102,21 @@ describe('AppController.formatDurationValue', () => {
     expect(AppController.formatDurationValue('0:00:03.125')).toBe('0:03.125');
     expect(AppController.formatDurationValue(19500)).toBe('0:19.500');
   });
+
+  it('marks clocks below 20 seconds as low time', () => {
+    expect(AppController.isLowClockValue('0:00:19.9')).toBe(true);
+    expect(AppController.isLowClockValue('0:19')).toBe(true);
+    expect(AppController.isLowClockValue('0:00:20')).toBe(false);
+    expect(AppController.isLowClockValue('1:00')).toBe(false);
+  });
+});
+
+describe('AppController.formatReviewAccuracyValue', () => {
+  it('shows review accuracy with one decimal place', () => {
+    expect(AppController.formatReviewAccuracyValue(87.42)).toBe('87.4');
+    expect(AppController.formatReviewAccuracyValue('56.84')).toBe('56.8');
+    expect(AppController.formatReviewAccuracyValue(94)).toBe('94.0');
+  });
 });
 
 describe('HomeController saved profiles', () => {

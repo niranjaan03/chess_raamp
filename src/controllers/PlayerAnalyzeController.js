@@ -12,11 +12,6 @@ const LOSS_SET = new Set([
   'checkmated', 'resigned', 'timeout', 'abandoned', 'lose',
   'kingofthehill', 'threecheck', 'bughousepartnerlose',
 ]);
-const DRAW_SET = new Set([
-  'agreed', 'repetition', 'stalemate', 'insufficient',
-  'timevsinsufficient', '50move', 'drawbyrepetition',
-]);
-
 const _state = {
   username: '',
   profile: null,
@@ -389,7 +384,7 @@ function aggResultBreakdown(games) {
   }));
 }
 
-function aggKeyMetrics(games, stats) {
+function aggKeyMetrics(games, _stats) {
   if (!games.length) return null;
   const sorted = [...games].sort((a,b)=>a.endTime-b.endTime);
   const wld = aggWLD(games);
@@ -428,7 +423,7 @@ function smoothPath(pts, t=0.35) {
 // showPctGrid=false omits the 0/25/50/75/100% grid lines (use for count-based charts)
 // valueFormat overrides the top-of-bar label; default shows "N%" for pct charts, "N" for count charts
 function barChartSVG(data, opts={}) {
-  const { W=400, H=160, color='#4caf7d', PL=10, PB=24, showLabels=true, showPctGrid=true, valueFormat } = opts;
+  const { W=400, H=160, color='#4caf7d', PL=32, PB=24, showLabels=true, showPctGrid=true, valueFormat } = opts;
   const PR=10, PT=8;
   const cW=W-PL-PR, cH=H-PT-PB;
   const max=Math.max(...data.map(d=>d.value),1);
@@ -478,8 +473,8 @@ function lineChartSVG(points, opts={}) {
   if (!points.length) return '';
   const cW=W-PL-PR, cH=H-PT-PB;
   const allY = [...points.map(p=>p.y), ...extra.flatMap(s=>s.pts.map(p=>p.y))];
-  const minY=(yMin!==undefined?yMin:Math.min(...allY))-5;
-  const maxY=(yMax!==undefined?yMax:Math.max(...allY))+5;
+  const minY=yMin!==undefined ? yMin : Math.min(...allY)-5;
+  const maxY=yMax!==undefined ? yMax : Math.max(...allY)+5;
   const rY=Math.max(maxY-minY,1);
   const minX=Math.min(...points.map(p=>p.x)), maxX=Math.max(...points.map(p=>p.x));
   const rX=Math.max(maxX-minX,1);
@@ -543,8 +538,19 @@ function donutSVG(slices, sz=140) {
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 function qs(id) { return document.getElementById(id); }
-function el(id) { return qs(id) || { innerHTML:'', style:{} }; }
-function renderInto(id, fn) { const e = qs(id); if (e) fn(e); }
+function setHtml(element, html) {
+  if (element) element.innerHTML = String(html || '');
+}
+
+function clearHtml(element) {
+  setHtml(element, '');
+}
+
+function renderEmptyState(message) {
+  return '<p class="pa-no-data">' + escapeHtml(message) + '</p>';
+}
+
+function renderInto(id, fn) { const e = qs(id); if (e) fn(e, setHtml, clearHtml); }
 
 function showState(s) {
   ['paLoading','paError','paContent'].forEach(id=>{ const e=qs(id); if(e) e.style.display='none'; });
@@ -579,7 +585,7 @@ function renderProfile(profile, stats) {
   const username = escapeHtml(profile.username || _state.username || 'Player');
   const usernameAttr = escapeAttr(profile.username || _state.username || 'Player');
   const avatar = safeImageUrl(profile.avatar);
-  e.innerHTML=`<div class="pa-profile-card">
+  setHtml(e, `<div class="pa-profile-card">
     <div class="pa-profile-left">
       ${avatar?`<img class="pa-avatar" src="${avatar}" alt="${usernameAttr}" onerror="this.style.display='none'">`:`<div class="pa-avatar-ph">&#9822;</div>`}
       <div class="pa-profile-info">
@@ -598,7 +604,7 @@ function renderProfile(profile, stats) {
       ${badge('Bullet',stats.chess_bullet,'&#128248;')}
       ${badge('Daily',stats.chess_daily,'&#128197;')}
     </div>
-  </div>`;
+  </div>`);
   });
 }
 
@@ -607,7 +613,7 @@ function renderProfile(profile, stats) {
 function renderKeyMetrics(games, stats) {
   renderInto('paKeyMetrics', e => {
     const m=aggKeyMetrics(games,stats);
-    if(!m){e.innerHTML='';return;}
+    if(!m){clearHtml(e);return;}
     const rc=m.ratingChange;
     const rcColor=rc>0?'#4caf7d':rc<0?'#ef5350':'#888';
     const rcSign=rc>0?'+':'';
@@ -617,14 +623,14 @@ function renderKeyMetrics(games, stats) {
       <div class="pa-metric-lbl">${lbl}</div>
       ${sub?`<div class="pa-metric-sub" style="color:${subColor}">${sub}</div>`:''}
     </div>`;
-    e.innerHTML=`
+    setHtml(e, `
       ${card('&#9823;',m.totalGames.toLocaleString(),'Total Games','in period','#9e8350')}
       ${card('&#9989;',m.winRate+'%','Win Rate',m.winRate>=50?'Above 50%':'Below 50%',m.winRate>=50?'#4caf7d':'#ef5350')}
       ${card('&#9733;',m.avgRating,'Avg Rating','')}
       ${card('&#127942;',m.bestStreak,'Best Win Streak','consecutive wins','#d4af37')}
       ${card('&#128200;',`${rcSign}${rc}`,'Rating Change',rc!==0?`${rcSign}${Math.round(Math.abs(rc)/Math.max(m.avgRating,1)*100)}%`:'',rcColor)}
       ${card('&#128280;',m.currentRating,'Current Rating','end of period','')}
-    `;
+    `);
   });
 }
 
@@ -650,7 +656,7 @@ function renderSummaryBar(games) {
 function renderWLD(games) {
   renderInto('paWLDCard', e => {
     const {wins,losses,draws,total,winPct}=aggWLD(games);
-    if(!total){e.innerHTML='<p class="pa-no-data">No games in period</p>';return;}
+    if(!total){setHtml(e, renderEmptyState('No games in period'));return;}
     const wF=wins/total,lF=losses/total,dF=draws/total;
     const slices=[{frac:wF,color:'#4caf7d'},{frac:lF,color:'#ef5350'},{frac:dF,color:'#444'}];
     e.innerHTML=`<div class="pa-card-title">WIN / LOSS / DRAW <span class="pa-card-sub">${total} games in period</span></div>
@@ -847,7 +853,7 @@ function renderRatingDiff(games) {
     e.innerHTML=`<div class="pa-card-title">WIN RATE VS RATING DIFFERENCE
       <span class="pa-card-sub">(your rating \u2212 opponent)</span>
     </div>
-      ${barChartSVG(barData,{W:340,H:165,PL:12})}
+      ${barChartSVG(barData,{W:340,H:165,PL:32})}
       <div style="font-size:10px;color:#9e8350;margin-top:4px">Green = you win more, Red = you lose more</div>`;
   });
 }
@@ -1046,7 +1052,7 @@ function calcLossBreakdown(games) {
   return {losses,singleBlunder,gradualLoss,lossTerms,wh,bl,wWin,bWin,wPct,bPct};
 }
 
-function blunderRatioCardHTML(singleBlunder, gradualLoss, losses) {
+function blunderRatioCardHTML(singleBlunder, gradualLoss, _losses) {
   return `<div class="pa-loss-card pa-loss-ratio-card">
     <div class="pa-loss-feature-title"><span class="pa-loss-title-icon">&#128202;</span> THE "BLUNDER-TO-WIN" RATIO</div>
     <div class="pa-loss-ratio-body">
@@ -1128,7 +1134,7 @@ function renderPerformanceSummary(filtered, allPeriod) {
   const insights = [];
 
   // 1. Win rate
-  const { winPct, total, wins } = aggWLD(filtered);
+  const { winPct, total } = aggWLD(filtered);
   const wr = Math.round(winPct);
   if (total >= 5) {
     const wColor = wr >= 55 ? '#4caf7d' : wr >= 45 ? '#d4af37' : '#ef5350';
@@ -1201,7 +1207,7 @@ function renderPerformanceSummary(filtered, allPeriod) {
 
 // ─── GAME RESULTS CHART: MODULE-LEVEL HELPERS ────────────────────────────────
 
-const GR_W=700, GR_H=490, GR_CX=340, GR_CY=248;
+const GR_W=780, GR_H=540, GR_CX=390, GR_CY=270;
 const GR_IN1=90, GR_IN2=143, GR_OUT1=151, GR_OUT2=200, GR_SEG_GAP=1.5;
 
 function grToXY(r, deg) {
@@ -1229,14 +1235,15 @@ function grLeaderLine(midDeg, label, dotColor) {
   const isRight=cosA>=0;
   const [ax,ay]=[GR_CX+(GR_OUT2+6)*cosA, GR_CY+(GR_OUT2+6)*sinA];
   const [bx,by]=[GR_CX+(GR_OUT2+26)*cosA, GR_CY+(GR_OUT2+26)*sinA];
-  const hx=isRight?bx+30:bx-30, tx=isRight?hx+5:hx-5, anchor=isRight?'start':'end';
+  const hx=isRight ? Math.min(bx+30, GR_W-190) : Math.max(bx-30, 160);
+  const tx=isRight ? hx+5 : hx-5, anchor=isRight?'start':'end';
   return `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#555" stroke-width="0.8"/>
     <line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${hx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#555" stroke-width="0.8"/>
     <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="2.5" fill="${dotColor}"/>
     <text x="${tx.toFixed(1)}" y="${(by+4).toFixed(1)}" text-anchor="${anchor}" fill="#c5c5c5" font-size="11.5" font-weight="500" font-family="ui-monospace,monospace">${escapeHtml(label)}</text>`;
 }
 
-function buildWinTypes(wins, total) {
+function buildWinTypes(wins) {
   const types=[
     {label:'Resigned',   count:wins.filter(g=>g.oppResult==='resigned').length,   color:'#27ae60'},
     {label:'Timeout',    count:wins.filter(g=>g.oppResult==='timeout').length,    color:'#1a9141'},
@@ -1268,7 +1275,7 @@ function renderGameResults(games) {
 
     const total=games.length;
     const wins=games.filter(g=>g.won), losses=games.filter(g=>g.lost), draws=games.filter(g=>g.drew);
-    const winTypes=buildWinTypes(wins,total);
+    const winTypes=buildWinTypes(wins);
     const lossTypes=buildLossTypes(losses);
 
     const sorted=[...games].sort((a,b)=>a.endTime-b.endTime);
@@ -1360,7 +1367,7 @@ function wireControls() {
 // ─── REFRESH ALL RENDERS ─────────────────────────────────────────────────────
 
 function refreshRender() {
-  const {allProcessed,selectedTC,selectedPeriod,profile,stats} = _state;
+  const {allProcessed,selectedTC,selectedPeriod,stats} = _state;
   const cacheKey = `${selectedTC}:${selectedPeriod}`;
   if (cacheKey !== _renderCache.key) {
     _renderCache.key = cacheKey;

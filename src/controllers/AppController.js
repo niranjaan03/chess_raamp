@@ -13,12 +13,24 @@ import PuzzleController from './PuzzleController';
 import SoundController from './SoundController';
 import { bind, bindClick, escapeAttr, escapeHtml, getEl, setText } from '../utils/dom.js';
 import { showToast, copyToClipboard } from '../utils/toast.js';
+import { getJson, setJson } from '../utils/storage.js';
 import FeedbackController from './FeedbackController.js';
 import AuthController from './AuthController.js';
 import ProfileController from './ProfileController.js';
 import DatabaseController from './DatabaseController.js';
 import PlatformFetchController from './PlatformFetchController.js';
-import { state, DEFAULT_ENGINE_ID } from './state.js';
+import { state } from './state.js';
+import {
+  DEFAULT_ENGINE_SETTINGS,
+  ENGINE_LABELS,
+  normalizeEngineSettings,
+} from './EngineSettingsController.js';
+import {
+  readGameReviewSettings,
+  updateGameReviewSettings,
+  writeGameReviewSettings,
+  subscribeGameReviewSettings,
+} from '../hooks/useGameReviewSettings.js';
 
 const APP_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL)
   ? import.meta.env.BASE_URL
@@ -54,11 +66,20 @@ const AppController = (function() {
   var lastAnalysisCounts = null;
   var activeReviewTab = 'analyze';
   var currentReviewCandidates = [];
+  var sandboxState = {
+    active: false,
+    variation: null,
+    chess: null,
+    analysisToken: 0
+  };
   var selectedMoveQuality = null;
   var selectedMoveQualityColor = null;
   var selectedMoveQualityCursor = 0;
   var reviewReplayState = null;
   var enginePreviewSnapshot = null;
+  // Tracks the previous reloadPosition() target so we only animate single-step
+  // moves; jumps via the move list snap immediately to avoid visual confusion.
+  var lastReloadIndex = -1;
   var DEFAULT_MOVE_DESC = 'Run a full game review to see brilliance, inaccuracies, and more for each move.';
   var DEFAULT_COACH_TEXT = 'Run a full analysis to unlock personalized move-by-move coaching.';
   var COACH_COMMENTARY_URL = APP_BASE_URL.replace(/\/?$/, '/') + 'data/chess_commentary_cleaned_combined.json';
@@ -68,32 +89,8 @@ const AppController = (function() {
   var coachCommentaryRequestId = 0;
   var COLOR_MODE_KEY = 'kv_color_mode';
   var ENGINE_SETTINGS_KEY = 'kv_engine_settings';
-  var ENGINE_LABELS = {
-    sf18: 'Stockfish 18 Browser',
-    'sf18-lite': 'Stockfish 18 Lite Browser',
-    'sf18-full': 'Stockfish 18 Full Browser',
-    'sf17-1-lite': 'Stockfish 17.1 Lite Browser',
-    'sf17-1-full': 'Stockfish 17.1 Full Browser',
-    'sf17-lite': 'Stockfish 17 Lite Browser',
-    'sf17-full': 'Stockfish 17 Full Browser',
-    'sf16-1-lite': 'Stockfish 16.1 Lite Browser',
-    'sf16-1-full': 'Stockfish 16.1 Full Browser',
-    'sf16-nnue': 'Stockfish 16 NNUE Browser'
-  };
-  var REVIEW_STRENGTHS = ['fast', 'balanced', 'slow'];
-  var DEFAULT_ENGINE_SETTINGS = {
-    gameReview: {
-      engine: 'sf18',
-      strength: 'fast'
-    },
-    analysis: {
-      engine: 'sf18',
-      maxTimeMs: 1000,
-      lines: 3,
-      suggestionArrows: 'best-moves',
-      depth: '25'
-    }
-  };
+  var gameReviewSettings = readGameReviewSettings();
+  var gameReviewSettingsUnsubscribe = null;
   var engineSettings = normalizeEngineSettings(null);
   var currentTab = 'home';
   var tabHistoryReady = false;
@@ -139,7 +136,8 @@ const AppController = (function() {
     });
     DatabaseController.init({
       loadPGNGame: loadPGNGame,
-      switchTab: switchTab
+      switchTab: switchTab,
+      triggerAutoReview: triggerAutoReview
     });
     PlatformFetchController.init({
       loadPGNGame: loadPGNGame,
@@ -162,7 +160,16 @@ const AppController = (function() {
     setupCoachTimelineInteractions();
     applyBoardPreferences();
     applyEngineSettings();
+    if (!gameReviewSettingsUnsubscribe) {
+      gameReviewSettingsUnsubscribe = subscribeGameReviewSettings(function(nextSettings) {
+        gameReviewSettings = nextSettings;
+        applyGameReviewSettings();
+      });
+    }
+    gameReviewSettings = writeGameReviewSettings(readGameReviewSettings());
+    applyGameReviewSettings();
     switchReviewTab(activeReviewTab);
+    syncReviewNavControls();
     
     startAnalysis();
     
@@ -362,12 +369,22 @@ const AppController = (function() {
   }
 
   function syncAnalyzeBoardInteraction() {
-    var reviewIsLoaded = !!(currentGame && gamePositions && gamePositions.length > 1);
+    if (sandboxState.active) {
+      ChessBoard.setOptions({
+        interactionColor: '',
+        allowedMoves: [],
+        interactive: true
+      });
+      return;
+    }
     var replay = reviewReplayState && reviewReplayState.active ? reviewReplayState : null;
+    // chess.com-style: board is always interactive during review so the user
+    // can click any piece, see legal-move dots, and play exploration moves
+    // that get analyzed. The "Back to game" button restores the main line.
     ChessBoard.setOptions({
       interactionColor: replay && replay.moveInfo ? replay.moveInfo.color : '',
       allowedMoves: [],
-      interactive: replay ? true : !reviewIsLoaded
+      interactive: true
     });
   }
 
@@ -399,6 +416,9 @@ const AppController = (function() {
     bindClick('grReviewBestBtn', showReviewBestMove);
     bindClick('grReviewTryAgainBtn', startReviewTryAgain);
     bindClick('grReviewNextBtn', handleReviewFeedbackNext);
+    bindClick('sandboxStartBtn', startAnalysisSandbox);
+    bindClick('sandboxBackBtn', exitAnalysisSandbox);
+    bindClick('sandboxResetBtn', resetAnalysisSandbox);
 
     // FEN
     bindClick('loadFen', loadFenPosition);
@@ -436,21 +456,16 @@ const AppController = (function() {
     bindClick('analyzeFullGame', analyzeFullGame);
     setupReviewTabs();
     bindClick('analysisSettingsGear', openEngineSettingsModal);
+    bindClick('reviewSettingsGear', openEngineSettingsModal);
     bindClick('reviewPanelMenu', openEngineSettingsModal);
-    bindClick('engineSettingsClose', closeEngineSettingsModal);
-    bindClick('engineSettingsDone', saveAndCloseEngineSettingsModal);
+    bindClick('gameReviewSettingsClose', closeEngineSettingsModal);
+    bindClick('grsFlipBoard', flipBoard);
     bind('settingsEngineSelect', 'change', handleEngineSettingChange);
-    bind('engineSettingsEngine', 'change', handleEngineSettingChange);
-    bind('engineSettingsReviewEngine', 'change', handleEngineSettingChange);
-    bind('engineSettingsReviewStrength', 'change', handleEngineSettingChange);
-    bind('engineSettingsLines', 'change', handleEngineSettingChange);
-    bind('engineSettingsArrows', 'change', handleEngineSettingChange);
-    bind('engineSettingsTime', 'change', handleEngineSettingChange);
-    bind('engineSettingsDepth', 'change', handleEngineSettingChange);
-    var engineSettingsOverlay = document.getElementById('engineSettingsOverlay');
-    if (engineSettingsOverlay) {
-      engineSettingsOverlay.addEventListener('click', function(e) {
-        if (e.target === engineSettingsOverlay) closeEngineSettingsModal();
+    setupGameReviewSettingsModal();
+    var gameReviewSettingsOverlay = document.getElementById('gameReviewSettingsOverlay');
+    if (gameReviewSettingsOverlay) {
+      gameReviewSettingsOverlay.addEventListener('click', function(e) {
+        if (e.target === gameReviewSettingsOverlay) closeEngineSettingsModal();
       });
     }
 
@@ -627,16 +642,200 @@ const AppController = (function() {
 
     // Keyboard navigation
     document.addEventListener('keydown', function(e) {
+      if (isGameReviewSettingsModalOpen()) {
+        handleGameReviewSettingsModalKeydown(e);
+        return;
+      }
       if (e.key === 'Escape') {
         FeedbackController.close();
       }
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON' || e.target.isContentEditable) return;
+      if (!getCurrentGameReviewSettings().interface.analysis.useHotkeys) return;
       if (e.key === 'ArrowLeft') goPrev();
       if (e.key === 'ArrowRight') goNext();
+      if (e.key === ' ') { e.preventDefault(); toggleAutoPlay(); }
+      if (e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        e.preventDefault();
+        showToast('Hotkeys: Left previous, Right next, Space autoplay, Shift+D hotkeys', 'success');
+      }
       if (e.key === 'ArrowUp') { e.preventDefault(); goFirst(); }
       if (e.key === 'ArrowDown') { e.preventDefault(); goLast(); }
       if (e.key === 'f' || e.key === 'F') flipBoard();
     });
+  }
+
+  function getCurrentGameReviewSettings() {
+    gameReviewSettings = readGameReviewSettings();
+    return gameReviewSettings;
+  }
+
+  function getPathValue(source, path) {
+    return String(path || '').split('.').filter(Boolean).reduce(function(value, key) {
+      return value && value[key] !== undefined ? value[key] : undefined;
+    }, source);
+  }
+
+  function setControlValueForSetting(control, value) {
+    if (!control) return;
+    if (control.type === 'checkbox') {
+      control.checked = value === true;
+    } else {
+      control.value = String(value);
+    }
+  }
+
+  function syncGameReviewSettingsControls() {
+    var settings = getCurrentGameReviewSettings();
+    document.querySelectorAll('[data-review-setting]').forEach(function(control) {
+      var path = control.getAttribute('data-review-setting');
+      setControlValueForSetting(control, getPathValue(settings, path));
+    });
+  }
+
+  function setupGameReviewSettingsModal() {
+    document.querySelectorAll('.game-review-settings-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        activateGameReviewSettingsTab(this.getAttribute('data-settings-tab') || 'engine');
+      });
+    });
+    document.querySelectorAll('.game-review-settings-subtab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        activateGameReviewSettingsSubtab(this.getAttribute('data-settings-subtab') || 'analysis');
+      });
+    });
+    document.querySelectorAll('[data-review-setting]').forEach(function(control) {
+      control.addEventListener('change', function() {
+        var path = this.getAttribute('data-review-setting');
+        var value = this.type === 'checkbox' ? this.checked : this.value;
+        gameReviewSettings = updateGameReviewSettings(path, value);
+        applyGameReviewSettings();
+        if (path.indexOf('engine.') === 0 || path === 'interface.analysis.suggestionArrow') {
+          startAnalysis();
+        }
+        if (path.indexOf('interface.review.') === 0) {
+          var selected = getSelectedReviewMove();
+          setMoveQualityBanner(selected.moveInfo, selected.moveIndex);
+        }
+      });
+    });
+  }
+
+  function activateGameReviewSettingsTab(tabName) {
+    var safeTab = ['engine', 'interface', 'board'].indexOf(tabName) !== -1 ? tabName : 'engine';
+    document.querySelectorAll('.game-review-settings-tab').forEach(function(tab) {
+      tab.classList.toggle('active', tab.getAttribute('data-settings-tab') === safeTab);
+    });
+    document.querySelectorAll('.game-review-settings-panel').forEach(function(panel) {
+      panel.classList.toggle('active', panel.getAttribute('data-settings-panel') === safeTab);
+    });
+  }
+
+  function activateGameReviewSettingsSubtab(tabName) {
+    var safeTab = tabName === 'review' ? 'review' : 'analysis';
+    document.querySelectorAll('.game-review-settings-subtab').forEach(function(tab) {
+      tab.classList.toggle('active', tab.getAttribute('data-settings-subtab') === safeTab);
+    });
+    document.querySelectorAll('.game-review-settings-subpanel').forEach(function(panel) {
+      panel.classList.toggle('active', panel.getAttribute('data-settings-subpanel') === safeTab);
+    });
+  }
+
+  function isGameReviewSettingsModalOpen() {
+    var overlay = document.getElementById('gameReviewSettingsOverlay');
+    return !!(overlay && !overlay.hidden);
+  }
+
+  function getFocusableSettingsControls() {
+    var modal = document.getElementById('gameReviewSettingsModal');
+    if (!modal) return [];
+    return Array.from(modal.querySelectorAll('button, select, input, [tabindex]:not([tabindex="-1"])'))
+      .filter(function(el) { return !el.disabled && el.offsetParent !== null; });
+  }
+
+  function handleGameReviewSettingsModalKeydown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeEngineSettingsModal();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    var focusable = getFocusableSettingsControls();
+    if (!focusable.length) return;
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  function mapReviewPieceStyle(value) {
+    if (value === 'gothic') return 'outline';
+    if (value === 'neo') return 'bold';
+    return value === 'modern' ? 'modern' : 'classic';
+  }
+
+  function mapReviewBoardTheme(value) {
+    return ['green', 'blue', 'brown', 'purple', 'dark'].indexOf(value) !== -1 ? value : 'blue';
+  }
+
+  function mapReviewSoundTheme(value) {
+    if (value === 'modern') return 'premium';
+    if (value === 'classic') return 'classic';
+    return 'classic';
+  }
+
+  function applyCoordinateSettings(settings) {
+    var mode = settings.board.coordinates;
+    var rankEl = document.getElementById('rankCoords');
+    var fileEl = document.getElementById('fileCoords');
+    ChessBoard.setOptions({ showCoordinates: mode === 'inside' });
+    if (rankEl) rankEl.hidden = mode !== 'outside';
+    if (fileEl) fileEl.hidden = mode !== 'outside';
+  }
+
+  function applyGameReviewSettings() {
+    var settings = getCurrentGameReviewSettings();
+    var analysis = settings.interface.analysis;
+    var review = settings.interface.review;
+    var board = settings.board;
+
+    autoPlayDelay = parseInt(review.delayBetweenMoves, 10) || 1000;
+    EngineController.setNumLines(settings.engine.multiPv);
+    EngineController.setDepth(parseInt(settings.engine.depth, 10) || 14);
+    if (EngineController.setSuggestionArrowsMode) {
+      EngineController.setSuggestionArrowsMode(analysis.suggestionArrow ? 'best' : 'off');
+    }
+    ChessBoard.setTheme(mapReviewBoardTheme(board.board));
+    ChessBoard.setPieceStyle(mapReviewPieceStyle(board.pieces));
+    ChessBoard.setOptions({
+      showArrows: analysis.suggestionArrow || review.showArrows !== 'none',
+      highlightLast: board.highlightMoves,
+      showLegalMoves: board.showLegalMoves,
+      moveAnimationSpeed: board.pieceAnimations
+    });
+    applyCoordinateSettings(settings);
+    SoundController.setEnabled(board.playSounds && board.soundTheme !== 'none');
+    SoundController.setSoundStyle(mapReviewSoundTheme(board.soundTheme));
+    document.body.dataset.moveClassificationStyle = board.moveClassificationStyle;
+    document.body.dataset.moveStrengthColoring = analysis.moveStrengthColoring;
+    document.body.dataset.reviewCoachVisible = review.showCoachAvatar ? 'true' : 'false';
+    document.body.dataset.reviewCourseRecommendations = review.showCourseRecommendations ? 'true' : 'false';
+    document.body.dataset.reviewPieceAnimation = board.pieceAnimations;
+    syncGameReviewSettingsControls();
+    syncEngineSettingsControls();
+    updateEngineLinesVisibility();
+    updateMovesList();
+    setMoveQualityBanner(getSelectedReviewMove().moveInfo, getSelectedReviewMove().moveIndex);
+  }
+
+  function updateEngineLinesVisibility() {
+    var settings = getCurrentGameReviewSettings();
+    var panel = document.querySelector('.analysis-workspace-panel');
+    if (panel) panel.classList.toggle('is-lines-hidden', !settings.engine.showEngineLines);
   }
 
   // ===== BOARD COORDINATES =====
@@ -734,66 +933,50 @@ const AppController = (function() {
     } catch { /* corrupt settings – use defaults */ }
   }
 
-  function normalizeEngineSettings(raw) {
-    var source = raw || {};
-    var reviewSource = source.gameReview || {
-      engine: source.reviewEngine,
-      strength: source.reviewStrength
-    };
-    var analysisSource = source.analysis || {
-      engine: source.engine,
-      maxTimeMs: source.maxTimeMs || (source.time ? parseInt(source.time, 10) * 1000 : undefined),
-      lines: source.lines,
-      suggestionArrows: source.suggestionArrows || source.arrows,
-      depth: source.depth
-    };
-    var maxTimeMs = parseInt(analysisSource.maxTimeMs, 10);
-    if ([1000, 3000, 5000, 10000].indexOf(maxTimeMs) === -1) maxTimeMs = DEFAULT_ENGINE_SETTINGS.analysis.maxTimeMs;
-
-    return {
-      gameReview: {
-        engine: ENGINE_LABELS[reviewSource.engine] ? reviewSource.engine : DEFAULT_ENGINE_SETTINGS.gameReview.engine,
-        strength: REVIEW_STRENGTHS.indexOf(reviewSource.strength) !== -1 ? reviewSource.strength : DEFAULT_ENGINE_SETTINGS.gameReview.strength
-      },
-      analysis: {
-        engine: ENGINE_LABELS[analysisSource.engine] ? analysisSource.engine : DEFAULT_ENGINE_SETTINGS.analysis.engine,
-        maxTimeMs: maxTimeMs,
-        lines: Math.max(1, Math.min(5, parseInt(analysisSource.lines, 10) || DEFAULT_ENGINE_SETTINGS.analysis.lines)),
-        suggestionArrows: ['off', 'best', 'best-moves', 'all'].indexOf(analysisSource.suggestionArrows) !== -1 ? analysisSource.suggestionArrows : DEFAULT_ENGINE_SETTINGS.analysis.suggestionArrows,
-        depth: ['auto', '15', '20', '25'].indexOf(String(analysisSource.depth)) !== -1 ? String(analysisSource.depth) : DEFAULT_ENGINE_SETTINGS.analysis.depth
-      }
-    };
-  }
-
   function readEngineSettings() {
-    try {
-      var saved = JSON.parse(localStorage.getItem(ENGINE_SETTINGS_KEY) || 'null');
-      engineSettings = normalizeEngineSettings(saved);
-    } catch {
-      engineSettings = normalizeEngineSettings(null);
-    }
+    engineSettings = normalizeEngineSettings(getJson(ENGINE_SETTINGS_KEY, null));
 
     persistEngineSettings();
   }
 
   function persistEngineSettings() {
-    try { localStorage.setItem(ENGINE_SETTINGS_KEY, JSON.stringify(engineSettings)); } catch { /* storage full */ }
+    setJson(ENGINE_SETTINGS_KEY, engineSettings);
   }
 
   function getAnalysisEngineSettings() {
-    engineSettings = normalizeEngineSettings(engineSettings);
-    return engineSettings.analysis;
+    var settings = getCurrentGameReviewSettings();
+    var engine = ENGINE_LABELS[engineSettings.analysis && engineSettings.analysis.engine]
+      ? engineSettings.analysis.engine
+      : DEFAULT_ENGINE_SETTINGS.analysis.engine;
+    return {
+      engine: engine,
+      provider: settings.engine.provider,
+      maxTimeMs: 1000,
+      lines: parseInt(settings.engine.multiPv, 10) || 1,
+      suggestionArrows: settings.interface.analysis.suggestionArrow ? 'best' : 'off',
+      depth: settings.engine.depth,
+      showEngineLines: settings.engine.showEngineLines
+    };
   }
 
   function getReviewEngineSettings() {
-    engineSettings = normalizeEngineSettings(engineSettings);
-    return engineSettings.gameReview;
+    var settings = getCurrentGameReviewSettings();
+    var engine = ENGINE_LABELS[engineSettings.gameReview && engineSettings.gameReview.engine]
+      ? engineSettings.gameReview.engine
+      : DEFAULT_ENGINE_SETTINGS.gameReview.engine;
+    return {
+      engine: engine,
+      provider: settings.engine.provider,
+      strength: 'fast',
+      depth: settings.engine.depth,
+      multiPv: settings.engine.multiPv,
+      useOpeningBook: settings.engine.useOpeningBook
+    };
   }
 
   function getEngineDepthValue() {
     var analysis = getAnalysisEngineSettings();
-    if (String(analysis.depth) === 'auto') return 20;
-    return parseInt(analysis.depth, 10) || 20;
+    return parseInt(analysis.depth, 10) || 14;
   }
 
   function syncEngineSettingsControls() {
@@ -817,7 +1000,13 @@ const AppController = (function() {
     if (depthEl) depthEl.value = String(analysis.depth);
 
     var nameEl = document.getElementById('analysisEngineName');
-    if (nameEl) nameEl.textContent = ENGINE_LABELS[analysis.engine] || 'Browser Stockfish';
+    if (nameEl) {
+      nameEl.textContent = analysis.provider === 'server'
+        ? 'Server Stockfish'
+        : analysis.provider === 'auto'
+          ? 'Auto Stockfish'
+          : (ENGINE_LABELS[analysis.engine] || 'Browser Stockfish');
+    }
 
     var depthSlider = document.getElementById('depthSlider');
     var depthVal = document.getElementById('depthVal');
@@ -881,29 +1070,22 @@ const AppController = (function() {
   }
 
   function openEngineSettingsModal() {
+    syncGameReviewSettingsControls();
     syncEngineSettingsControls();
-    var overlay = document.getElementById('engineSettingsOverlay');
+    var overlay = document.getElementById('gameReviewSettingsOverlay');
     if (!overlay) return;
     overlay.hidden = false;
     var shell = document.getElementById('analyzeShell');
     if (shell) shell.classList.add('engine-settings-open');
-    var closeBtn = document.getElementById('engineSettingsClose');
-    if (closeBtn && closeBtn.focus) closeBtn.focus();
+    var modal = document.getElementById('gameReviewSettingsModal');
+    if (modal && modal.focus) modal.focus();
   }
 
   function closeEngineSettingsModal() {
-    var overlay = document.getElementById('engineSettingsOverlay');
+    var overlay = document.getElementById('gameReviewSettingsOverlay');
     if (overlay) overlay.hidden = true;
     var shell = document.getElementById('analyzeShell');
     if (shell) shell.classList.remove('engine-settings-open');
-  }
-
-  function saveAndCloseEngineSettingsModal() {
-    collectEngineSettingsFromControls();
-    persistEngineSettings();
-    applyEngineSettings();
-    closeEngineSettingsModal();
-    startAnalysis();
   }
 
   function applyColorMode(mode) {
@@ -1105,6 +1287,11 @@ const AppController = (function() {
     return formatSecondsParts(parts.totalSeconds, parts.precision);
   }
 
+  function isLowClockValue(value) {
+    var parts = getDurationParts(value);
+    return !!parts && parts.totalSeconds < 20;
+  }
+
   function getSourcePlayer(sourceGame, color) {
     if (!sourceGame) return null;
     var key = color === 'w' ? 'white' : 'black';
@@ -1249,7 +1436,7 @@ const AppController = (function() {
       clockEl.hidden = true;
       clockEl.textContent = '';
       clockEl.dataset.clockLabel = '';
-      clockEl.classList.remove('is-live', 'is-move-time');
+      clockEl.classList.remove('is-live', 'is-move-time', 'is-low-time');
       return;
     }
 
@@ -1258,6 +1445,7 @@ const AppController = (function() {
     clockEl.dataset.clockLabel = state.label === 'move' ? 'move time' : state.label || 'clock';
     clockEl.classList.toggle('is-live', state.label === 'live');
     clockEl.classList.toggle('is-move-time', state.label === 'move');
+    clockEl.classList.toggle('is-low-time', isLowClockValue(value));
   }
 
   function updateAnalyzePlayerBarState(game) {
@@ -1371,6 +1559,12 @@ const AppController = (function() {
     };
   }
 
+  function formatReviewAccuracyValue(value) {
+    var numeric = typeof value === 'number' ? value : parseFloat(value);
+    if (!isFinite(numeric)) return '--';
+    return numeric.toFixed(1);
+  }
+
   function getReviewPlayerStrip(color) {
     var nameEl = document.getElementById(color === 'b' ? 'blackName' : 'whiteName');
     return nameEl && nameEl.closest ? nameEl.closest('.review-player-strip') : null;
@@ -1457,6 +1651,7 @@ const AppController = (function() {
     ChessBoard.setPosition(chess);
     ChessBoard.setLastMove(null, null);
     syncAnalyzeBoardInteraction();
+    syncReviewNavControls();
     updateMovesList();
     updateOpeningDisplay();
     startAnalysis();
@@ -1483,6 +1678,7 @@ const AppController = (function() {
       ChessBoard.setLastMove(null, null);
       updateAnalyzePlayerInfo(null, getAnalyzeBottomColor());
       syncAnalyzeBoardInteraction();
+      syncReviewNavControls();
       updateMovesList();
       startAnalysis();
       document.getElementById('fenInput').value = fen;
@@ -1600,10 +1796,32 @@ const AppController = (function() {
   }
 
   // ===== NAVIGATION =====
+  // If the user navigates to a position at/before the exploration fork point,
+  // silently restore the original main game line. The variation is discarded;
+  // the explicit "← Back to game" pill becomes redundant in this case.
+  function maybeRestoreMainLineForIndex(targetIndex) {
+    if (!enginePreviewSnapshot || enginePreviewSnapshot.sandbox) return;
+    if (typeof targetIndex !== 'number') return;
+    if (targetIndex > enginePreviewSnapshot.moveIndex) return;
+    gamePositions = enginePreviewSnapshot.positions;
+    if (enginePreviewSnapshot.analysisHistory !== undefined) {
+      lastAnalysisHistory = enginePreviewSnapshot.analysisHistory;
+    }
+    enginePreviewSnapshot = null;
+    explorationToken++;
+    document.querySelectorAll('#linesContainer .line-item.is-playing').forEach(function(el) {
+      el.classList.remove('is-playing');
+    });
+    updateMovesList();
+    updateEnginePreviewControls();
+  }
+
   function goFirst() {
     if (!gamePositions.length) return;
+    if (sandboxState.active) exitAnalysisSandbox();
     stopAutoPlay();
     reviewReplayState = null;
+    maybeRestoreMainLineForIndex(0);
     currentMoveIndex = 0;
     chess = new Chess();
     if (gamePositions[0] && gamePositions[0].fen) {
@@ -1614,20 +1832,24 @@ const AppController = (function() {
     updateAnalyzePlayerInfo(currentGame, getAnalyzeBottomColor());
     syncAnalyzeBoardInteraction();
     updateActiveMoveHighlight();
+    syncReviewNavControls();
     startAnalysis();
     updateMoveQualityBanner();
   }
 
   function goPrev() {
     if (!gamePositions.length || currentMoveIndex <= 0) return;
+    if (sandboxState.active) exitAnalysisSandbox();
     stopAutoPlay();
     reviewReplayState = null;
+    maybeRestoreMainLineForIndex(currentMoveIndex - 1);
     currentMoveIndex--;
     reloadPosition();
   }
 
   function goNext() {
     if (!gamePositions.length || currentMoveIndex >= gamePositions.length - 1) return;
+    if (sandboxState.active) exitAnalysisSandbox();
     stopAutoPlay();
     reviewReplayState = null;
     currentMoveIndex++;
@@ -1636,6 +1858,7 @@ const AppController = (function() {
 
   function goLast() {
     if (!gamePositions.length) return;
+    if (sandboxState.active) exitAnalysisSandbox();
     stopAutoPlay();
     reviewReplayState = null;
     currentMoveIndex = gamePositions.length - 1;
@@ -1644,22 +1867,54 @@ const AppController = (function() {
 
   function goToMove(index) {
     if (index < 0 || index >= gamePositions.length) return;
+    if (sandboxState.active) exitAnalysisSandbox();
     stopAutoPlay();
     reviewReplayState = null;
+    maybeRestoreMainLineForIndex(index);
+    if (index >= gamePositions.length) index = gamePositions.length - 1;
     currentMoveIndex = index;
     reloadPosition();
   }
 
   function reloadPosition() {
     if (!gamePositions[currentMoveIndex]) return;
-    
+
     var pos = gamePositions[currentMoveIndex];
     chess = new Chess();
     chess.load(pos.fen);
-    ChessBoard.setPosition(chess);
+
+    // Animate single-step forward / backward navigation; snap on jumps.
+    var canAnimate = typeof ChessBoard.setPositionAnimated === 'function';
+    var goingForward = canAnimate
+      && pos.move
+      && currentMoveIndex > 0
+      && lastReloadIndex === currentMoveIndex - 1;
+    var goingBackward = canAnimate
+      && lastReloadIndex === currentMoveIndex + 1
+      && gamePositions[lastReloadIndex]
+      && gamePositions[lastReloadIndex].move;
+    if (goingForward) {
+      var prevPos = gamePositions[currentMoveIndex - 1];
+      var prevChess = new Chess();
+      prevChess.load(prevPos.fen);
+      ChessBoard.setPosition(prevChess);
+      ChessBoard.setPositionAnimated(chess, pos.move.from, pos.move.to);
+    } else if (goingBackward) {
+      // Replay the previous frame, then animate the moved piece sliding back
+      // from its destination to its origin.
+      var futureMove = gamePositions[lastReloadIndex].move;
+      var futureChess = new Chess();
+      futureChess.load(gamePositions[lastReloadIndex].fen);
+      ChessBoard.setPosition(futureChess);
+      ChessBoard.setPositionAnimated(chess, futureMove.to, futureMove.from);
+    } else {
+      ChessBoard.setPosition(chess);
+    }
+    lastReloadIndex = currentMoveIndex;
+
     updateAnalyzePlayerInfo(currentGame, getAnalyzeBottomColor());
     syncAnalyzeBoardInteraction();
-    
+
     // Set last move highlight
     if (pos.move && currentMoveIndex > 0) {
       ChessBoard.setLastMove(pos.move.from, pos.move.to);
@@ -1672,6 +1927,7 @@ const AppController = (function() {
     updateActiveMoveHighlight();
     updateFenDisplay();
     updateOpeningDisplay();
+    syncReviewNavControls();
     startAnalysis();
     updateMoveQualityBanner();
   }
@@ -1725,6 +1981,23 @@ const AppController = (function() {
     playBtn.textContent = isPlaying ? '⏸' : '▶';
     playBtn.classList.toggle('is-playing', !!isPlaying);
     playBtn.setAttribute('aria-label', isPlaying ? 'Pause game playback' : 'Play game');
+    syncReviewNavControls();
+  }
+
+  function syncReviewNavControls() {
+    var hasPositions = Array.isArray(gamePositions) && gamePositions.length > 1;
+    var atStart = !hasPositions || currentMoveIndex <= 0;
+    var atEnd = !hasPositions || currentMoveIndex >= gamePositions.length - 1;
+    var firstBtn = document.getElementById('btnFirst');
+    var prevBtn = document.getElementById('btnPrev');
+    var nextBtn = document.getElementById('btnNext');
+    var lastBtn = document.getElementById('btnLast');
+    var playBtn = document.getElementById('btnPlay');
+    if (firstBtn) firstBtn.disabled = atStart;
+    if (prevBtn) prevBtn.disabled = atStart;
+    if (nextBtn) nextBtn.disabled = atEnd;
+    if (lastBtn) lastBtn.disabled = atEnd;
+    if (playBtn) playBtn.disabled = !hasPositions;
   }
 
   function uciFromMoveObject(move) {
@@ -1773,6 +2046,31 @@ const AppController = (function() {
   function shouldShowBestReviewButton(moveInfo) {
     var bestMove = getEngineBestMoveForReview(moveInfo);
     return !!bestMove && !wasEngineBestMovePlayed(moveInfo);
+  }
+
+  function updateReviewArrowsForMove(moveInfo) {
+    if (!ChessBoard || typeof ChessBoard.setArrows !== 'function') return;
+    var settings = getCurrentGameReviewSettings();
+    if (activeReviewTab === 'analyze' && !settings.interface.analysis.suggestionArrow) {
+      ChessBoard.clearArrows();
+      return;
+    }
+    var mode = settings.interface.review.showArrows;
+    if (!moveInfo || mode === 'none') {
+      ChessBoard.clearArrows();
+      return;
+    }
+    var arrows = [];
+    var bestMove = getEngineBestMoveForReview(moveInfo);
+    var playedMove = getPlayedUciForReview(moveInfo);
+    if ((mode === 'best' || mode === 'both') && bestMove && bestMove.length >= 4) {
+      arrows.push({ from: bestMove.slice(0, 2), to: bestMove.slice(2, 4), color: 'rgba(151, 210, 109, 0.92)' });
+    }
+    if ((mode === 'played' || mode === 'both') && playedMove && playedMove.length >= 4) {
+      arrows.push({ from: playedMove.slice(0, 2), to: playedMove.slice(2, 4), color: mode === 'both' ? 'rgba(247, 197, 68, 0.7)' : 'rgba(151, 210, 109, 0.92)' });
+    }
+    if (arrows.length) ChessBoard.setArrows(arrows);
+    else ChessBoard.clearArrows();
   }
 
   function formatReviewEvalBadge(moveInfo) {
@@ -1941,6 +2239,308 @@ const AppController = (function() {
     goNext();
   }
 
+  function getSandboxBranchLabel(moveIndex) {
+    if (typeof moveIndex !== 'number' || moveIndex <= 0) return 'Branch from starting position';
+    var moveNum = Math.ceil(moveIndex / 2);
+    return 'Branch from move ' + moveNum + (moveIndex % 2 === 0 ? '...' : '.');
+  }
+
+  function createVariationId() {
+    return 'var-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function startAnalysisSandbox() {
+    if (!chess) return;
+    stopAutoPlay();
+    var sourceFen = chess.fen();
+    if (gamePositions && gamePositions[currentMoveIndex] && gamePositions[currentMoveIndex].fen) {
+      sourceFen = gamePositions[currentMoveIndex].fen;
+    }
+    var branchChess = new Chess();
+    branchChess.load(sourceFen);
+    sandboxState.active = true;
+    sandboxState.chess = branchChess;
+    sandboxState.variation = {
+      id: createVariationId(),
+      branchMoveIndex: currentMoveIndex,
+      branchFen: sourceFen,
+      moves: [],
+      createdAt: new Date().toISOString()
+    };
+    chess = branchChess;
+    ChessBoard.setPosition(chess);
+    ChessBoard.setLastMove(null, null);
+    syncAnalyzeBoardInteraction();
+    renderAnalysisSandbox();
+    startAnalysis();
+    showToast('Analysis Sandbox enabled. Play any legal move.', 'success');
+  }
+
+  function exitAnalysisSandbox() {
+    if (!sandboxState.active) return;
+    if (enginePreviewSnapshot && enginePreviewSnapshot.sandbox) {
+      enginePreviewSnapshot = null;
+      updateEnginePreviewControls();
+    }
+    var returnIndex = sandboxState.variation ? sandboxState.variation.branchMoveIndex : currentMoveIndex;
+    sandboxState.active = false;
+    sandboxState.chess = null;
+    sandboxState.analysisToken++;
+    if (gamePositions && gamePositions[returnIndex]) {
+      currentMoveIndex = returnIndex;
+      reloadPosition();
+    }
+    renderAnalysisSandbox();
+  }
+
+  function resetAnalysisSandbox() {
+    var wasActive = sandboxState.active;
+    var returnIndex = sandboxState.variation ? sandboxState.variation.branchMoveIndex : currentMoveIndex;
+    sandboxState = {
+      active: false,
+      variation: null,
+      chess: null,
+      analysisToken: sandboxState.analysisToken + 1
+    };
+    if (wasActive && gamePositions && gamePositions[returnIndex]) {
+      currentMoveIndex = returnIndex;
+      reloadPosition();
+    }
+    renderAnalysisSandbox();
+    showToast('Sandbox variation cleared.', '');
+  }
+
+  function clearAnalysisSandboxState() {
+    sandboxState = {
+      active: false,
+      variation: null,
+      chess: null,
+      analysisToken: sandboxState.analysisToken + 1
+    };
+    renderAnalysisSandbox();
+  }
+
+  var explorationToken = 0;
+
+  function classifyExplorationMove(fenBefore, move, fenAfter, positionIndex) {
+    // Bump token so a stale prior run can't overwrite a newer exploration.
+    var token = ++explorationToken;
+    var settings = getCurrentGameReviewSettings();
+    var depth = parseInt(settings && settings.engine && settings.engine.depth, 10) || 14;
+    var analysisOptions = {
+      engine: getAnalysisEngineSettings().engine,
+      movetimeMs: 1000
+    };
+    if (!fenBefore || !fenAfter) return;
+
+    // EngineManager has a single worker — running two analyses in parallel
+    // makes the second one stop() the first. Sequence them.
+    EngineController.analyzeFenOnce(fenBefore, depth, 1, analysisOptions)
+      .then(function(before) {
+        if (token !== explorationToken) return null;
+        return EngineController.analyzeFenOnce(fenAfter, depth, 1, analysisOptions)
+          .then(function(after) { return [before, after]; });
+      })
+      .then(function(results) {
+        if (!results || token !== explorationToken) return;
+        if (!gamePositions[positionIndex] || gamePositions[positionIndex].fen !== fenAfter) return;
+
+        var before = results[0] || {};
+        var after = results[1] || {};
+        var playedUci = uciFromMoveObject(move);
+        var classified = classifySandboxMove(before.eval, after.eval, move.color, before.bestMove, playedUci);
+
+        gamePositions[positionIndex].quality = classified.quality;
+        gamePositions[positionIndex].cpl = classified.cpl;
+        gamePositions[positionIndex].evalBefore = before.eval;
+        gamePositions[positionIndex].evalAfter = after.eval;
+
+        if (!lastAnalysisHistory) lastAnalysisHistory = [];
+        while (lastAnalysisHistory.length < positionIndex) lastAnalysisHistory.push(null);
+        var entry = {
+          quality: classified.quality,
+          cpl: classified.cpl,
+          evalBefore: before.eval,
+          evalAfter: after.eval,
+          bestMove: before.bestMove || '',
+          color: move.color,
+          san: move.san,
+          from: move.from,
+          to: move.to,
+          moveNumber: Math.floor((positionIndex - 1) / 2) + 1,
+          playedMove: playedUci
+        };
+        lastAnalysisHistory[positionIndex - 1] = entry;
+
+        updateMovesList();
+        if (typeof setMoveQualityBanner === 'function') {
+          setMoveQualityBanner(entry, positionIndex - 1);
+        }
+        // Re-kick the standard engine-lines analysis on the after-position so
+        // the right panel shows live engine output for the explored position
+        // (we cancelled it by running analyzeFenOnce above).
+        if (token === explorationToken && currentMoveIndex === positionIndex) {
+          startAnalysis();
+        }
+      })
+      .catch(function(err) {
+        console.warn('[explore] classification failed', err);
+      });
+  }
+
+  function classifySandboxMove(evalBefore, evalAfter, color, bestMove, playedMove) {
+    var before = parseFloat(evalBefore);
+    var after = parseFloat(evalAfter);
+    var cpl = 0;
+    if (isFinite(before) && isFinite(after)) {
+      cpl = color === 'b'
+        ? Math.max(0, Math.round((after - before) * 100))
+        : Math.max(0, Math.round((before - after) * 100));
+    }
+    var quality = 'good';
+    if (movesMatchUci(bestMove, playedMove)) quality = 'best';
+    else if (cpl <= 5) quality = 'excellent';
+    else if (cpl <= 20) quality = 'good';
+    else if (cpl <= 70) quality = 'inaccuracy';
+    else if (cpl <= 160) quality = 'mistake';
+    else quality = 'blunder';
+    return { quality: quality, cpl: cpl };
+  }
+
+  function analyzeVariationMove(fenBefore, move, fenAfter, token) {
+    var settings = getCurrentGameReviewSettings();
+    var depth = parseInt(settings.engine.depth, 10) || 14;
+    var multiPv = parseInt(settings.engine.multiPv, 10) || 1;
+    var analysisOptions = {
+      engine: getAnalysisEngineSettings().engine,
+      movetimeMs: 1000,
+      useOpeningBook: !!settings.engine.useOpeningBook
+    };
+    return EngineController.analyzeFenOnce(fenBefore, depth, multiPv, analysisOptions)
+      .then(function(before) {
+        return EngineController.analyzeFenOnce(fenAfter, depth, multiPv, analysisOptions)
+          .then(function(after) { return [before, after]; });
+      })
+      .then(function(results) {
+      if (token !== sandboxState.analysisToken) return null;
+      var before = results[0] || {};
+      var after = results[1] || {};
+      var playedUci = uciFromMoveObject(move);
+      var classified = classifySandboxMove(before.eval, after.eval, move.color, before.bestMove, playedUci);
+      return {
+        evalBefore: before.eval,
+        evalAfter: after.eval,
+        bestMove: before.bestMove || '',
+        classification: classified.quality,
+        cpl: classified.cpl,
+        lines: before.lines || []
+      };
+    }).catch(function(error) {
+      console.warn('Sandbox analysis failed:', error);
+      return null;
+    });
+  }
+
+  function handleSandboxMove(move, fenAfter) {
+    if (!sandboxState.active || !sandboxState.variation || !sandboxState.chess) return;
+    var fenBefore = sandboxState.variation.moves.length
+      ? sandboxState.variation.moves[sandboxState.variation.moves.length - 1].fenAfter
+      : sandboxState.variation.branchFen;
+    chess = sandboxState.chess;
+    var entry = {
+      san: move.san,
+      uci: uciFromMoveObject(move),
+      from: move.from,
+      to: move.to,
+      promotion: move.promotion || '',
+      fenBefore: fenBefore,
+      fenAfter: fenAfter,
+      classification: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    sandboxState.variation.moves.push(entry);
+    ChessBoard.setLastMove(move.from, move.to);
+    SoundController.playMove();
+    renderAnalysisSandbox();
+    updateFenDisplay();
+    updateOpeningDisplay();
+    startAnalysis();
+    updateReviewArrowsForMove({
+      from: entry.from,
+      to: entry.to,
+      color: move.color,
+      playedMove: entry.uci,
+      bestMove: ''
+    });
+
+    var token = ++sandboxState.analysisToken;
+    analyzeVariationMove(fenBefore, move, fenAfter, token).then(function(result) {
+      if (!result || !sandboxState.variation) {
+        entry.classification = 'good';
+        renderAnalysisSandbox();
+        return;
+      }
+      Object.assign(entry, result);
+      renderAnalysisSandbox();
+      var meta = getQualityMeta(entry.classification);
+      if (getCurrentGameReviewSettings().interface.review.showMoveClassificationOnBoard && ChessBoard.setReviewMoveQuality) {
+        ChessBoard.setReviewMoveQuality({
+          from: entry.from,
+          to: entry.to,
+          square: entry.to,
+          quality: entry.classification,
+          label: meta.label
+        });
+      }
+      updateReviewArrowsForMove({
+        from: entry.from,
+        to: entry.to,
+        color: move.color,
+        playedMove: entry.uci,
+        bestMove: entry.bestMove,
+        candidateMoves: entry.lines
+      });
+    });
+  }
+
+  function renderAnalysisSandbox() {
+    var card = document.getElementById('analysisSandboxCard');
+    var label = document.getElementById('sandboxStatusLabel');
+    var line = document.getElementById('sandboxLine');
+    var startBtn = document.getElementById('sandboxStartBtn');
+    var backBtn = document.getElementById('sandboxBackBtn');
+    var resetBtn = document.getElementById('sandboxResetBtn');
+    if (!card || !line) return;
+    card.classList.toggle('is-active', !!sandboxState.active);
+    if (startBtn) startBtn.hidden = !!sandboxState.active;
+    if (backBtn) backBtn.hidden = !sandboxState.active;
+    if (resetBtn) resetBtn.hidden = !sandboxState.variation;
+    if (!sandboxState.variation) {
+      if (label) label.textContent = 'Try your own move from any review position.';
+      line.innerHTML = '<div class="gr-analysis-empty">No sandbox line yet.</div>';
+      return;
+    }
+    if (label) label.textContent = (sandboxState.active ? 'Analysis Sandbox · ' : 'Saved Variation · ') + getSandboxBranchLabel(sandboxState.variation.branchMoveIndex);
+    if (!sandboxState.variation.moves.length) {
+      line.innerHTML = '<div class="gr-analysis-empty">Play a legal move on the board to start your line.</div>';
+      return;
+    }
+    line.innerHTML = '<div class="sandbox-move-list">' + sandboxState.variation.moves.map(function(item, idx) {
+      var meta = getQualityMeta(item.classification === 'pending' ? 'good' : item.classification);
+      var beforeText = item.evalBefore !== undefined && item.evalBefore !== null ? formatEvalValue(parseFloat(item.evalBefore) || 0) : '...';
+      var afterText = item.evalAfter !== undefined && item.evalAfter !== null ? formatEvalValue(parseFloat(item.evalAfter) || 0) : '...';
+      var evalText = beforeText + ' → ' + afterText;
+      var cplText = typeof item.cpl === 'number' ? item.cpl + ' CPL' : 'analyzing';
+      return '<div class="sandbox-move-row">' +
+        '<span class="sandbox-move-index">' + (idx + 1) + '</span>' +
+        '<span class="sandbox-move-san">' + escapeHtml(item.san || item.uci) + '</span>' +
+        '<span class="move-quality-dot move-quality-dot--' + escapeAttr(item.classification || 'good') + '">' + escapeHtml(meta.icon) + '</span>' +
+        '<span class="sandbox-move-eval">' + escapeHtml(evalText) + '</span>' +
+        '<span class="sandbox-move-cpl">' + escapeHtml(cplText) + '</span>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
   function handleReviewReplayMove(move, fen) {
     var replay = reviewReplayState;
     if (!replay || !replay.active) return;
@@ -1978,23 +2578,58 @@ const AppController = (function() {
       return;
     }
 
-    if (currentGame) {
-      var reviewPos = gamePositions && gamePositions[currentMoveIndex] ? gamePositions[currentMoveIndex] : null;
-      chess = new Chess();
-      if (reviewPos && reviewPos.fen) chess.load(reviewPos.fen);
-      ChessBoard.setPosition(chess);
-      if (reviewPos && reviewPos.move && currentMoveIndex > 0) {
-        ChessBoard.setLastMove(reviewPos.move.from, reviewPos.move.to);
-      } else {
-        ChessBoard.setLastMove(null, null);
-      }
-      syncAnalyzeBoardInteraction();
-      updateFenDisplay();
-      showToast('Game review is read-only. Use the move list or engine lines to explore.', 'error');
+    if (sandboxState.active) {
+      handleSandboxMove(move, fen);
       return;
     }
 
-    // User made a move on the board
+    if (currentGame) {
+      // chess.com-style explore: snapshot the main line on first exploration
+      // move so the existing "← Back to game" pill restores it, then append
+      // the user's move as a variation, run engine analysis on it, and
+      // classify the move (best / excellent / inaccuracy / mistake / blunder).
+      stopAutoPlay();
+      if (!enginePreviewSnapshot) {
+        enginePreviewSnapshot = {
+          positions: gamePositions.slice(),
+          moveIndex: currentMoveIndex,
+          analysisHistory: lastAnalysisHistory ? lastAnalysisHistory.slice() : null
+        };
+      }
+      var fenBefore = gamePositions[currentMoveIndex] && gamePositions[currentMoveIndex].fen
+        ? gamePositions[currentMoveIndex].fen
+        : (chess ? chess.fen() : '');
+
+      gamePositions = gamePositions.slice(0, currentMoveIndex + 1);
+      gamePositions.push({
+        fen: fen,
+        move: move,
+        moveNum: currentMoveIndex + 1,
+        san: move.san,
+        isVariation: true
+      });
+      currentMoveIndex++;
+      // Sync the closure chess instance so navigation/analysis use the new
+      // position rather than the stale pre-move fen.
+      chess = new Chess();
+      chess.load(fen);
+
+      ChessBoard.setLastMove(move.from, move.to);
+      SoundController.playMove();
+      updateMovesList();
+      updateActiveMoveHighlight();
+      updateFenDisplay();
+      updateOpeningDisplay();
+      updateEnginePreviewControls();
+
+      // classifyExplorationMove sequences both engine evals and re-kicks
+      // startAnalysis() at the end; calling startAnalysis() here would just
+      // get cancelled by the first analyzeFenOnce.
+      classifyExplorationMove(fenBefore, move, fen, currentMoveIndex);
+      return;
+    }
+
+    // User made a move on the board (no game loaded — sandbox-style)
     currentGame = null;
     resetGameReviewUI();
     
@@ -2033,6 +2668,12 @@ const AppController = (function() {
   function startAnalysis() {
     if (!analysisMode || !chess) return;
     var analysis = getAnalysisEngineSettings();
+    if (EngineController.setSuggestionArrowsMode) {
+      EngineController.setSuggestionArrowsMode(activeReviewTab === 'report'
+        ? 'off'
+        : (analysis.suggestionArrows || 'off'));
+    }
+    updateEngineLinesVisibility();
     var depth = getEngineDepthValue();
     var numLines = analysis.lines || (EngineController.getMaxLines ? EngineController.getMaxLines() : 5);
 
@@ -2077,7 +2718,10 @@ const AppController = (function() {
     var review = getReviewEngineSettings();
     var reviewOptions = {
       engine: review.engine,
-      strength: review.strength
+      provider: review.provider,
+      strength: review.strength,
+      depth: review.depth,
+      multiPv: review.multiPv
     };
 
     EngineController.analyzeGame(pgn, reviewMeta, function(done, total) {
@@ -2099,6 +2743,11 @@ const AppController = (function() {
       
       // Apply quality labels to moves
       if (history) {
+        if (review.useOpeningBook === false) {
+          history.forEach(function(move) {
+            if (move && move.quality === 'book') move.quality = 'excellent';
+          });
+        }
         history.forEach(function(move, i) {
           var el = document.querySelector('.move-san[data-move-index="' + (i + 1) + '"]');
           if (el && move.quality) {
@@ -2111,6 +2760,10 @@ const AppController = (function() {
       showAccuracySection(history);
       showToast('Full game analysis complete!', 'success');
       switchReviewTab('report');
+      if (getCurrentGameReviewSettings().interface.review.autoplayShowMoves) {
+        goFirst();
+        startAutoPlay();
+      }
     }, reviewOptions);
   }
 
@@ -2123,7 +2776,12 @@ const AppController = (function() {
   function setupReviewTabs() {
     document.querySelectorAll('.gr-tab[data-review-tab]').forEach(function(tab) {
       tab.addEventListener('click', function() {
-        switchReviewTab(this.getAttribute('data-review-tab') || 'report');
+        var tabName = this.getAttribute('data-review-tab') || 'report';
+        if (tabName === 'settings') {
+          openEngineSettingsModal();
+          return;
+        }
+        switchReviewTab(tabName);
       });
     });
   }
@@ -2274,8 +2932,8 @@ const AppController = (function() {
     var whiteAccEl = document.getElementById('grWhiteAcc');
     var blackAccEl = document.getElementById('grBlackAcc');
 
-    whiteAccEl.textContent = Math.round(wAcc) + '%';
-    blackAccEl.textContent = Math.round(bAcc) + '%';
+    whiteAccEl.textContent = formatReviewAccuracyValue(wAcc) + '%';
+    blackAccEl.textContent = formatReviewAccuracyValue(bAcc) + '%';
     whiteAccEl.title = displayedAccuracies.source === 'chesscom'
       ? 'Official Chess.com accuracy'
       : 'Local Stockfish review estimate';
@@ -2477,11 +3135,6 @@ const AppController = (function() {
 
     var userCounts = counts[userColor] || {};
     var opponentCounts = counts[opponentColor] || {};
-    var totals = criticalKeys.reduce(function(acc, key) {
-      acc[key] = userCounts[key] || 0;
-      return acc;
-    }, {});
-    var totalCritical = criticalKeys.reduce(function(sum, key) { return sum + totals[key]; }, 0);
     var totalGameCritical = criticalKeys.reduce(function(sum, key) {
       return sum + (counts.w && counts.w[key] || 0) + (counts.b && counts.b[key] || 0);
     }, 0);
@@ -2864,6 +3517,7 @@ const AppController = (function() {
     selectedMoveQualityColor = null;
     selectedMoveQualityCursor = 0;
     reviewReplayState = null;
+    clearAnalysisSandboxState();
     switchReviewTab('analyze');
     var panel = document.getElementById('gameReviewPanel');
     if (panel) panel.classList.add('is-empty');
@@ -2925,6 +3579,7 @@ const AppController = (function() {
       }
       if (ChessBoard && typeof ChessBoard.clearMarkers === 'function') ChessBoard.clearMarkers();
       if (ChessBoard && typeof ChessBoard.clearReviewMoveQuality === 'function') ChessBoard.clearReviewMoveQuality();
+      updateReviewArrowsForMove(null);
       var label = (typeof moveIndex === 'number' && moveIndex >= 0)
         ? 'Move ' + (Math.floor(moveIndex / 2) + 1) + ' not analyzed yet'
         : 'Awaiting analysis';
@@ -2944,6 +3599,7 @@ const AppController = (function() {
     if (ChessBoard && typeof ChessBoard.clearMarkers === 'function') {
       ChessBoard.clearMarkers();
     }
+    updateReviewArrowsForMove(moveInfo);
 
     var replayForMove = reviewReplayState && reviewReplayState.active && reviewReplayState.focusMoveIndex === moveIndex
       ? reviewReplayState
@@ -2952,7 +3608,10 @@ const AppController = (function() {
       if (ChessBoard && typeof ChessBoard.clearReviewMoveQuality === 'function') {
         ChessBoard.clearReviewMoveQuality();
       }
-      if (replayForMove.mode === 'best' && replayForMove.bestResult && ChessBoard && typeof ChessBoard.setReviewMoveQuality === 'function') {
+      var replayClassificationSetting = activeReviewTab === 'analyze'
+        ? getCurrentGameReviewSettings().interface.analysis.showMoveClassificationOnBoard
+        : getCurrentGameReviewSettings().interface.review.showMoveClassificationOnBoard;
+      if (replayForMove.mode === 'best' && replayForMove.bestResult && ChessBoard && typeof ChessBoard.setReviewMoveQuality === 'function' && replayClassificationSetting) {
         ChessBoard.setReviewMoveQuality({
           from: replayForMove.bestResult.from,
           to: replayForMove.bestResult.to,
@@ -2965,15 +3624,28 @@ const AppController = (function() {
       return;
     }
 
-    if (ChessBoard && typeof ChessBoard.setReviewMoveQuality === 'function' && moveInfo.to) {
+    var currentSettings = getCurrentGameReviewSettings();
+    var showBoardClassification = activeReviewTab === 'analyze'
+      ? currentSettings.interface.analysis.showMoveClassificationOnBoard
+      : currentSettings.interface.review.showMoveClassificationOnBoard;
+    if (ChessBoard && typeof ChessBoard.setReviewMoveQuality === 'function' && moveInfo.to && showBoardClassification) {
+      // Arrow points at the engine's BEST move (chess.com style).
+      // Hide the arrow when the user played the best move — nothing better
+      // to suggest. The wax-stamp glow on the played destination square
+      // still indicates the played move's quality.
+      var bestUci = wasEngineBestMovePlayed(moveInfo)
+        ? ''
+        : (getEngineBestMoveForReview(moveInfo) || '');
+      var arrowFrom = bestUci && bestUci.length >= 4 ? bestUci.slice(0, 2) : '';
+      var arrowTo = bestUci && bestUci.length >= 4 ? bestUci.slice(2, 4) : '';
       ChessBoard.setReviewMoveQuality({
-        from: moveInfo.from,
-        to: moveInfo.to,
+        from: arrowFrom,
+        to: arrowTo,
         square: moveInfo.to,
         quality: moveInfo.quality,
         label: meta.label
       });
-    } else if (ChessBoard && typeof ChessBoard.setMarkers === 'function' && moveInfo.to) {
+    } else if (showBoardClassification && ChessBoard && typeof ChessBoard.setMarkers === 'function' && moveInfo.to) {
       ChessBoard.setMarkers([{
         square: moveInfo.to,
         text: meta.icon,
@@ -4085,6 +4757,11 @@ const AppController = (function() {
   }
   // ===== MOVES LIST =====
   function getMovePieceIcon(pos, moveInfo) {
+    if (getCurrentGameReviewSettings().board.pieceNotation === 'letters') {
+      var letterPiece = (pos && pos.move && pos.move.piece) || '';
+      letterPiece = String(letterPiece || '').toUpperCase();
+      return letterPiece === 'P' ? '' : letterPiece;
+    }
     var color = (moveInfo && moveInfo.color) || (pos && pos.move && pos.move.color) || '';
     var piece = (pos && pos.move && pos.move.piece) || '';
     piece = String(piece || '').toLowerCase();
@@ -4102,6 +4779,8 @@ const AppController = (function() {
 
   function buildMoveQualityBadge(quality) {
     if (!quality) return '';
+    var settings = getCurrentGameReviewSettings();
+    if (settings.interface.analysis.moveStrengthColoring === 'none') return '';
     var meta = getQualityMeta(quality);
     return '<span class="move-quality-dot move-quality-dot--' + escapeAttr(quality) + '" title="' + escapeAttr(meta.label) + '" aria-label="' + escapeAttr(meta.label) + '">' +
       escapeHtml(meta.icon) +
@@ -4113,6 +4792,14 @@ const AppController = (function() {
     if (!pos) return '';
     var moveInfo = lastAnalysisHistory && lastAnalysisHistory[index - 1] ? lastAnalysisHistory[index - 1] : null;
     var quality = moveInfo && moveInfo.quality ? moveInfo.quality : '';
+    var settings = getCurrentGameReviewSettings();
+    var coloring = settings.interface.analysis.moveStrengthColoring;
+    var keyQualities = { brilliant: 1, great: 1, best: 1, inaccuracy: 1, mistake: 1, miss: 1, blunder: 1 };
+    var highlightFor = settings.interface.review.highlightKeyMovesFor;
+    var sideAllowed = !moveInfo || highlightFor === 'both' || (highlightFor === 'white' && moveInfo.color === 'w') || (highlightFor === 'black' && moveInfo.color === 'b');
+    if (coloring === 'none' || (coloring === 'key' && !keyQualities[quality]) || !sideAllowed) {
+      quality = '';
+    }
     var san = pos.san || (pos.move && pos.move.san) || '?';
     var pieceIcon = getMovePieceIcon(pos, moveInfo);
     var qualityAttr = quality ? ' data-quality="' + escapeAttr(quality) + '"' : '';
@@ -4207,6 +4894,37 @@ const AppController = (function() {
     tempChess.load(chess.fen());
     stopAutoPlay();
 
+    if (sandboxState.active && sandboxState.chess) {
+      if (!enginePreviewSnapshot) {
+        enginePreviewSnapshot = {
+          sandbox: true,
+          fen: sandboxState.chess.fen()
+        };
+      }
+
+      var sandboxAddedMoves = 0;
+      var sandboxLastMove = null;
+      moves.forEach(function(uciMove) {
+        if (!uciMove || uciMove.length < 4) return;
+        var result = tempChess.move({from: uciMove.slice(0,2), to: uciMove.slice(2,4), promotion: uciMove[4] || 'q'});
+        if (result) {
+          sandboxLastMove = result;
+          sandboxAddedMoves++;
+        }
+      });
+
+      if (!sandboxAddedMoves) return;
+      chess = tempChess;
+      ChessBoard.setPosition(chess);
+      if (sandboxLastMove) ChessBoard.setLastMove(sandboxLastMove.from, sandboxLastMove.to);
+      ChessBoard.setOptions({ interactive: false });
+      updateFenDisplay();
+      updateOpeningDisplay();
+      updateEnginePreviewControls();
+      showToast('Previewing engine line. Use Back to game to return to your sandbox position.', '');
+      return;
+    }
+
     if (!enginePreviewSnapshot) {
       enginePreviewSnapshot = {
         positions: gamePositions.slice(),
@@ -4239,9 +4957,37 @@ const AppController = (function() {
   function exitEnginePreview() {
     if (!enginePreviewSnapshot) return;
     stopAutoPlay();
+    if (enginePreviewSnapshot.sandbox) {
+      var restoreChess = new Chess();
+      restoreChess.load(enginePreviewSnapshot.fen);
+      sandboxState.chess = restoreChess;
+      chess = restoreChess;
+      enginePreviewSnapshot = null;
+      document.querySelectorAll('#linesContainer .line-item.is-playing').forEach(function(el) {
+        el.classList.remove('is-playing');
+      });
+      ChessBoard.setPosition(chess);
+      var lastSandboxMove = sandboxState.variation && sandboxState.variation.moves.length
+        ? sandboxState.variation.moves[sandboxState.variation.moves.length - 1]
+        : null;
+      if (lastSandboxMove) {
+        ChessBoard.setLastMove(lastSandboxMove.from, lastSandboxMove.to);
+      } else {
+        ChessBoard.setLastMove(null, null);
+      }
+      updateFenDisplay();
+      updateOpeningDisplay();
+      syncAnalyzeBoardInteraction();
+      updateEnginePreviewControls();
+      return;
+    }
     gamePositions = enginePreviewSnapshot.positions;
     currentMoveIndex = enginePreviewSnapshot.moveIndex;
+    if (enginePreviewSnapshot.analysisHistory !== undefined) {
+      lastAnalysisHistory = enginePreviewSnapshot.analysisHistory;
+    }
     enginePreviewSnapshot = null;
+    explorationToken++;
     document.querySelectorAll('#linesContainer .line-item.is-playing').forEach(function(el) {
       el.classList.remove('is-playing');
     });
@@ -4287,6 +5033,8 @@ const AppController = (function() {
     describeChesscomError: PlatformFetchController.describeChesscomError,
     describeLichessError: PlatformFetchController.describeLichessError,
     formatDurationValue: formatDurationValue,
+    formatReviewAccuracyValue: formatReviewAccuracyValue,
+    isLowClockValue: isLowClockValue,
     triggerAutoReview: triggerAutoReview
   };
 })();

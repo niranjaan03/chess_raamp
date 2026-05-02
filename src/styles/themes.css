@@ -2083,6 +2083,57 @@
   margin-top: 6px;
 }
 
+.puzzle-daily-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  transition: max-height 0.28s ease, opacity 0.2s ease, margin 0.2s ease;
+  max-height: 1200px;
+  opacity: 1;
+}
+
+.puzzle-daily-minimize {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+}
+.puzzle-daily-minimize:hover {
+  border-color: var(--border-light);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.puzzle-daily-minimize:focus-visible {
+  outline: 2px solid var(--accent-glow);
+  outline-offset: 2px;
+}
+.puzzle-daily-minimize-icon {
+  font-size: 0.6rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.puzzle-filter-card.is-minimized .puzzle-filter-head {
+  margin-bottom: 0;
+}
+.puzzle-filter-card.is-minimized .puzzle-daily-body {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  pointer-events: none;
+}
+
 .puzzle-summary-card {
   min-height: 100%;
 }

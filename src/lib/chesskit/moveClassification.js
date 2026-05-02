@@ -14,22 +14,17 @@ let _openingsMapPromise = null;
 export function loadOpeningsMap() {
   if (_openingsMap) return Promise.resolve(_openingsMap);
   if (!_openingsMapPromise) {
-    _openingsMapPromise = Promise.all([
-      import('../openingData.js'),
-      import('../openingDataExtra.js'),
-    ]).then(([od, ode]) => {
+    _openingsMapPromise = import('./data/openings.js').then((module) => {
       const nameMap = new Map();
       const liveMap = new Map();
-      for (const opening of [...od.default, ...ode.default]) {
-        for (const variation of opening.variations) {
-          const piecePos = variation.epd.split(' ')[0];
-          if (!nameMap.has(piecePos)) {
-            nameMap.set(piecePos, variation.fullName);
-            liveMap.set(piecePos, {
-              name: variation.fullName,
-              eco: variation.eco || opening.eco || '',
-            });
-          }
+      for (const opening of module.openings || []) {
+        const piecePos = String(opening.fen || '').split(' ')[0];
+        if (piecePos && !nameMap.has(piecePos)) {
+          nameMap.set(piecePos, opening.name);
+          liveMap.set(piecePos, {
+            name: opening.name,
+            eco: opening.eco || '',
+          });
         }
       }
       _openingsMap = nameMap;

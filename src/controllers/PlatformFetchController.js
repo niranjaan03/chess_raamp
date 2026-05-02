@@ -265,12 +265,6 @@ function fetchChesscomMonthPgn(username, year, month) {
   });
 }
 
-function createChesscomHttpError(status, message) {
-  var err = new Error(message || ('HTTP ' + status));
-  err.status = status;
-  return err;
-}
-
 function createChesscomInvalidResponseError(source) {
   var err = new Error('Unexpected ' + source + ' response');
   err.invalidResponse = true;

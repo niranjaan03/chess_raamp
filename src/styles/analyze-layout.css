@@ -248,6 +248,59 @@
   box-shadow: 0 8px 18px rgba(0,0,0,0.22);
   border: 1px solid rgba(255,255,255,0.14);
 }
+.board-promotion-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.08);
+  z-index: 8;
+}
+.board-promotion-picker {
+  position: absolute;
+  width: var(--promotion-picker-width);
+  min-width: 44px;
+  display: grid;
+  grid-template-rows: repeat(4, var(--promotion-square-size));
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(250, 250, 250, 0.96);
+  border: 1px solid rgba(20, 20, 20, 0.18);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.34);
+  pointer-events: auto;
+  z-index: 9;
+}
+.board-overlay .board-promotion-picker,
+.board-overlay .board-promotion-picker * {
+  pointer-events: auto;
+}
+.board-promotion-choice {
+  appearance: none;
+  border: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+.board-promotion-choice:last-child {
+  border-bottom: 0;
+}
+.board-promotion-choice:hover,
+.board-promotion-choice:focus-visible {
+  background: rgba(134, 185, 87, 0.22);
+}
+.board-promotion-piece {
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+  display: block;
+}
+.board-promotion-piece-text {
+  color: #111;
+  font-size: clamp(26px, 8vw, 58px);
+  line-height: 1;
+}
 .board-coordinates {
   display: flex;
   flex-direction: column;

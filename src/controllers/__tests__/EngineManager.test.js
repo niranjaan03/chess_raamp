@@ -74,10 +74,11 @@ beforeAll(() => {
 });
 
 afterEach(() => {
-  EngineManager.stop();
+  EngineManager._resetForTests();
   FakeStockfishWorker.instances = [];
   FakeStockfishWorker.failNextGo = false;
   vi.clearAllMocks();
+  vi.stubGlobal('crossOriginIsolated', true);
 });
 
 afterAll(() => {
@@ -95,6 +96,33 @@ describe('EngineManager browser Stockfish', () => {
     expect(status.local).toBe(true);
     expect(status.engine).toContain('Stockfish 18');
     expect(FakeStockfishWorker.instances[0].url).toContain('/engines/stockfish-18/stockfish.js');
+  });
+
+  it('falls back to the strongest single-thread engine when shared-memory threads are unavailable', async () => {
+    vi.stubGlobal('crossOriginIsolated', false);
+    EngineManager._resetForTests();
+
+    const status = await new Promise((resolve) => {
+      EngineManager.init(resolve);
+    });
+
+    expect(status.ready).toBe(true);
+    expect(status.engineId).toBe('sf18-full');
+    expect(status.selectedEngineId).toBe('auto');
+    expect(FakeStockfishWorker.instances[0].url).toContain('/engines/stockfish-18/stockfish-18-single-6563532.js');
+  });
+
+  it('keeps explicit engine overrides for power users', async () => {
+    EngineManager.setOption('Engine', 'sf17-1-full');
+
+    const status = await new Promise((resolve) => {
+      EngineManager.init(resolve);
+    });
+
+    expect(status.ready).toBe(true);
+    expect(status.engineId).toBe('sf17-1-full');
+    expect(status.selectedEngineId).toBe('sf17-1-full');
+    expect(FakeStockfishWorker.instances[0].url).toContain('/engines/stockfish-17.1/stockfish-17.1-single.js');
   });
 
   it('streams progressive info and finishes a single FEN analysis', async () => {

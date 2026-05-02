@@ -332,33 +332,46 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
 
           <div className="home-col">
             <div className="home-card home-daily-puzzle-card">
-              <div className="hc-header">
-                <div className="hc-title-group">
-                  <span className="hc-title">Daily Puzzle</span>
-                  <span className="hc-subtitle">One focused tactic per day</span>
-                </div>
-                <div className="home-daily-header-right">
+              <span className="home-daily-knight" aria-hidden="true">&#9816;</span>
+              <div className="home-daily-layout">
+                <div className="home-daily-info">
+                  <div className="home-daily-label-row">
+                    <span className="home-daily-label-dot" aria-hidden="true" />
+                    <span className="home-daily-label-text">Daily Puzzle</span>
+                    <button
+                      type="button"
+                      className="home-daily-date"
+                      id="homeDailyPuzzleDate"
+                      aria-label="Open daily puzzle calendar"
+                    >Today</button>
+                  </div>
+                  <div className="home-daily-elo-block">
+                    <span className="home-daily-elo-num" id="homeDailyPuzzleElo">—</span>
+                    <span className="home-daily-elo-caption">Puzzle Elo</span>
+                  </div>
+                  <div className="home-daily-divider" aria-hidden="true" />
                   <div className="home-daily-streak-badge" id="homeDailyStreak">
-                    <span className="home-daily-streak-fire">&#9733;</span>
+                    <span className="home-daily-streak-fire" aria-hidden="true">&#9812;</span>
                     <span className="home-daily-streak-count">0</span>
-                    <span className="home-daily-streak-label">streak</span>
+                    <span className="home-daily-streak-label">day streak</span>
                   </div>
-                  <button type="button" className="home-daily-date" id="homeDailyPuzzleDate">Today</button>
-                </div>
-              </div>
-              <div className="home-daily-body">
-                <div className="home-daily-preview" id="homeDailyPuzzlePreview">
-                  <div className="home-daily-preview-empty">Today&apos;s puzzle preview will appear here.</div>
-                </div>
-                <div className="home-daily-copy">
                   <div className="home-daily-status" id="homeDailyPuzzleStatus">Open today&apos;s puzzle to generate it.</div>
-                  <div className="home-daily-meta">
-                    Puzzle Elo: <span id="homeDailyPuzzleElo">—</span>
-                  </div>
+                  <button type="button" className="home-daily-play-btn" id="openDailyPuzzleHome">
+                    <span>Solve today&apos;s puzzle</span>
+                    <svg className="home-daily-play-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M5 12h14m0 0l-6-6m6 6l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
                 </div>
-                <button type="button" className="hero-btn secondary home-daily-btn" id="openDailyPuzzleHome">
-                  Open Daily Puzzle
-                </button>
+                <div className="home-daily-board-wrap">
+                  <div className="home-daily-preview" id="homeDailyPuzzlePreview">
+                    <div className="home-daily-preview-empty">Today&apos;s puzzle preview will appear here.</div>
+                  </div>
+                  <span className="home-daily-corner home-daily-corner-tl" aria-hidden="true" />
+                  <span className="home-daily-corner home-daily-corner-tr" aria-hidden="true" />
+                  <span className="home-daily-corner home-daily-corner-bl" aria-hidden="true" />
+                  <span className="home-daily-corner home-daily-corner-br" aria-hidden="true" />
+                </div>
               </div>
             </div>
           </div>

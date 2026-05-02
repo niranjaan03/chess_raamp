@@ -4,7 +4,21 @@ import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 
 export default [
-  { ignores: ['node_modules', 'dist', 'coverage', 'playwright-report', 'test-results'] },
+  {
+    ignores: [
+      'node_modules',
+      'dist',
+      'coverage',
+      'playwright-report',
+      'test-results',
+      'stockfish/**',
+      '**/.DS_Store',
+      'public/engines/**',
+      'src/lib/openingData.js',
+      'src/lib/openingDataExtra.js',
+      'src/lib/chesskit/data/openings.js',
+    ],
+  },
 
   // Browser source files
   {
@@ -61,6 +75,17 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+    },
+  },
+
+  // Playwright specs execute callbacks inside the browser via page.evaluate().
+  {
+    files: ['e2e/**/*.spec.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
     },
   },
 ];

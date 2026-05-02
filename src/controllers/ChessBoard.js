@@ -12,6 +12,7 @@ const PIECE_SIZE_MULTIPLIER = 1.0125;
 const ChessBoard = (function() {
   var canvas, ctx, overlay;
   var boundCanvas = null;
+  var boundOverlay = null;
   var boardSize = 640;
   var squareSize;
   var flipped = false;
@@ -29,15 +30,17 @@ const ChessBoard = (function() {
   var interactionColor = '';
   var allowedMoves = [];
   var interactive = true;
+  var showLegalMoves = true;
   var onMoveCallback = null;
   var dragging = false;
   var dragPiece = null;
   var dragFrom = null;
   var dragX = 0, dragY = 0;
-  var animating = false;
+  var dragRafId = 0;
   var currentPieceStyle = 'classic';
   var contextMenuHandler = null;
   var pieceImagesLoaded = false;
+  var promotionPicker = null;
 
   var PIECE_ASSET_PATHS = {
     wP: 'Chess_plt45.svg',
@@ -61,6 +64,7 @@ const ChessBoard = (function() {
     brown:  { light: '#f0d9b5', dark: '#b58863', highlight: 'rgba(255,255,100,0.5)', lastmove: 'rgba(205,170,100,0.4)', selected: 'rgba(20,160,20,0.5)', possible: 'rgba(0,0,0,0.15)' },
     blue:   { light: '#d9dbe4', dark: '#4b5570', highlight: 'rgba(255, 231, 134, 0.46)', lastmove: 'rgba(247, 197, 68, 0.34)', selected: 'rgba(98, 209, 214, 0.36)', possible: 'rgba(18, 21, 31, 0.18)' },
     purple: { light: '#2d2b41', dark: '#1a1830', highlight: 'rgba(200,150,255,0.4)', lastmove: 'rgba(150,100,220,0.3)', selected: 'rgba(150,100,255,0.5)', possible: 'rgba(255,255,255,0.1)' },
+    dark:   { light: '#4a4a47', dark: '#252525', highlight: 'rgba(247,197,68,0.38)', lastmove: 'rgba(247,197,68,0.26)', selected: 'rgba(151,210,109,0.35)', possible: 'rgba(255,255,255,0.14)' },
     red:    { light: '#f8d0c0', dark: '#c0503a', highlight: 'rgba(255,255,100,0.5)', lastmove: 'rgba(210,150,100,0.4)', selected: 'rgba(50,200,50,0.5)', possible: 'rgba(0,0,0,0.15)' }
   };
   var currentTheme = THEMES.blue;
@@ -76,9 +80,9 @@ const ChessBoard = (function() {
     great: {
       label: 'Great',
       icon: 'bang',
-      badgeColor: '#13a897',
-      glow: 'rgba(19, 168, 151, 0.74)',
-      squareHighlight: 'rgba(19, 168, 151, 0.30)'
+      badgeColor: '#4f8df7',
+      glow: 'rgba(79, 141, 247, 0.78)',
+      squareHighlight: 'rgba(79, 141, 247, 0.36)'
     },
     best: {
       label: 'Best',
@@ -205,6 +209,9 @@ const ChessBoard = (function() {
         boundCanvas.removeEventListener('contextmenu', contextMenuHandler);
       }
     }
+    if (boundOverlay) {
+      boundOverlay.removeEventListener('click', onPromotionPickerClick);
+    }
 
     canvas = document.getElementById(canvasId);
     overlay = document.getElementById(overlayId);
@@ -212,6 +219,7 @@ const ChessBoard = (function() {
     ctx = canvas.getContext('2d');
     onMoveCallback = onMove;
     boundCanvas = canvas;
+    boundOverlay = overlay;
     interactive = true;
     selectedSquare = null;
     possibleMoves = [];
@@ -219,6 +227,7 @@ const ChessBoard = (function() {
     dragPiece = null;
     dragFrom = null;
     reviewQualityLayer = null;
+    promotionPicker = null;
     preloadPieceImages();
     
     // Set up responsive canvas
@@ -230,6 +239,7 @@ const ChessBoard = (function() {
     canvas.addEventListener('touchstart', onTouchStart, {passive:false});
     canvas.addEventListener('touchmove', onTouchMove, {passive:false});
     canvas.addEventListener('touchend', onTouchEnd, {passive:false});
+    overlay.addEventListener('click', onPromotionPickerClick);
     contextMenuHandler = function(e) {
       e.preventDefault();
       clearArrows();
@@ -315,9 +325,85 @@ const ChessBoard = (function() {
   var currentChess = null;
 
   function setPosition(chess) {
+    cancelMoveAnimation();
+    promotionPicker = null;
     currentChess = chess;
     currentPosition = fenToBoard(chess.fen());
     drawBoard(currentPosition);
+  }
+
+  var moveAnimRafId = 0;
+  var MOVE_ANIM_DURATION_MS = 140;
+
+  function cancelMoveAnimation() {
+    if (moveAnimRafId && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(moveAnimRafId);
+    }
+    moveAnimRafId = 0;
+    if (dragging && !dragPiece) return; // real pointer drag, leave alone
+    if (dragging && dragPiece && dragFrom && !dragX && !dragY) return;
+    // If a move animation was in flight (dragging set by us, no real pointer
+    // drag), clear the synthetic drag state.
+    if (dragging && dragFromIsAnimated) {
+      dragging = false;
+      dragFrom = null;
+      dragPiece = null;
+      dragFromIsAnimated = false;
+    }
+  }
+
+  // Distinguishes synthetic animation drags from real pointer drags so
+  // cancelMoveAnimation doesn't kill a user's in-progress drag.
+  var dragFromIsAnimated = false;
+
+  function setPositionAnimated(chess, fromSq, toSq) {
+    if (!fromSq || !toSq || !currentPosition || dragging) {
+      setPosition(chess);
+      return;
+    }
+    var movingPiece = currentPosition[fromSq];
+    var startXY = squareToXY(fromSq);
+    var endXY = squareToXY(toSq);
+    if (!movingPiece || !startXY || !endXY || typeof requestAnimationFrame !== 'function') {
+      setPosition(chess);
+      return;
+    }
+    cancelMoveAnimation();
+
+    var nextChess = chess;
+    var nextPosition = fenToBoard(chess.fen());
+    var startTs = (typeof performance !== 'undefined' && performance.now)
+      ? performance.now() : Date.now();
+    // Synthetic drag: drawBoard already skips the piece at dragFrom and draws
+    // the dragged piece at dragX/dragY, so we just animate those values.
+    dragging = true;
+    dragFromIsAnimated = true;
+    dragFrom = fromSq;
+    dragPiece = movingPiece;
+    dragX = startXY.x + squareSize / 2;
+    dragY = startXY.y + squareSize / 2;
+
+    function tick(now) {
+      var t = Math.min(1, (now - startTs) / MOVE_ANIM_DURATION_MS);
+      // ease-out cubic
+      var eased = 1 - Math.pow(1 - t, 3);
+      dragX = startXY.x + (endXY.x - startXY.x) * eased + squareSize / 2;
+      dragY = startXY.y + (endXY.y - startXY.y) * eased + squareSize / 2;
+      drawBoard(currentPosition);
+      if (t < 1) {
+        moveAnimRafId = requestAnimationFrame(tick);
+      } else {
+        moveAnimRafId = 0;
+        dragging = false;
+        dragFromIsAnimated = false;
+        dragFrom = null;
+        dragPiece = null;
+        currentChess = nextChess;
+        currentPosition = nextPosition;
+        drawBoard(currentPosition);
+      }
+    }
+    moveAnimRafId = requestAnimationFrame(tick);
   }
 
   function fenToBoard(fen) {
@@ -391,7 +477,7 @@ const ChessBoard = (function() {
         }
         
         // Possible moves
-        if (possibleMoves.indexOf(sq) !== -1) {
+        if (showLegalMoves && possibleMoves.indexOf(sq) !== -1) {
           if (position[sq]) {
             // Capture - ring
             ctx.strokeStyle = currentTheme.possible;
@@ -581,7 +667,7 @@ const ChessBoard = (function() {
     var py = nx;
 
     ctx.save();
-    ctx.globalAlpha = 0.46 * progress;
+    ctx.globalAlpha = 0.85 * progress;
     ctx.strokeStyle = visual.glow;
     ctx.lineWidth = arrowWidth;
     ctx.lineCap = 'butt';
@@ -648,40 +734,54 @@ const ChessBoard = (function() {
     var activeArrows = showArrows ? arrows : [];
     if (!activeArrows.length) return '';
 
-    var svgArrows = activeArrows.map(function(arrow, i) {
+    var shaftWidth = squareSize * 0.18;
+    var headLen = squareSize * 0.36;
+    var headWidth = squareSize * 0.46;
+    var tipInset = squareSize * 0.16;
+
+    var svgArrows = activeArrows.map(function(arrow) {
       var from = squareToXY(arrow.from);
       var to = squareToXY(arrow.to);
       if (!from || !to) return '';
-      
-      var fromX = from.x + squareSize/2;
-      var fromY = from.y + squareSize/2;
-      var toX = to.x + squareSize/2;
-      var toY = to.y + squareSize/2;
-      
-      // Shorten arrow to not cover piece
-      var dx = toX - fromX, dy = toY - fromY;
-      var len = Math.sqrt(dx*dx + dy*dy);
-      var nx = dx/len, ny = dy/len;
-      var endX = toX - nx * squareSize * 0.3;
-      var endY = toY - ny * squareSize * 0.3;
-      
+
+      var fromX = from.x + squareSize / 2;
+      var fromY = from.y + squareSize / 2;
+      var toX = to.x + squareSize / 2;
+      var toY = to.y + squareSize / 2;
+
+      var dx = toX - fromX;
+      var dy = toY - fromY;
+      var len = Math.sqrt(dx * dx + dy * dy);
+      if (!len) return '';
+
+      var nx = dx / len;
+      var ny = dy / len;
+      var px = -ny;
+      var py = nx;
+
+      var tipX = toX - nx * tipInset;
+      var tipY = toY - ny * tipInset;
+      var baseX = tipX - nx * headLen;
+      var baseY = tipY - ny * headLen;
+
       var color = arrow.color || 'rgba(200,80,80,0.75)';
-      var width = squareSize * 0.15;
-      
-      return `<line x1="${fromX}" y1="${fromY}" x2="${endX}" y2="${endY}" 
-              stroke="${color}" stroke-width="${width}" stroke-linecap="round"
-              marker-end="url(#ah${i})"/>`;
+
+      var line = `<line x1="${fromX}" y1="${fromY}" x2="${baseX}" y2="${baseY}"
+              stroke="${color}" stroke-width="${shaftWidth}" stroke-linecap="butt"/>`;
+
+      var headP1X = tipX;
+      var headP1Y = tipY;
+      var headP2X = baseX + px * headWidth / 2;
+      var headP2Y = baseY + py * headWidth / 2;
+      var headP3X = baseX - px * headWidth / 2;
+      var headP3Y = baseY - py * headWidth / 2;
+
+      var head = `<polygon points="${headP1X},${headP1Y} ${headP2X},${headP2Y} ${headP3X},${headP3Y}" fill="${color}"/>`;
+
+      return line + head;
     });
-    
-    var defs = activeArrows.map(function(arrow, i) {
-      var color = arrow.color || 'rgba(200,80,80,0.75)';
-      return `<marker id="ah${i}" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
-        <path d="M 0 0 L 4 2 L 0 4 Z" fill="${color}"/>
-      </marker>`;
-    }).join('');
 
     return `<svg class="arrow-svg" viewBox="0 0 ${boardSize} ${boardSize}">
-      <defs>${defs}</defs>
       ${svgArrows.join('')}
     </svg>`;
   }
@@ -706,6 +806,48 @@ const ChessBoard = (function() {
       .replace(/"/g, '&quot;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  function getPieceAssetFor(color, type) {
+    return getPieceAssetUrl(PIECE_ASSET_PATHS[color + String(type || '').toUpperCase()] || '');
+  }
+
+  function buildPromotionPickerHtml() {
+    if (!promotionPicker || !promotionPicker.to || !promotionPicker.color) return '';
+    var pos = squareToXY(promotionPicker.to);
+    if (!pos) return '';
+
+    var choices = promotionPicker.color === 'w' ? ['q', 'r', 'b', 'n'] : ['n', 'b', 'r', 'q'];
+    var pickerWidth = squareSize * 0.92;
+    var top = promotionPicker.color === 'w' ? pos.y : pos.y - (squareSize * 3);
+    top = Math.max(0, Math.min(boardSize - squareSize * 4, top));
+    var left = Math.max(0, Math.min(boardSize - pickerWidth, pos.x + (squareSize - pickerWidth) / 2));
+
+    var leftPct = (left / boardSize) * 100;
+    var topPct = (top / boardSize) * 100;
+    var widthPct = (pickerWidth / boardSize) * 100;
+    var squarePct = (squareSize / boardSize) * 100;
+    var color = promotionPicker.color;
+
+    var buttons = choices.map(function(type) {
+      var key = color + type.toUpperCase();
+      var label = { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' }[type] || 'Queen';
+      var imgSrc = getPieceAssetFor(color, type);
+      var fallback = PIECE_UNICODE[key] || label.charAt(0);
+      return '<button type="button" class="board-promotion-choice" data-promotion="' + type + '" aria-label="Promote to ' + label + '">' +
+        (imgSrc
+          ? '<img class="board-promotion-piece" src="' + escapeAttr(imgSrc) + '" alt="" aria-hidden="true">'
+          : '<span class="board-promotion-piece-text" aria-hidden="true">' + fallback + '</span>') +
+        '</button>';
+    }).join('');
+
+    return '<div class="board-promotion-backdrop" aria-hidden="true"></div>' +
+      '<div class="board-promotion-picker" role="dialog" aria-label="Choose promotion piece"' +
+      ' style="left:' + leftPct.toFixed(3) + '%;top:' + topPct.toFixed(3) + '%;' +
+      '--promotion-picker-width:' + widthPct.toFixed(3) + '%;' +
+      '--promotion-square-size:' + squarePct.toFixed(3) + '%;">' +
+      buttons +
+      '</div>';
   }
 
   function buildReviewQualityBadgeHtml() {
@@ -790,13 +932,38 @@ const ChessBoard = (function() {
 
   function renderOverlay() {
     if (!overlay) return;
-    var html = buildArrowSvg() + buildMarkerHtml() + buildReviewQualityBadgeHtml();
+    var html = buildArrowSvg() + buildMarkerHtml() + buildReviewQualityBadgeHtml() + buildPromotionPickerHtml();
     overlay.innerHTML = html;
   }
 
   function clearArrows() {
     arrows = [];
     renderOverlay();
+  }
+
+  function clearPromotionPicker() {
+    promotionPicker = null;
+    renderOverlay();
+  }
+
+  function onPromotionPickerClick(event) {
+    if (event.target && event.target.classList && event.target.classList.contains('board-promotion-backdrop')) {
+      event.preventDefault();
+      event.stopPropagation();
+      clearPromotionPicker();
+      if (currentPosition) drawBoard(currentPosition);
+      return;
+    }
+    var button = event.target && event.target.closest
+      ? event.target.closest('.board-promotion-choice')
+      : null;
+    if (!button || !promotionPicker) return;
+    event.preventDefault();
+    event.stopPropagation();
+    var choice = button.getAttribute('data-promotion') || 'q';
+    var pending = promotionPicker;
+    promotionPicker = null;
+    completeMove(pending.from, pending.to, choice);
   }
 
   function setArrows(arrowList) {
@@ -831,7 +998,6 @@ const ChessBoard = (function() {
   }
 
   // Mouse event handling
-  var mouseDownSquare = null;
   var rightClickFrom = null;
 
   function getMousePos(e) {
@@ -890,7 +1056,6 @@ const ChessBoard = (function() {
       }
     }
     
-    mouseDownSquare = sq;
   }
 
   function onMouseMove(e) {
@@ -898,7 +1063,17 @@ const ChessBoard = (function() {
     var pos = getMousePos(e);
     dragX = pos.x;
     dragY = pos.y;
-    drawBoard(currentPosition);
+    // Coalesce multiple pointer-move events into a single canvas redraw per
+    // animation frame; eliminates jank on high-refresh-rate displays where
+    // pointer events can fire 100+ times per second.
+    if (dragRafId || typeof requestAnimationFrame !== 'function') {
+      if (typeof requestAnimationFrame !== 'function') drawBoard(currentPosition);
+      return;
+    }
+    dragRafId = requestAnimationFrame(function() {
+      dragRafId = 0;
+      if (dragging) drawBoard(currentPosition);
+    });
   }
 
   function onMouseUp(e) {
@@ -924,15 +1099,19 @@ const ChessBoard = (function() {
     // Drop handling
     var pos3 = getMousePos(e);
     var toSq = xyToSquare(pos3.x, pos3.y);
-    
+
     dragging = false;
-    
+    if (dragRafId && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(dragRafId);
+      dragRafId = 0;
+    }
+
     if (toSq && dragFrom && toSq !== dragFrom) {
       attemptMove(dragFrom, toSq);
     } else {
       drawBoard(currentPosition);
     }
-    
+
     dragFrom = null;
     dragPiece = null;
   }
@@ -980,16 +1159,24 @@ const ChessBoard = (function() {
     selectedSquare = null;
     possibleMoves = [];
     
-    // Check for promotion
     var piece = currentChess.get(from);
-    var promo = null;
-    if (piece && piece.type === 'p') {
-      var toRank = parseInt(to[1]);
-      if ((piece.color === 'w' && toRank === 8) || (piece.color === 'b' && toRank === 1)) {
-        promo = 'q'; // Auto-queen for simplicity
-      }
+    if (isPromotionMove(piece, to)) {
+      promotionPicker = { from: from, to: to, color: piece.color };
+      drawBoard(currentPosition);
+      return;
     }
-    
+
+    completeMove(from, to, null);
+  }
+
+  function isPromotionMove(piece, to) {
+    if (!piece || piece.type !== 'p' || !to) return false;
+    var toRank = parseInt(to[1]);
+    return (piece.color === 'w' && toRank === 8) || (piece.color === 'b' && toRank === 1);
+  }
+
+  function completeMove(from, to, promo) {
+    if (!interactive || !currentChess) return;
     var moveObj = {from: from, to: to};
     if (promo) moveObj.promotion = promo;
     
@@ -1035,6 +1222,7 @@ const ChessBoard = (function() {
   return {
     init: init,
     setPosition: setPosition,
+    setPositionAnimated: setPositionAnimated,
     setTheme: function(name) { currentTheme = THEMES[name] || THEMES.green; if (currentPosition) drawBoard(currentPosition); },
     setPieceStyle: function(name) { currentPieceStyle = PIECE_STYLES[name] ? name : 'classic'; if (currentPosition) drawBoard(currentPosition); },
     flip: function() { flipped = !flipped; if (currentPosition) drawBoard(currentPosition); },
@@ -1053,6 +1241,7 @@ const ChessBoard = (function() {
       if ('lastMoveMode' in opts) lastMoveMode = opts.lastMoveMode || 'to';
       if ('interactionColor' in opts) interactionColor = opts.interactionColor || '';
       if ('allowedMoves' in opts) allowedMoves = Array.isArray(opts.allowedMoves) ? opts.allowedMoves : [];
+      if ('showLegalMoves' in opts) showLegalMoves = opts.showLegalMoves !== false;
       if ('interactive' in opts) {
         interactive = opts.interactive !== false;
         if (!interactive) {

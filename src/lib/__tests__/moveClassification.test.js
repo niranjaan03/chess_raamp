@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MoveClassification, UI_QUALITY_BY_CLASSIFICATION } from '../chesskit/enums.js';
-import { getMoveBasicClassification } from '../chesskit/moveClassification.js';
+import { getMoveBasicClassification, loadOpeningsMap } from '../chesskit/moveClassification.js';
 
 // ── MoveClassification enum ────────────────────────────────────────────────────
 
@@ -32,6 +32,13 @@ describe('MoveClassification enum', () => {
 
   it('Splendid maps to the brilliant UI bucket', () => {
     expect(UI_QUALITY_BY_CLASSIFICATION[MoveClassification.Splendid]).toBe('brilliant');
+  });
+});
+
+describe('Chesskit opening lookup', () => {
+  it('uses the replicated Chesskit openings file by FEN', async () => {
+    const openings = await loadOpeningsMap();
+    expect(openings.get('rnbqkbnr/pppppppp/8/8/8/7N/PPPPPPPP/RNBQKB1R')).toBe('Amar Opening');
   });
 });
 

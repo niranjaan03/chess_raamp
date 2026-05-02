@@ -4,6 +4,38 @@
  */
 
 const OpeningBook = (function() {
+  var OPENINGS_BY_PIECES = new Map();
+  var chesskitOpeningsPromise = null;
+
+  function hydrateChesskitOpenings(openings) {
+    (openings || []).forEach(function(opening) {
+      var piecePos = String(opening.fen || '').split(' ')[0];
+      if (piecePos && !OPENINGS_BY_PIECES.has(piecePos)) {
+        OPENINGS_BY_PIECES.set(piecePos, opening.name);
+      }
+    });
+  }
+
+  function preloadChesskitOpenings() {
+    if (!chesskitOpeningsPromise) {
+      chesskitOpeningsPromise = import('./chesskit/data/openings.js')
+        .then(function(module) {
+          hydrateChesskitOpenings(module.openings || []);
+          return OPENINGS_BY_PIECES;
+        })
+        .catch(function() {
+          return OPENINGS_BY_PIECES;
+        });
+    }
+    return chesskitOpeningsPromise;
+  }
+
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(preloadChesskitOpenings);
+  } else {
+    setTimeout(preloadChesskitOpenings, 0);
+  }
+
   // Compact opening database: [eco, name, moves_start]
   var OPENINGS = [
     ['A00', "Uncommon Opening", ""],
@@ -99,6 +131,14 @@ const OpeningBook = (function() {
   ];
 
   function identify(chess) {
+    if (chess && typeof chess.fen === 'function') {
+      var piecePos = String(chess.fen() || '').split(' ')[0];
+      var chesskitName = OPENINGS_BY_PIECES.get(piecePos);
+      if (chesskitName) {
+        return { eco: '', name: chesskitName };
+      }
+    }
+
     var sanHistory = chess.history();
     var movesStr = sanHistory.join(' ');
     
@@ -147,7 +187,8 @@ const OpeningBook = (function() {
   return {
     identify: identify,
     identifyByMoves: identifyByMoves,
-    getAll: function() { return OPENINGS; }
+    getAll: function() { return OPENINGS; },
+    preload: preloadChesskitOpenings
   };
 })();
 

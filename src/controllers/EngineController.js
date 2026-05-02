@@ -22,40 +22,20 @@ const EngineController = (function() {
   var currentLines = {};
   var currentAnalysisFen = null;
   var isAnalyzing = false;
-  var analysisTimer = null;
   var numLines = MAX_LIVE_LINES;
   var analysisDepth = 20;
   var suggestionArrowsMode = 'best-moves';
-  var fullGameAnalysis = [];
   var gameAnalysisToken = 0;
   var onBestMoveCallback = null;
   var REVIEW_FAILURE_MESSAGE = 'Full game analysis failed. Please try again.';
 
   // ---------- Live-analysis helpers ----------
 
-  function normalizeEval(evalStr) {
-    if (evalStr === null || evalStr === undefined) return null;
-    var raw = String(evalStr);
-    if (raw.indexOf('M') !== -1) {
-      var sign = raw.indexOf('-') === 0 ? -1 : 1;
-      var mateMoves = parseInt(raw.replace(/[^0-9]/g, ''), 10) || 1;
-      return sign * (30 - Math.min(20, mateMoves - 1) * 0.5);
-    }
-    var num = parseFloat(raw);
-    return isNaN(num) ? null : num;
-  }
-
   // Lichess win-probability model — used by the live eval bar so the bar
   // matches the win-percentage scale used inside chess kit.
   function centipawnsToWinPercent(cp) {
     var clamped = Math.max(-1500, Math.min(1500, cp));
     return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * clamped)) - 1);
-  }
-
-  function cloneHistory(history) {
-    return history.map(function(move) {
-      return Object.assign({}, move);
-    });
   }
 
   function getBatchFailureMessage(batchResults) {
@@ -74,14 +54,15 @@ const EngineController = (function() {
     return REVIEW_FAILURE_MESSAGE;
   }
 
-  function getReviewProfile(totalPositions, strength) {
+  function getReviewProfile(totalPositions, strength, options) {
     var normalized = REVIEW_STRENGTHS.indexOf(strength) !== -1 ? strength : 'fast';
     var profiles = {
       fast: { movetimeMs: 1000, depth: 12, concurrency: 4, threadsPerEngine: 2 },
       balanced: { movetimeMs: 3000, depth: 16, concurrency: 3, threadsPerEngine: 2 },
       slow: { movetimeMs: 7000, depth: 20, concurrency: 2, threadsPerEngine: 3 }
     };
-    var profile = profiles[normalized];
+    var profile = Object.assign({}, profiles[normalized]);
+    if (options && options.depth) profile.depth = Math.max(8, Math.min(18, parseInt(options.depth, 10) || profile.depth));
     var concurrency = Math.max(1, Math.min(profile.concurrency, totalPositions || 1));
     var chunkSize = Math.max(1, Math.ceil((totalPositions || 1) / concurrency));
     return {
@@ -160,6 +141,53 @@ const EngineController = (function() {
     }, {
       engine: requestOptions.engine,
       movetimeMs: requestOptions.movetimeMs
+    });
+  }
+
+  function analyzeFenOnce(fen, depth, lines, options) {
+    return new Promise(function(resolve, reject) {
+      var bestLine = null;
+      var sideToMove = fen ? fen.split(' ')[1] : 'w';
+      var requestOptions = options || {};
+      var targetDepth = depth || analysisDepth || 14;
+      var movetimeMs = parseInt(requestOptions.movetimeMs, 10) || null;
+      var engineBudget = movetimeMs && movetimeMs > 0
+        ? Math.max(8000, movetimeMs + 5000)
+        : 18000 + Math.max(0, targetDepth - 15) * 1500;
+      var settled = false;
+      var timeout = setTimeout(function() {
+        if (settled) return;
+        settled = true;
+        EngineManager.stop();
+        reject(new Error('Engine analysis timed out'));
+      }, engineBudget + 3000);
+
+      EngineManager.analyze(fen, targetDepth, Math.max(1, Math.min(MAX_LIVE_LINES, parseInt(lines, 10) || 1)), function(data) {
+        if (settled) return;
+        if (data.type === 'info') {
+          if (sideToMove === 'b' && data.eval != null) {
+            var rawEval = String(data.eval);
+            if (rawEval.indexOf('M') !== -1) {
+              data.eval = rawEval.charAt(0) === '-' ? rawEval.slice(1) : '-' + rawEval;
+            } else {
+              data.eval = String((-parseFloat(rawEval)).toFixed(2));
+            }
+          }
+          if (data.line === 1 || !bestLine) bestLine = Object.assign({}, data);
+        } else if (data.type === 'bestmove') {
+          settled = true;
+          clearTimeout(timeout);
+          resolve({
+            bestMove: data.move || (bestLine && bestLine.pv ? String(bestLine.pv).split(' ')[0] : ''),
+            eval: bestLine ? bestLine.eval : null,
+            depth: bestLine ? bestLine.depth : null,
+            lines: bestLine ? [bestLine] : []
+          });
+        }
+      }, {
+        engine: requestOptions.engine,
+        movetimeMs: requestOptions.movetimeMs
+      });
     });
   }
 
@@ -478,13 +506,14 @@ const EngineController = (function() {
 
     stop();
     var reviewToken = ++gameAnalysisToken;
-    var profile = getReviewProfile(positions.length, options && options.strength);
+    var profile = getReviewProfile(positions.length, options && options.strength, options);
     var totalUnits = positions.length;
     var reviewEngine = options && options.engine ? options.engine : null;
 
     // Chess kit needs at least two lines for classification. Three keeps the
     // review responsive while still showing viable alternatives per move.
-    EngineManager.analyzeBatch(positions, profile.depth, REVIEW_MULTI_PV, function(done) {
+    var reviewMultiPv = Math.max(1, Math.min(3, parseInt(options && options.multiPv, 10) || REVIEW_MULTI_PV));
+    EngineManager.analyzeBatch(positions, profile.depth, reviewMultiPv, function(done) {
       if (reviewToken !== gameAnalysisToken) return;
       if (typeof onProgress === 'function') onProgress(done, totalUnits);
     }, function(batchResults) {
@@ -536,6 +565,7 @@ const EngineController = (function() {
   return {
     init: init,
     analyzeFen: analyzeFen,
+    analyzeFenOnce: analyzeFenOnce,
     analyzeGame: analyzeGame,
     updateLinesDisplay: updateLinesDisplay,
     renderLiveCandidates: renderLiveCandidates,

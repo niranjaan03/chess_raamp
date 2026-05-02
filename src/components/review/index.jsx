@@ -387,6 +387,23 @@ export function AnalysisPanel() {
           <span className="analysis-history-hint">Quality badges appear after full analysis</span>
         </div>
         <div className="moves-list analysis-move-list" id="movesList"></div>
+
+        <section className="analysis-sandbox-card" id="analysisSandboxCard" aria-label="Analysis sandbox">
+          <div className="analysis-sandbox-head">
+            <div>
+              <span className="analysis-section-kicker">Analysis Sandbox</span>
+              <strong id="sandboxStatusLabel">Try your own move from any review position.</strong>
+            </div>
+            <div className="analysis-sandbox-actions">
+              <button type="button" className="analysis-sandbox-btn" id="sandboxStartBtn">Try Your Move</button>
+              <button type="button" className="analysis-sandbox-btn is-secondary" id="sandboxBackBtn" hidden>Back to Game</button>
+              <button type="button" className="analysis-sandbox-btn is-secondary" id="sandboxResetBtn" hidden>Reset Variation</button>
+            </div>
+          </div>
+          <div className="analysis-sandbox-line" id="sandboxLine">
+            <div className="gr-analysis-empty">No sandbox line yet.</div>
+          </div>
+        </section>
       </section>
     </div>
   );
@@ -395,6 +412,7 @@ export function AnalysisPanel() {
 export function EngineSettingsModal() {
   const engineOptions = (
     <>
+      <option value="auto">Auto-select strongest compatible</option>
       <option value="sf18">Stockfish 18 Browser</option>
       <option value="sf18-lite">Stockfish 18 Lite Browser</option>
       <option value="sf18-full">Stockfish 18 Full Browser</option>

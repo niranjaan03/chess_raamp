@@ -1,7 +1,8 @@
 puzzles/
 stockfish/
-.DS_Store
+**/.DS_Store
 node_modules/
+stockfish/node_modules/
 dist/
 .venv/
 

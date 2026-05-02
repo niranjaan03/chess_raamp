@@ -157,7 +157,7 @@ export const AccuracyIndicator = ({
   showLabel = true,
   className = '',
 }) => {
-  const { getAccuracyColor, getColorScheme } = useMoveColors();
+  const { getAccuracyColor } = useMoveColors();
   const color = getAccuracyColor(accuracy);
 
   const sizeStyles = {
@@ -213,7 +213,6 @@ export const AccuracyIndicator = ({
  */
 export const StatsBar = ({
   data, // { brilliant: 2, best: 10, excellent: 15, ... }
-  showLabels = true,
   height = '24px',
   className = '',
 }) => {

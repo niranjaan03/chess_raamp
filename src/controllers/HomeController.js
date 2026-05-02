@@ -939,7 +939,6 @@ const HomeController = (function() {
   }
 
   function restoreLinkedAccounts() {
-    var p = getProfile();
     var ccInput = document.getElementById('chesscomUsername');
     var lcInput = document.getElementById('lichessUsername');
     var chesscom = getActiveLinkedAccount('chesscom');
@@ -1460,26 +1459,6 @@ const HomeController = (function() {
         return getChesscomGameSortTime(b) - getChesscomGameSortTime(a);
       });
     });
-  }
-
-  function renderHomeChesscomGames(container, games, username, archive) {
-    var intro = '<div class="games-count">' + games.length + ' game' + (games.length !== 1 ? 's' : '') +
-      ' from ' + formatChesscomArchiveLabel(archive) + '</div>';
-    var rows = games.map(function(g, idx) {
-      var white = getChesscomGameWhiteName(g);
-      var black = getChesscomGameBlackName(g);
-      var result = getChesscomGameResult(g);
-      var resultClass = result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d';
-      var opening = AppController.formatChesscomOpeningLabel(g);
-      var date = getChesscomGameDisplayDate(g) || g.date || '';
-      return '<div class="fetch-game-item" data-cc-idx="' + idx + '" onclick="HomeController.loadChesscomGame(' + idx + ')">' +
-        '<strong>' + escapeHtml(white) + '</strong> vs <strong>' + escapeHtml(black) + '</strong>' +
-        (opening ? ' \u2014 ' + escapeHtml(opening.substring(0, 28)) : '') +
-        '<span class="fetch-game-result ' + resultClass + '">' + escapeHtml(result) + '</span>' +
-        (date ? '<div class="fetch-game-date">' + escapeHtml(date) + '</div>' : '') +
-      '</div>';
-    }).join('');
-    container.innerHTML = intro + rows;
   }
 
   function renderGamesTab(container, games, username) {

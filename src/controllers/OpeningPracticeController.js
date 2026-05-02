@@ -156,11 +156,9 @@ const OpeningPracticeController = (function () {
   var currentMoveIndex = 0;     // How far the user has progressed
   var userColor = 'w';          // Which color the user plays
   var practiceMode = 'learn';
-  var practiceBoard = null;     // We reuse ChessBoard but in practice mode
   var isPracticing = false;
   var learnMoveIndex = 0;       // Position cursor in learn-mode walk-through
   var learnProgress = loadLearnProgress(); // {openingId: {discovered: {varId: true}}}
-  var wrongMove = false;
   var searchQuery = '';
   var filterColor = '';
   var filterStatus = '';
@@ -1076,15 +1074,6 @@ const OpeningPracticeController = (function () {
     };
   }
 
-  function isVariationDiscovered(opening, variation) {
-    var sourceOpening = getCanonicalOpening(opening, variation);
-    var sourceVariation = getCanonicalVariation(variation);
-    if (!sourceOpening || !sourceVariation) return false;
-    var record = learnProgress[getOpeningId(sourceOpening)];
-    var variationId = getVariationId(sourceOpening, sourceVariation);
-    return !!(record && record.discovered && record.discovered[variationId]);
-  }
-
   function isVariationPerfected(opening, variation) {
     var sourceOpening = getCanonicalOpening(opening, variation);
     var sourceVariation = getCanonicalVariation(variation);
@@ -1964,7 +1953,6 @@ const OpeningPracticeController = (function () {
     expectedMoves = parsePGNMoves(currentVariation.pgn);
     currentMoveIndex = 0;
     learnMoveIndex = 0;
-    wrongMove = false;
     practiceChess = new Chess();
     isPracticing = true;
 
@@ -2414,7 +2402,6 @@ const OpeningPracticeController = (function () {
     if (!currentVariation) return;
 
     isPracticing = true;
-    wrongMove = false;
     currentMoveIndex = 0;
     learnMoveIndex = 0;
     sessionHints = 0;
@@ -2485,7 +2472,7 @@ const OpeningPracticeController = (function () {
     return cleaned.split(/\s+/).filter(function (m) { return m.length > 0; });
   }
 
-  function onPracticeMove(moveResult, fen) {
+  function onPracticeMove(moveResult, _fen) {
     if (practiceMode === 'puzzles') {
       onOpeningPuzzleMove(moveResult);
       return;
@@ -2497,7 +2484,6 @@ const OpeningPracticeController = (function () {
 
     if (moveResult.san === expectedSAN) {
       // Correct move!
-      wrongMove = false;
       if (practiceMode === 'time') {
         awardTimeModeMoveScore();
       } else if (practiceMode === 'arena') {
@@ -2529,7 +2515,6 @@ const OpeningPracticeController = (function () {
       practiceChess.undo();
       ChessBoard.setPosition(practiceChess);
       ChessBoard.clearArrows();
-      wrongMove = true;
       if (practiceMode === 'time') {
         applyTimeModePenalty(90, 3000, 'Incorrect move. -90 score and -3s.', false);
         if (!timeModeState.active) return;
@@ -2631,7 +2616,6 @@ const OpeningPracticeController = (function () {
       ChessBoard.setLastMove(null, null);
     }
 
-    wrongMove = false;
     isPracticing = true;
     updatePracticeProgress();
     renderPracticeMoveList();
@@ -2689,7 +2673,6 @@ const OpeningPracticeController = (function () {
     // Reset the opening's walk-through state — the puzzle flow takes over the board.
     clearOpeningPuzzleAdvanceTimer();
     isPracticing = false;
-    wrongMove = false;
     expectedMoves = [];
     currentMoveIndex = 0;
     learnMoveIndex = 0;
@@ -3243,10 +3226,7 @@ const OpeningPracticeController = (function () {
   }
 
   var PIECE_NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
-  var FILE_NAMES  = { a:'a-file', b:'b-file', c:'c-file', d:'d-file', e:'e-file', f:'f-file', g:'g-file', h:'h-file' };
   var CENTER_SQUARES = { e4:1, e5:1, d4:1, d5:1, c4:1, c5:1, f4:1, f5:1 };
-  var KINGSIDE_FILES = { f:1, g:1, h:1 };
-  var QUEENSIDE_FILES = { a:1, b:1, c:1 };
 
   function generateGACCommentary(san, moveIndex) {
     var color    = moveIndex % 2 === 0 ? 'White' : 'Black';
@@ -3316,7 +3296,7 @@ const OpeningPracticeController = (function () {
     return parts.join(' ');
   }
 
-  function getOpeningRationale(piece, to, from, toFile, toRank, isCapture, captured, isKCastle, isQCastle, color, opponent, phase, san, moveNum, isCenter) {
+  function getOpeningRationale(piece, to, from, toFile, toRank, isCapture, captured, isKCastle, isQCastle, color, opponent, phase, san, moveNum, _isCenter) {
     if (isKCastle || isQCastle) return null; // already described above
 
     // Pawn moves
@@ -3583,23 +3563,6 @@ const OpeningPracticeController = (function () {
       console.error('Failed to load opening data:', err);
       if (container) container.innerHTML = '<div class="no-openings">Failed to load openings data.</div>';
     });
-  }
-
-  function mergeOpeningSources(base, extra) {
-    var byName = Object.create(null);
-    var merged = [];
-    (base || []).forEach(function (op) {
-      if (!op || !op.name) return;
-      byName[op.name] = op;
-      merged.push(op);
-    });
-    (extra || []).forEach(function (op) {
-      if (!op || !op.name) return;
-      if (byName[op.name]) return; // keep existing curated entry on collision
-      byName[op.name] = op;
-      merged.push(op);
-    });
-    return merged;
   }
 
   function setupUI() {

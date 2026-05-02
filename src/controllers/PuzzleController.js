@@ -51,6 +51,8 @@ const PuzzleController = (function() {
   var prefetchToken = 0;
   var awaitingRetry = false;
   var hintUsedThisPuzzle = false;
+  var hintedProgressPlys = {};
+  var ratingPenaltyAppliedThisPuzzle = false;
 
   function init() {
     ChessBoard.init('puzzleChessBoard', 'puzzleBoardOverlay', onBoardMove);
@@ -146,7 +148,40 @@ const PuzzleController = (function() {
       });
     }
 
+    var minimizeBtn = document.getElementById('puzzleDailyMinimizeBtn');
+    if (minimizeBtn) {
+      minimizeBtn.addEventListener('click', toggleDailyCalendarMinimized);
+      try {
+        var stored = localStorage.getItem('puzzle.daily.calendar.minimized');
+        setDailyCalendarMinimized(stored !== '0');
+      } catch {
+        setDailyCalendarMinimized(true);
+      }
+    }
+
     syncPuzzleSoundState();
+  }
+
+  function setDailyCalendarMinimized(minimized) {
+    var card = document.getElementById('puzzleDailyCard');
+    var btn = document.getElementById('puzzleDailyMinimizeBtn');
+    if (!card || !btn) return;
+    card.classList.toggle('is-minimized', !!minimized);
+    btn.setAttribute('aria-expanded', minimized ? 'false' : 'true');
+    btn.setAttribute('title', minimized ? 'Expand calendar' : 'Minimize calendar');
+    var iconEl = btn.querySelector('.puzzle-daily-minimize-icon');
+    var labelEl = btn.querySelector('.puzzle-daily-minimize-label');
+    if (iconEl) iconEl.innerHTML = minimized ? '&#9660;' : '&#9650;';
+    if (labelEl) labelEl.textContent = minimized ? 'Expand' : 'Minimize';
+    try { localStorage.setItem('puzzle.daily.calendar.minimized', minimized ? '1' : '0'); } catch {
+      /* localStorage unavailable */
+    }
+  }
+
+  function toggleDailyCalendarMinimized() {
+    var card = document.getElementById('puzzleDailyCard');
+    if (!card) return;
+    setDailyCalendarMinimized(!card.classList.contains('is-minimized'));
   }
 
   function bindCustomFilter(id) {
@@ -229,6 +264,9 @@ const PuzzleController = (function() {
     awaitingRetry = false;
     decisionHistory = [];
     currentProgressPly = 0;
+    hintUsedThisPuzzle = false;
+    hintedProgressPlys = {};
+    ratingPenaltyAppliedThisPuzzle = false;
     clearPrefetch();
     ChessBoard.clearArrows();
     clearPuzzleMoveFeedback();
@@ -697,6 +735,8 @@ const PuzzleController = (function() {
     isFinished = false;
     awaitingRetry = false;
     hintUsedThisPuzzle = false;
+    hintedProgressPlys = {};
+    ratingPenaltyAppliedThisPuzzle = false;
     decisionHistory = [];
 
     var chess = new Chess();
@@ -811,10 +851,14 @@ const PuzzleController = (function() {
 
     if (playedUci !== expectedUci) {
       var quality = classifyUserMove(move, expectedUci);
+      var penaltyResult = applyWrongMoveRatingPenalty(quality);
       showMoveQualityFeedback(move, quality);
       awaitingRetry = true;
       showTryAgainButton(true);
-      setStatus(getQualityLabel(quality) + '. That was not the puzzle move. Use Try Again.', 'error');
+      var penaltyText = penaltyResult && penaltyResult.delta < 0
+        ? ' Puzzle Elo ' + penaltyResult.delta + '.'
+        : '';
+      setStatus(getQualityLabel(quality) + '. That was not the puzzle move.' + penaltyText + ' Use Try Again.', 'error');
       return;
     }
 
@@ -868,12 +912,8 @@ const PuzzleController = (function() {
     var expectedFrom = expectedUci ? expectedUci.slice(0, 2) : '';
     var expectedTo = expectedUci ? expectedUci.slice(2, 4) : '';
     if (move && moveToUci(move) === expectedUci) {
-      if (hintUsedThisPuzzle) return 'excellent';
-      if (currentPuzzle && currentPuzzle.themes && currentPuzzle.themes.some(function(theme) {
-        return ['mate', 'mateIn2', 'mateIn3', 'sacrifice', 'discoveredAttack', 'doubleAttack'].indexOf(theme) !== -1;
-      })) {
-        return 'brilliant';
-      }
+      if (hintedProgressPlys[currentProgressPly]) return 'excellent';
+      if (isBrilliantPuzzleMove(move)) return 'brilliant';
       return 'best';
     }
     if (move && move.from === expectedFrom && (move.to[0] === expectedTo[0] || move.to[1] === expectedTo[1])) {
@@ -883,6 +923,40 @@ const PuzzleController = (function() {
       return 'mistake';
     }
     return 'blunder';
+  }
+
+  // A correct puzzle move is "brilliant" only when it's a genuine sacrifice:
+  // the moved piece is more valuable than what it captures (or nothing is captured)
+  // AND the destination square is attacked by the opponent. Pawn moves don't count.
+  function isBrilliantPuzzleMove(move) {
+    if (!move || !move.piece || move.piece === 'p') return false;
+    var values = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+    var moverValue = values[move.piece] || 0;
+    var capturedValue = move.captured ? (values[move.captured] || 0) : 0;
+    if (moverValue <= capturedValue) return false;
+    if (!puzzleChess) return false;
+    var defenders = countAttackers(puzzleChess, move.to, oppositeColor(move.color));
+    if (defenders === 0) return false;
+    var supporters = countAttackers(puzzleChess, move.to, move.color) - 1;
+    // Net material loss after the trade sequence (rough): if defenders outnumber supporters, it's a real sac.
+    return defenders > supporters;
+  }
+
+  function oppositeColor(color) {
+    return color === 'w' ? 'b' : 'w';
+  }
+
+  function countAttackers(chess, square, color) {
+    if (!chess || !square || !color) return 0;
+    if (typeof chess.attackers === 'function') {
+      try {
+        var list = chess.attackers(square, color);
+        return Array.isArray(list) ? list.length : 0;
+      } catch (e) {
+        return 0;
+      }
+    }
+    return 0;
   }
 
   function getQualityLabel(quality) {
@@ -940,6 +1014,7 @@ const PuzzleController = (function() {
     var nextMove = getExpectedUserMove();
     if (!nextMove) return;
     hintUsedThisPuzzle = true;
+    hintedProgressPlys[currentProgressPly] = true;
     var previewChess = new Chess();
     var hintMove = null;
     previewChess.load(puzzleChess.fen());
@@ -1047,15 +1122,48 @@ const PuzzleController = (function() {
       return;
     }
 
-    var failResult = applyRatingResult(false, elapsedMs);
+    var failResult = ratingPenaltyAppliedThisPuzzle
+      ? { delta: 0, speedBonus: 0 }
+      : applyRatingResult(false, elapsedMs);
     updateDailyEntry(false, elapsedMs, failResult);
     renderWinCount();
     setStatus('Incorrect. Your puzzle Elo went down.', 'error');
     refreshDailyHomeCard();
   }
 
-  function applyRatingResult(success, elapsedMs) {
+  function applyWrongMoveRatingPenalty(quality) {
+    if (ratingPenaltyAppliedThisPuzzle || !currentPuzzle) {
+      return { delta: 0, speedBonus: 0 };
+    }
+    ratingPenaltyAppliedThisPuzzle = true;
+    var severityScale = {
+      inaccuracy: 0.45,
+      mistake: 0.75,
+      miss: 1,
+      blunder: 1
+    };
+    var elapsedMs = timerStartedAt ? Date.now() - timerStartedAt : currentElapsedMs;
+    return applyRatingResult(false, elapsedMs, {
+      lossScale: severityScale[quality] || 1
+    });
+  }
+
+  function getHintAdjustedSuccessDelta(delta, speedBonus) {
+    if (!hintUsedThisPuzzle || delta <= 0) return { delta: delta, speedBonus: speedBonus };
+    var solutionMoves = getSolutionMoves();
+    var totalUserSteps = Math.max(1, Math.ceil(solutionMoves.length / 2));
+    var hintedSteps = Object.keys(hintedProgressPlys).length;
+    if (!hintedSteps) return { delta: delta, speedBonus: speedBonus };
+    var solvedWithoutHint = Math.max(0, totalUserSteps - hintedSteps);
+    var rewardScale = Math.max(0.25, solvedWithoutHint / totalUserSteps);
+    var baseDelta = Math.max(0, delta - speedBonus);
+    var scaledDelta = Math.max(1, Math.round(baseDelta * rewardScale));
+    return { delta: scaledDelta, speedBonus: 0 };
+  }
+
+  function applyRatingResult(success, elapsedMs, options) {
     if (!currentPuzzle) return { delta: 0, speedBonus: 0 };
+    var opts = options || {};
 
     var currentRating = getPuzzleRating();
     var puzzleRating = currentPuzzle.rating || currentRating;
@@ -1074,7 +1182,10 @@ const PuzzleController = (function() {
       delta = Math.max(4, Math.min(28, delta));
       speedBonus = getSpeedBonus(elapsedMs);
       delta += speedBonus;
-    } else if (currentMode !== MODE_SURVIVAL) {
+      var hintAdjusted = getHintAdjustedSuccessDelta(delta, speedBonus);
+      delta = hintAdjusted.delta;
+      speedBonus = hintAdjusted.speedBonus;
+    } else {
       // Rating mismatch protection: if the puzzle was significantly harder than the
       // user's rating (200+ above), reduce the penalty. This follows Chess.com's
       // principle: "when a mismatch in rating might occur, we arrange it so that
@@ -1088,6 +1199,10 @@ const PuzzleController = (function() {
       } else if (diff > 100) {
         // Moderately harder — partial protection
         delta = Math.round(delta * 0.6);
+      }
+
+      if (opts.lossScale && opts.lossScale > 0 && opts.lossScale < 1) {
+        delta = Math.round(delta * opts.lossScale);
       }
 
       delta = Math.max(-14, Math.min(-2, delta));
@@ -1408,7 +1523,7 @@ const PuzzleController = (function() {
             file += 1;
           }
         } else {
-          cells.push(renderMiniSquare(pieceToGlyph(char), rank, file));
+          cells.push(renderMiniSquare(pieceToGlyph(char), rank, file, char));
           file += 1;
         }
       }
@@ -1417,9 +1532,16 @@ const PuzzleController = (function() {
     return rows.join('');
   }
 
-  function renderMiniSquare(piece, rank, file) {
+  function renderMiniSquare(piece, rank, file, originalChar) {
     var squareClass = ((rank + file) % 2 === 0) ? 'is-light' : 'is-dark';
-    return '<div class="home-daily-square ' + squareClass + '">' + (piece || '') + '</div>';
+    var rankLabel = file === 0 ? '<span class="home-daily-square-rank">' + (8 - rank) + '</span>' : '';
+    var fileLabel = rank === 7 ? '<span class="home-daily-square-file">' + String.fromCharCode(97 + file) + '</span>' : '';
+    var pieceMarkup = '';
+    if (piece) {
+      var colorClass = originalChar && originalChar === originalChar.toUpperCase() ? 'is-white' : 'is-black';
+      pieceMarkup = '<span class="home-daily-square-piece ' + colorClass + '">' + piece + '</span>';
+    }
+    return '<div class="home-daily-square ' + squareClass + '">' + rankLabel + fileLabel + pieceMarkup + '</div>';
   }
 
   function pieceToGlyph(piece) {
@@ -1472,15 +1594,6 @@ const PuzzleController = (function() {
 
   function isDailyPuzzleRatingAllowed(puzzle) {
     return !!(puzzle && parseInt(puzzle.rating, 10) >= DAILY_MIN_PUZZLE_RATING);
-  }
-
-  function getStoredDailyDate() {
-    try {
-      var saved = localStorage.getItem(DAILY_SELECTED_DATE_KEY);
-      return normalizeDateKey(saved) || getTodayKey();
-    } catch (e) {
-      return getTodayKey();
-    }
   }
 
   function storeDailyDate(dateKey) {

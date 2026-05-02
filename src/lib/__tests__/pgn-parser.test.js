@@ -38,12 +38,6 @@ const PGN_WITH_COMMENTS = `[White "A"]
 
 1. e4 {Best by test} e5 2. Nf3 {Develops knight} Nc6 *`;
 
-const PGN_WITH_PROMOTION = `[White "A"]
-[Black "B"]
-[Result "1-0"]
-
-1. e4 e5 2. e5 e4 3. e6 e3 4. exf7+ Kd7 5. fxg8=Q+ exd2+ 6. Qxd5+ Ke7 7. Qe6# 1-0`;
-
 const PGN_WITH_CLOCKS = `[White "Clocky"]
 [Black "Timer"]
 [Result "*"]

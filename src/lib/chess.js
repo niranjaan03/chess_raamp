@@ -17,9 +17,8 @@ const Chess = (function() {
   var SHIFTS = {p:0,n:1,b:2,r:3,q:4,k:5};
   var FLAGS = {NORMAL:'n',CAPTURE:'c',BIG_PAWN:'b',EP_CAPTURE:'e',PROMOTION:'p',KSIDE_CASTLE:'k',QSIDE_CASTLE:'q'};
   var BITS = {NORMAL:1,CAPTURE:2,BIG_PAWN:4,EP_CAPTURE:8,PROMOTION:16,KSIDE_CASTLE:32,QSIDE_CASTLE:64};
-  var RANK_1=7,RANK_2=6,RANK_3=5,RANK_4=4,RANK_5=3,RANK_6=2,RANK_7=1,RANK_8=0;
+  var RANK_1=7,RANK_2=6,RANK_7=1,RANK_8=0;
   var SQUARES = {a8:0,b8:1,c8:2,d8:3,e8:4,f8:5,g8:6,h8:7,a7:16,b7:17,c7:18,d7:19,e7:20,f7:21,g7:22,h7:23,a6:32,b6:33,c6:34,d6:35,e6:36,f6:37,g6:38,h6:39,a5:48,b5:49,c5:50,d5:51,e5:52,f5:53,g5:54,h5:55,a4:64,b4:65,c4:66,d4:67,e4:68,f4:69,g4:70,h4:71,a3:80,b3:81,c3:82,d3:83,e3:84,f3:85,g3:86,h3:87,a2:96,b2:97,c2:98,d2:99,e2:100,f2:101,g2:102,h2:103,a1:112,b1:113,c1:114,d1:115,e1:116,f1:117,g1:118,h1:119};
-  var ROOKS = {w:[{square:SQUARES.a1,flag:BITS.QSIDE_CASTLE},{square:SQUARES.h1,flag:BITS.KSIDE_CASTLE}],b:[{square:SQUARES.a8,flag:BITS.QSIDE_CASTLE},{square:SQUARES.h8,flag:BITS.KSIDE_CASTLE}]};
   var board=[], kings={w:EMPTY,b:EMPTY}, turn=WHITE, castling={w:0,b:0}, ep_square=EMPTY, half_moves=0, move_number=1, history=[], header={};
 
   function rank(i){return i>>4;}
@@ -27,9 +26,6 @@ const Chess = (function() {
   function algebraic(i){var f=file(i),r=rank(i);return 'abcdefgh'.substring(f,f+1)+'87654321'.substring(r,r+1);}
   function swap_color(c){return c===WHITE?BLACK:WHITE;}
   function is_digit(c){return '0123456789'.indexOf(c)!==-1;}
-  function mask_rank(r){return 0xff<<((7-r)*16);}
-  function mask_file(f){var m=0;for(var r=RANK_8;r<=RANK_1;r++){m|=1<<(r*16+f);}return m;}
-
   function clone(obj){
     var newObj={};
     for(var key in obj){if(Object.prototype.hasOwnProperty.call(obj,key)){newObj[key]=obj[key];}}
@@ -214,7 +210,7 @@ const Chess = (function() {
         }
       }
     }
-    var legal=[],move;
+    var legal=[];
     for(var m=0;m<moves.length;m++){
       make_move(moves[m]);
       if(!king_attacked(us)){legal.push(moves[m]);}
@@ -279,11 +275,6 @@ const Chess = (function() {
   }
 
   function san_to_move(san,moves){
-    function disambiguation(m){
-      var s='',a=generate_moves();
-      for(var i=0;i<a.length;i++){if(a[i].from!==m.from&&a[i].to===m.to&&a[i].piece===m.piece){var amb=a[i];if(file(amb.from)!==file(m.from)){s+=algebraic(m.from).charAt(0);}else if(rank(amb.from)!==rank(m.from)){s+=algebraic(m.from).charAt(1);}else{s+=algebraic(m.from);}break;}}
-      return s;
-    }
     function strip(s){return s.replace(/=/,'').replace(/[+#?!]*/g,'').trim();}
     var clean=strip(san);
     var overmoves=moves||generate_moves();
@@ -491,13 +482,12 @@ const Chess = (function() {
   }
 
   function generate_pgn(options){
-    var newline=(options&&typeof options.newline_char!=='undefined')?options.newline_char:'\n',max_width=(options&&typeof options.max_width!=='undefined')?options.max_width:0,result=[],header_exists=false;
+    var newline=(options&&typeof options.newline_char!=='undefined')?options.newline_char:'\n',result=[],header_exists=false;
     for(var i in header){result.push('['+i+' "'+header[i]+'"'+newline);header_exists=true;}
     if(header_exists&&history.length){result.push(newline);}
     var moves=[],moves_string='',move_number2=1,append_header=true;
     var reversed_history2=[];
     while(history.length>0){reversed_history2.push(undo_move());}
-    var current_width=0;
     while(reversed_history2.length>0){
       if(append_header){if(turn===WHITE){moves_string+=move_number2+'.';}else{moves_string+=move_number2+'...';}append_header=false;move_number2++;}
       var move2=reversed_history2.pop();
@@ -521,7 +511,6 @@ const Chess = (function() {
       for(i=0;i<headers.length;i++){key=headers[i].replace(/^\[([A-Z][A-Za-z]*)\s.*\]$/,'$1');value=headers[i].replace(/^\[[A-Za-z]+\s"(.*)"\]$/,'$1');if(key.trim().length>0){header_obj[key]=value;}}
       return header_obj;
     }
-    var newline_char=(options&&typeof options.newline_char!=='undefined')?options.newline_char:'\r?\n',regex=new RegExp('^(\\[(.|'+mask(newline_char)+')*\\])'+('('+mask(newline_char)+'){2}')+'(([PNBRQK]?[a-h]?[1-8]?x?[a-h][1-8](=[PNBRQK])?|[PNBRQK]?[a-h]?[1-8]?x?[a-h][1-8](=[pnbrqk])?|O-O(-O)?)[+#]?(\\s*[\\!\\?][\\!\\?]?)?|1-0|0-1|1\\/2-1\\/2|\\*)');
     var header_string=pgn.match(/^\s*((\[.*\]\s*)+)/)?pgn.match(/^\s*((\[.*\]\s*)+)/)[1]:pgn;
     var moves_string=pgn.replace(header_string,'');
     var parsed_header=parse_pgn_header(header_string,options);

@@ -225,33 +225,46 @@ export default function PuzzleTab() {
             </div>
           </div>
 
-          <div className="puzzle-filter-card" id="puzzleDailyCard" style={{ display: 'none' }}>
+          <div className="puzzle-filter-card is-minimized" id="puzzleDailyCard" style={{ display: 'none' }}>
             <div className="puzzle-filter-head">
               <span className="practice-moves-header">Daily Puzzle Calendar</span>
+              <button
+                type="button"
+                className="puzzle-daily-minimize"
+                id="puzzleDailyMinimizeBtn"
+                aria-expanded="false"
+                aria-controls="puzzleDailyBody"
+                title="Expand calendar"
+              >
+                <span className="puzzle-daily-minimize-icon" aria-hidden="true">&#9660;</span>
+                <span className="puzzle-daily-minimize-label">Expand</span>
+              </button>
             </div>
-            <div className="puzzle-calendar-shell">
-              <div className="puzzle-calendar-head">
-                <button type="button" className="practice-ctrl-btn puzzle-calendar-nav" id="puzzleDailyPrevMonthBtn" aria-label="Previous month">
-                  &#8592;
-                </button>
-                <div className="puzzle-calendar-month" id="puzzleDailyMonthLabel">Month</div>
-                <button type="button" className="practice-ctrl-btn puzzle-calendar-nav" id="puzzleDailyNextMonthBtn" aria-label="Next month">
-                  &#8594;
-                </button>
+            <div className="puzzle-daily-body" id="puzzleDailyBody">
+              <div className="puzzle-calendar-shell">
+                <div className="puzzle-calendar-head">
+                  <button type="button" className="practice-ctrl-btn puzzle-calendar-nav" id="puzzleDailyPrevMonthBtn" aria-label="Previous month">
+                    &#8592;
+                  </button>
+                  <div className="puzzle-calendar-month" id="puzzleDailyMonthLabel">Month</div>
+                  <button type="button" className="practice-ctrl-btn puzzle-calendar-nav" id="puzzleDailyNextMonthBtn" aria-label="Next month">
+                    &#8594;
+                  </button>
+                </div>
+                <div className="puzzle-calendar-weekdays">
+                  <span>Sun</span>
+                  <span>Mon</span>
+                  <span>Tue</span>
+                  <span>Wed</span>
+                  <span>Thu</span>
+                  <span>Fri</span>
+                  <span>Sat</span>
+                </div>
+                <div className="puzzle-calendar-grid" id="puzzleDailyCalendarGrid"></div>
               </div>
-              <div className="puzzle-calendar-weekdays">
-                <span>Sun</span>
-                <span>Mon</span>
-                <span>Tue</span>
-                <span>Wed</span>
-                <span>Thu</span>
-                <span>Fri</span>
-                <span>Sat</span>
+              <div className="puzzle-daily-summary" id="puzzleDailySummary">
+                Select a date to open that day&apos;s stored puzzle.
               </div>
-              <div className="puzzle-calendar-grid" id="puzzleDailyCalendarGrid"></div>
-            </div>
-            <div className="puzzle-daily-summary" id="puzzleDailySummary">
-              Select a date to open that day&apos;s stored puzzle.
             </div>
           </div>
 

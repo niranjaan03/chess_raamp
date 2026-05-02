@@ -12,6 +12,8 @@ import { state } from './state.js';
 
 let _loadPGNGame = () => {};
 let _switchTab = () => {};
+let _triggerAutoReview = () => {};
+let clicksBound = false;
 
 function load() {
   try {
@@ -91,13 +93,13 @@ function render(search) {
   rows.innerHTML = games.slice(0, 50).map(function(g) {
     var resultClass = g.result === '1-0' ? 'result-w' : g.result === '0-1' ? 'result-l' : 'result-d';
     var safeId = escapeAttr(g.id);
-    return '<div class="db-row" onclick="AppController.loadDbGame(\'' + safeId + '\')">' +
+    return '<div class="db-row" data-db-game-id="' + safeId + '">' +
       '<span>' + escapeHtml(g.white || '?') + '</span>' +
       '<span>' + escapeHtml(g.black || '?') + '</span>' +
       '<span class="' + resultClass + '">' + escapeHtml(g.result || '*') + '</span>' +
       '<span>' + escapeHtml((g.opening || '').substring(0, 20) || '—') + '</span>' +
       '<span>' + escapeHtml((g.date || '').substring(0, 10)) + '</span>' +
-      '<span class="db-row-actions"><button class="btn-sm" onclick="event.stopPropagation();AppController.loadDbGame(\'' + safeId + '\')">Load</button></span>' +
+      '<span class="db-row-actions"><button type="button" class="btn-sm" data-db-game-id="' + safeId + '">Load</button></span>' +
       '</div>';
   }).join('');
 }
@@ -115,6 +117,7 @@ function loadGame(id) {
       liveClocks: game.liveClocks || null
     });
     _switchTab('analyze');
+    _triggerAutoReview();
   }
 }
 
@@ -129,17 +132,33 @@ function renderSavedGames() {
 
   list.innerHTML = state.gameDatabase.slice(0, 20).map(function(g) {
     var safeId = escapeAttr(g.id);
-    return '<div class="saved-game-item" onclick="AppController.loadDbGame(\'' + safeId + '\')">' +
+    return '<div class="saved-game-item" data-db-game-id="' + safeId + '">' +
       '<div class="saved-game-players">' + escapeHtml(g.white || '?') + ' vs ' + escapeHtml(g.black || '?') + ' <strong>' + escapeHtml(g.result || '*') + '</strong></div>' +
       '<div class="saved-game-meta">' + escapeHtml((g.opening || '').substring(0, 30)) + ' • ' + escapeHtml((g.date || '').substring(0, 10)) + '</div>' +
       '</div>';
   }).join('');
 }
 
-function init({ loadPGNGame, switchTab } = {}) {
+function bindDatabaseClicks() {
+  if (clicksBound || typeof document === 'undefined') return;
+  clicksBound = true;
+  ['dbRows', 'savedGamesList'].forEach(function(id) {
+    var container = document.getElementById(id);
+    if (!container) return;
+    container.addEventListener('click', function(event) {
+      var trigger = event.target.closest('[data-db-game-id]');
+      if (!trigger || !container.contains(trigger)) return;
+      loadGame(trigger.getAttribute('data-db-game-id'));
+    });
+  });
+}
+
+function init({ loadPGNGame, switchTab, triggerAutoReview } = {}) {
   if (typeof loadPGNGame === 'function') _loadPGNGame = loadPGNGame;
   if (typeof switchTab === 'function') _switchTab = switchTab;
+  if (typeof triggerAutoReview === 'function') _triggerAutoReview = triggerAutoReview;
   load();
+  bindDatabaseClicks();
 }
 
 export default {

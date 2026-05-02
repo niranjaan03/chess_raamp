@@ -35,9 +35,24 @@ function showBootError(error) {
   overlay.style.fontFamily = '"IBM Plex Mono", monospace';
   overlay.style.whiteSpace = 'pre-wrap';
   overlay.style.overflow = 'auto';
-  overlay.innerHTML = '<div style="font-size:18px;font-weight:700;margin-bottom:12px;">Startup error</div>' +
-    '<div style="opacity:.86;margin-bottom:16px;">The app hit an exception during boot.</div>' +
-    '<div>' + String((error && error.stack) || error || 'Unknown error') + '</div>';
+
+  const title = document.createElement('div');
+  title.style.fontSize = '18px';
+  title.style.fontWeight = '700';
+  title.style.marginBottom = '12px';
+  title.textContent = 'Startup error';
+
+  const message = document.createElement('div');
+  message.style.opacity = '.86';
+  message.style.marginBottom = '16px';
+  message.textContent = 'The app hit an exception during boot.';
+
+  const details = document.createElement('pre');
+  details.style.margin = '0';
+  details.style.whiteSpace = 'pre-wrap';
+  details.textContent = String((error && error.stack) || error || 'Unknown error');
+
+  overlay.append(title, message, details);
   document.body.appendChild(overlay);
 }
 

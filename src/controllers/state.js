@@ -1,4 +1,4 @@
-export const DEFAULT_ENGINE_ID = 'sf18';
+export const DEFAULT_ENGINE_ID = 'auto';
 
 export const state = {
   profile: {},
