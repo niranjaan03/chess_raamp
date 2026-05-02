@@ -188,6 +188,41 @@ const AppController = (function() {
         PuzzleController.preload();
       }
     }, 120);
+
+    setTimeout(showDailyStreakNotification, 1400);
+  }
+
+  function showDailyStreakNotification() {
+    var notif = document.getElementById('streakNotification');
+    if (!notif) return;
+    var todayKey = (function() {
+      var d = new Date();
+      var y = d.getFullYear();
+      var m = String(d.getMonth() + 1).padStart(2, '0');
+      var day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    })();
+    var STORAGE_KEY = 'streak.notif.lastShown';
+    try {
+      if (localStorage.getItem(STORAGE_KEY) === todayKey) return;
+    } catch { /* localStorage unavailable */ }
+
+    var streak = 0;
+    if (PuzzleController && typeof PuzzleController.computeDailyStreak === 'function') {
+      try { streak = PuzzleController.computeDailyStreak() || 0; } catch { streak = 0; }
+    }
+
+    var countEl = document.getElementById('streakNotificationCount');
+    var labelEl = document.getElementById('streakNotificationLabel');
+    if (countEl) countEl.textContent = String(streak);
+    if (labelEl) labelEl.textContent = streak === 1 ? 'day' : 'days';
+    notif.classList.toggle('is-zero', streak === 0);
+    notif.classList.add('show');
+
+    try { localStorage.setItem(STORAGE_KEY, todayKey); } catch { /* localStorage unavailable */ }
+
+    setTimeout(function() { notif.classList.remove('show'); }, 3000);
+    notif.addEventListener('click', function() { notif.classList.remove('show'); }, { once: true });
   }
 
   // ===== TAB NAVIGATION =====

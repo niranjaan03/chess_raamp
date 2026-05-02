@@ -109,6 +109,14 @@ function App() {
       <AuthModal />
 
       <div id="toast" className="toast"></div>
+
+      <div id="streakNotification" className="streak-notif" role="status" aria-live="polite">
+        <span className="streak-notif-fire" aria-hidden="true">🔥</span>
+        <span className="streak-notif-body">
+          <span className="streak-notif-count" id="streakNotificationCount">0</span>
+          <span className="streak-notif-label" id="streakNotificationLabel">day streak</span>
+        </span>
+      </div>
     </>
   );
 }

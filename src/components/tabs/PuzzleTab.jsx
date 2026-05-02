@@ -27,18 +27,6 @@ export default function PuzzleTab() {
                   <span id="puzzleTargetRating">—</span>
                 </div>
               </div>
-              <div className="puzzle-rating-box">
-                <div className="puzzle-rating-label" id="puzzleStreakLabel">Wins</div>
-                <div className="puzzle-rating-value">
-                  <span id="puzzleWinCount">0</span>
-                </div>
-              </div>
-              <div className="puzzle-rating-box">
-                <div className="puzzle-rating-label">Season Points</div>
-                <div className="puzzle-rating-value">
-                  <span id="puzzleSeasonPoints">0</span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -310,6 +298,160 @@ export default function PuzzleTab() {
         </div>
 
         <div className="puzzle-right-panel" id="puzzleRightPanel">
+          <div className="puzzle-side-card puzzle-daily-hero" id="puzzleDailyHero" hidden>
+            <div className="puzzle-daily-hero-topbar">
+              <button type="button" className="puzzle-daily-hero-icon-btn" id="puzzleDailyHeroBack" aria-label="Back to home" title="Back to home">&#8592;</button>
+              <div className="puzzle-daily-hero-eyebrow">
+                <span className="puzzle-daily-hero-icon" aria-hidden="true">📅</span>
+                <span>Daily Puzzle</span>
+              </div>
+              <button type="button" className="puzzle-daily-hero-icon-btn" id="puzzleDailyHeroSettings" aria-label="Open settings" title="Open settings">⚙</button>
+            </div>
+            <div className="puzzle-daily-hero-datebar">
+              <button type="button" className="puzzle-daily-hero-arrow" id="puzzleDailyHeroPrev" aria-label="Previous day">&#8592;</button>
+              <button type="button" className="puzzle-daily-hero-date" id="puzzleDailyHeroDate" aria-label="Open calendar">
+                <span className="puzzle-daily-hero-date-icon" aria-hidden="true">🗓</span>
+                <span id="puzzleDailyHeroDateLabel">Today</span>
+                <span className="puzzle-daily-hero-date-caret" aria-hidden="true">▾</span>
+              </button>
+              <button type="button" className="puzzle-daily-hero-arrow" id="puzzleDailyHeroNext" aria-label="Next day">&#8594;</button>
+            </div>
+            <h2 className="puzzle-daily-hero-title" id="puzzleDailyHeroTitle">Daily Puzzle</h2>
+            <div className="puzzle-daily-hero-status" id="puzzleDailyHeroStatus" data-status="unsolved">
+              <span className="puzzle-daily-hero-status-icon" aria-hidden="true">●</span>
+              <span className="puzzle-daily-hero-status-label" id="puzzleDailyHeroStatusLabel">Daily Puzzle</span>
+            </div>
+            <div className="puzzle-daily-hero-actions">
+              <button type="button" className="puzzle-daily-hero-action" id="puzzleDailyHeroRetry" title="Restart puzzle">
+                <span aria-hidden="true">↻</span>
+                <span>Retry</span>
+              </button>
+              <button type="button" className="puzzle-daily-hero-action" id="puzzleDailyHeroAnalyze" title="Open in analysis board">
+                <span aria-hidden="true">⌕</span>
+                <span>Analyze</span>
+              </button>
+              <button type="button" className="puzzle-daily-hero-action" id="puzzleDailyHeroShare" title="Copy puzzle link">
+                <span aria-hidden="true">↗</span>
+                <span>Share</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="puzzle-side-card puzzle-survival-setup" id="puzzleSurvivalSetup" hidden>
+            <div className="puzzle-survival-header">
+              <button type="button" className="puzzle-daily-hero-icon-btn" id="puzzleSurvivalBack" aria-label="Back to home" title="Back to home">&#8592;</button>
+              <div className="puzzle-survival-title-row">
+                <span className="puzzle-survival-title-icon" aria-hidden="true">🔥</span>
+                <h2 className="puzzle-survival-title">Puzzle Survival</h2>
+              </div>
+              <span className="puzzle-daily-hero-icon-btn" aria-hidden="true" style={{ visibility: 'hidden' }}>⚙</span>
+            </div>
+            <div className="puzzle-survival-stats-row">
+              <div className="puzzle-survival-stat-card">
+                <span className="puzzle-survival-stat-icon" aria-hidden="true">📅</span>
+                <span className="puzzle-survival-stat-value" id="puzzleSurvivalBestToday">--</span>
+                <span className="puzzle-survival-stat-label">Best Today</span>
+              </div>
+              <div className="puzzle-survival-stat-card">
+                <span className="puzzle-survival-stat-icon" aria-hidden="true">📊</span>
+                <span className="puzzle-survival-stat-value" id="puzzleSurvivalTopScore">0</span>
+                <span className="puzzle-survival-stat-label">Top Score</span>
+              </div>
+            </div>
+            <div className="puzzle-survival-tabs" role="tablist" aria-label="Puzzle Survival views">
+              <button type="button" className="puzzle-survival-tab is-active" id="puzzleSurvivalPlayTab" data-survival-tab="play" role="tab" aria-selected="true">
+                Play
+              </button>
+              <button type="button" className="puzzle-survival-tab" id="puzzleSurvivalLeaderboardTab" data-survival-tab="leaderboard" role="tab" aria-selected="false">
+                Leaderboard
+              </button>
+            </div>
+            <div className="puzzle-survival-play-view" id="puzzleSurvivalPlayView">
+              <div className="puzzle-survival-modes" role="radiogroup" aria-label="Time mode">
+                <button type="button" className="puzzle-survival-mode-btn" data-survival-mode="3min" role="radio" aria-checked="true">
+                  <span className="puzzle-survival-mode-icon" aria-hidden="true">⚡</span>
+                  <span className="puzzle-survival-mode-label">3 min</span>
+                </button>
+                <button type="button" className="puzzle-survival-mode-btn" data-survival-mode="5min" role="radio" aria-checked="false">
+                  <span className="puzzle-survival-mode-icon" aria-hidden="true">⏱</span>
+                  <span className="puzzle-survival-mode-label">5 min</span>
+                </button>
+                <button type="button" className="puzzle-survival-mode-btn" data-survival-mode="survival" role="radio" aria-checked="false">
+                  <span className="puzzle-survival-mode-icon" aria-hidden="true">◆</span>
+                  <span className="puzzle-survival-mode-label">Survival</span>
+                </button>
+                <button type="button" className="puzzle-survival-mode-btn" data-survival-mode="custom" role="radio" aria-checked="false">
+                  <span className="puzzle-survival-mode-icon" aria-hidden="true">✦</span>
+                  <span className="puzzle-survival-mode-label" id="puzzleSurvivalCustomLabel">Custom Time</span>
+                </button>
+                <div className="puzzle-survival-custom-row" id="puzzleSurvivalCustomRow" hidden>
+                  <label htmlFor="puzzleSurvivalCustomMinutes" className="puzzle-survival-custom-label">Minutes</label>
+                  <input
+                    type="number"
+                    id="puzzleSurvivalCustomMinutes"
+                    className="puzzle-survival-custom-input"
+                    min="1"
+                    max="30"
+                    defaultValue="7"
+                  />
+                  <button type="button" className="puzzle-survival-custom-confirm" id="puzzleSurvivalCustomConfirm">Set</button>
+                </div>
+              </div>
+              <button type="button" className="puzzle-survival-play-btn" id="puzzleSurvivalPlay">Play</button>
+            </div>
+            <div className="puzzle-survival-leaderboard-view" id="puzzleSurvivalLeaderboardView" hidden>
+              <div className="puzzle-survival-leaderboard-filters" role="group" aria-label="Leaderboard filters">
+                <button type="button" className="puzzle-survival-filter is-active" data-survival-filter="all">All</button>
+                <button type="button" className="puzzle-survival-filter" data-survival-filter="3min">3 min</button>
+                <button type="button" className="puzzle-survival-filter" data-survival-filter="5min">5 min</button>
+                <button type="button" className="puzzle-survival-filter" data-survival-filter="survival">Survival</button>
+                <button type="button" className="puzzle-survival-filter" data-survival-filter="custom">Custom</button>
+              </div>
+              <div className="puzzle-survival-leaderboard" id="puzzleSurvivalLeaderboard">
+                <div className="puzzle-summary-empty">Survival rankings will appear after your first run.</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="puzzle-side-card puzzle-survival-active" id="puzzleSurvivalActive" hidden>
+            <div className="puzzle-survival-side-to-move" id="puzzleSurvivalSideToMove">
+              <span className="puzzle-survival-turn-chip" id="puzzleSurvivalTurnChip" aria-hidden="true"></span>
+              <span id="puzzleSurvivalSideLabel">White to Move</span>
+            </div>
+            <div className="puzzle-survival-active-header">
+              <span className="puzzle-survival-active-mode" id="puzzleSurvivalActiveMode">3 min</span>
+              <button type="button" className="puzzle-survival-quit-btn" id="puzzleSurvivalQuit" title="Quit run">Quit</button>
+            </div>
+            <div className="puzzle-survival-timer" id="puzzleSurvivalTimer">3:00</div>
+            <div className="puzzle-survival-no-timer" id="puzzleSurvivalNoTimer" hidden>No Time Limit</div>
+            <div className="puzzle-survival-rating-panel">
+              <div className="puzzle-survival-rating-icon" aria-hidden="true">♟</div>
+              <div className="puzzle-survival-main-score" id="puzzleSurvivalMainScore">0</div>
+              <div className="puzzle-survival-rating-current">
+                <span>Puzzle Rating</span>
+                <strong id="puzzleSurvivalCurrentRating">—</strong>
+              </div>
+              <div className="puzzle-survival-rating-history" id="puzzleSurvivalRatingHistory" aria-label="Recent puzzle ratings">
+                <span className="puzzle-survival-rating-empty">Ratings appear as you play.</span>
+              </div>
+            </div>
+            <div className="puzzle-survival-lives" id="puzzleSurvivalLives" aria-label="Lives remaining">
+              <span className="puzzle-survival-life is-alive" data-life="1">♥</span>
+              <span className="puzzle-survival-life is-alive" data-life="2">♥</span>
+              <span className="puzzle-survival-life is-alive" data-life="3">♥</span>
+            </div>
+            <div className="puzzle-survival-active-stats">
+              <div className="puzzle-survival-active-stat">
+                <span className="puzzle-survival-active-stat-label">Score</span>
+                <span className="puzzle-survival-active-stat-value" id="puzzleSurvivalScore">0</span>
+              </div>
+              <div className="puzzle-survival-active-stat">
+                <span className="puzzle-survival-active-stat-label">Puzzle</span>
+                <span className="puzzle-survival-active-stat-value" id="puzzleSurvivalStreak">0</span>
+              </div>
+            </div>
+          </div>
+
           <div className="puzzle-side-card puzzle-result-card" id="puzzleResultCard">
             <div className="practice-moves-header">Post-Puzzle Stats</div>
             <div className="puzzle-result-head">
@@ -402,6 +544,83 @@ export default function PuzzleTab() {
             <div className="puzzle-history-list" id="puzzleHistoryList">
               <div className="puzzle-summary-empty">Your recent puzzle history will appear here.</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="puzzle-complete-overlay" id="puzzleSurvivalGameOver" role="dialog" aria-modal="true" aria-labelledby="puzzleSurvivalGameOverHeading" hidden>
+        <div className="puzzle-complete-modal" role="document">
+          <button type="button" className="puzzle-complete-close" id="puzzleSurvivalGameOverClose" aria-label="Close">×</button>
+          <div className="puzzle-complete-arch">
+            <h2 className="puzzle-complete-heading" id="puzzleSurvivalGameOverHeading">Time's Up!</h2>
+          </div>
+          <div className="puzzle-complete-body">
+            <div className="puzzle-survival-result-score" id="puzzleSurvivalResultScore">0</div>
+            <div className="puzzle-survival-result-best" id="puzzleSurvivalResultBest">Top score: 0</div>
+            <div className="puzzle-survival-result-grid">
+              <div className="puzzle-survival-result-stat">
+                <span className="puzzle-survival-result-label">Attempts</span>
+                <span className="puzzle-survival-result-value" id="puzzleSurvivalResultAttempts">0</span>
+              </div>
+              <div className="puzzle-survival-result-stat">
+                <span className="puzzle-survival-result-label">Correct</span>
+                <span className="puzzle-survival-result-value" id="puzzleSurvivalResultCorrect">0</span>
+              </div>
+              <div className="puzzle-survival-result-stat">
+                <span className="puzzle-survival-result-label">Accuracy</span>
+                <span className="puzzle-survival-result-value" id="puzzleSurvivalResultAccuracy">—</span>
+              </div>
+              <div className="puzzle-survival-result-stat">
+                <span className="puzzle-survival-result-label">Mode</span>
+                <span className="puzzle-survival-result-value" id="puzzleSurvivalResultMode">3 min</span>
+              </div>
+              <div className="puzzle-survival-result-stat">
+                <span className="puzzle-survival-result-label">Lives Lost</span>
+                <span className="puzzle-survival-result-value" id="puzzleSurvivalResultLivesLost">0</span>
+              </div>
+              <div className="puzzle-survival-result-stat">
+                <span className="puzzle-survival-result-label">Avg Rating</span>
+                <span className="puzzle-survival-result-value" id="puzzleSurvivalResultAvgRating">—</span>
+              </div>
+            </div>
+            <div className="puzzle-survival-result-actions">
+              <button type="button" className="puzzle-survival-play-btn" id="puzzleSurvivalPlayAgain">Play Again</button>
+              <button type="button" className="puzzle-complete-cta" id="puzzleSurvivalBackToSetup">
+                <span>Back to Survival</span>
+              </button>
+              <button type="button" className="puzzle-complete-cta" id="puzzleSurvivalViewLeaderboard">
+                <span>View Leaderboard</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="puzzle-complete-overlay" id="puzzleCompleteOverlay" role="dialog" aria-modal="true" aria-labelledby="puzzleCompleteHeading" hidden>
+        <div className="puzzle-complete-modal" role="document">
+          <button type="button" className="puzzle-complete-close" id="puzzleCompleteCloseBtn" aria-label="Close">×</button>
+          <div className="puzzle-complete-arch">
+            <h2 className="puzzle-complete-heading" id="puzzleCompleteHeading">Good job!</h2>
+          </div>
+          <div className="puzzle-complete-body">
+            <p className="puzzle-complete-message">
+              Check back each day for a new puzzle! Puzzles get harder throughout the week.
+            </p>
+            <div className="puzzle-complete-calendar" id="puzzleCompleteCalendar">
+              <div className="puzzle-complete-cal-head">
+                <button type="button" className="puzzle-complete-cal-nav" id="puzzleCompletePrevMonth" aria-label="Previous month">&#8592;</button>
+                <div className="puzzle-complete-cal-month" id="puzzleCompleteMonthLabel">Month</div>
+                <button type="button" className="puzzle-complete-cal-nav" id="puzzleCompleteNextMonth" aria-label="Next month">&#8594;</button>
+              </div>
+              <div className="puzzle-complete-cal-weekdays">
+                <span>M</span><span>T</span><span>W</span><span>TH</span><span>F</span><span>S</span><span>S</span>
+              </div>
+              <div className="puzzle-complete-cal-grid" id="puzzleCompleteCalGrid"></div>
+            </div>
+            <button type="button" className="puzzle-complete-cta" id="puzzleCompleteMoreBtn">
+              <span className="puzzle-complete-cta-icon" aria-hidden="true">🧩</span>
+              <span>Do More Puzzles</span>
+            </button>
           </div>
         </div>
       </div>

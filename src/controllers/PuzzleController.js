@@ -1,6 +1,7 @@
 import Chess from '../lib/chess';
 import ChessBoard from './ChessBoard';
 import SoundController from './SoundController';
+import { showToast, copyToClipboard } from '../utils/toast.js';
 
 const PUZZLE_RATING_KEY = 'cr_puzzle_rating';
 const PUZZLE_WINS_KEY = 'cr_puzzle_wins';
@@ -42,6 +43,20 @@ const PuzzleController = (function() {
   var survivalWins = 0;
   var survivalResults = [];
   var survivalFailed = false;
+  var survivalActive = false;
+  var survivalLives = 3;
+  var survivalAttempts = 0;
+  var survivalCorrect = 0;
+  var survivalSelectedMode = '3min';
+  var survivalCustomMinutes = 7;
+  var survivalEndsAt = 0;
+  var survivalTimerInterval = null;
+  var survivalBestKey = 'cr_puzzle_survival_best';
+  var survivalBestTodayKey = 'cr_puzzle_survival_best_today';
+  var survivalRunsKey = 'cr_puzzle_survival_runs';
+  var survivalActiveSetupTab = 'play';
+  var survivalLeaderboardFilter = 'all';
+  var survivalRecentRatings = [];
   var currentDailyDate = '';
   var currentDailyMonth = '';
   var dailyPreviewPromise = null;
@@ -82,8 +97,18 @@ const PuzzleController = (function() {
     }
 
     if (!currentPuzzle) {
-      if (currentMode === MODE_SURVIVAL) startSurvivalRun();
-      else loadNextPuzzle();
+      if (currentMode === MODE_SURVIVAL) {
+        puzzleChess = new Chess();
+        userColor = 'w';
+        ChessBoard.setFlipped(false);
+        ChessBoard.setPosition(puzzleChess);
+        ChessBoard.setLastMove(null, null);
+        ChessBoard.clearArrows();
+        survivalActive = false;
+        setStatus('Pick a time mode and press Play to begin.', 'neutral');
+        renderSurvivalPanels();
+        renderSurvivalSetupStats();
+      } else loadNextPuzzle();
       return;
     }
 
@@ -160,6 +185,653 @@ const PuzzleController = (function() {
     }
 
     syncPuzzleSoundState();
+    setupCompletionModal();
+    setupDailyHero();
+    setupSurvivalUI();
+  }
+
+  function setupSurvivalUI() {
+    var setupCard = document.getElementById('puzzleSurvivalSetup');
+    if (setupCard) {
+      var modeBtns = setupCard.querySelectorAll('.puzzle-survival-mode-btn');
+      modeBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var mode = btn.getAttribute('data-survival-mode');
+          selectSurvivalMode(mode);
+        });
+      });
+
+      var customConfirm = document.getElementById('puzzleSurvivalCustomConfirm');
+      if (customConfirm) customConfirm.addEventListener('click', confirmSurvivalCustomMinutes);
+
+      var customInput = document.getElementById('puzzleSurvivalCustomMinutes');
+      if (customInput) {
+        customInput.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            confirmSurvivalCustomMinutes();
+          }
+        });
+      }
+
+      var playBtn = document.getElementById('puzzleSurvivalPlay');
+      if (playBtn) playBtn.addEventListener('click', startSurvivalRun);
+
+      var backBtn = document.getElementById('puzzleSurvivalBack');
+      if (backBtn) backBtn.addEventListener('click', function() {
+        if (window.AppController && typeof window.AppController.switchToTab === 'function') {
+          window.AppController.switchToTab('home');
+        }
+      });
+
+      setupCard.querySelectorAll('.puzzle-survival-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          setSurvivalSetupTab(btn.getAttribute('data-survival-tab') || 'play');
+        });
+      });
+
+      setupCard.querySelectorAll('.puzzle-survival-filter').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          survivalLeaderboardFilter = btn.getAttribute('data-survival-filter') || 'all';
+          renderSurvivalLeaderboard();
+        });
+      });
+    }
+
+    var quitBtn = document.getElementById('puzzleSurvivalQuit');
+    if (quitBtn) quitBtn.addEventListener('click', function() { endSurvivalRun('quit'); });
+
+    var goClose = document.getElementById('puzzleSurvivalGameOverClose');
+    if (goClose) goClose.addEventListener('click', hideSurvivalGameOver);
+    var goAgain = document.getElementById('puzzleSurvivalPlayAgain');
+    if (goAgain) goAgain.addEventListener('click', function() {
+      hideSurvivalGameOver();
+      startSurvivalRun();
+    });
+    var goBack = document.getElementById('puzzleSurvivalBackToSetup');
+    if (goBack) goBack.addEventListener('click', function() {
+      hideSurvivalGameOver();
+      survivalActive = false;
+      setSurvivalSetupTab('play');
+      renderSurvivalPanels();
+    });
+    var goLeaderboard = document.getElementById('puzzleSurvivalViewLeaderboard');
+    if (goLeaderboard) goLeaderboard.addEventListener('click', function() {
+      hideSurvivalGameOver();
+      survivalActive = false;
+      setSurvivalSetupTab('leaderboard');
+      renderSurvivalPanels();
+    });
+    var goOverlay = document.getElementById('puzzleSurvivalGameOver');
+    if (goOverlay) goOverlay.addEventListener('click', function(event) {
+      if (event.target === goOverlay) hideSurvivalGameOver();
+    });
+
+    selectSurvivalMode(survivalSelectedMode);
+    renderSurvivalSetupStats();
+    renderSurvivalLeaderboard();
+    setSurvivalSetupTab('play');
+  }
+
+  function setSurvivalSetupTab(tab) {
+    survivalActiveSetupTab = tab === 'leaderboard' ? 'leaderboard' : 'play';
+    var setupCard = document.getElementById('puzzleSurvivalSetup');
+    if (!setupCard) return;
+    setupCard.querySelectorAll('.puzzle-survival-tab').forEach(function(btn) {
+      var active = btn.getAttribute('data-survival-tab') === survivalActiveSetupTab;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    var playView = document.getElementById('puzzleSurvivalPlayView');
+    var leaderboardView = document.getElementById('puzzleSurvivalLeaderboardView');
+    if (playView) playView.hidden = survivalActiveSetupTab !== 'play';
+    if (leaderboardView) leaderboardView.hidden = survivalActiveSetupTab !== 'leaderboard';
+    if (survivalActiveSetupTab === 'leaderboard') renderSurvivalLeaderboard();
+  }
+
+  function selectSurvivalMode(mode) {
+    if (['3min', '5min', 'custom', 'survival'].indexOf(mode) === -1) return;
+    survivalSelectedMode = mode;
+    var setupCard = document.getElementById('puzzleSurvivalSetup');
+    if (!setupCard) return;
+    setupCard.querySelectorAll('.puzzle-survival-mode-btn').forEach(function(btn) {
+      btn.setAttribute('aria-checked', btn.getAttribute('data-survival-mode') === mode ? 'true' : 'false');
+    });
+    var customRow = document.getElementById('puzzleSurvivalCustomRow');
+    if (customRow) customRow.hidden = mode !== 'custom';
+    if (mode === 'custom') updateCustomLabel();
+  }
+
+  function confirmSurvivalCustomMinutes() {
+    var input = document.getElementById('puzzleSurvivalCustomMinutes');
+    if (!input) return;
+    var minutes = parseInt(input.value, 10);
+    if (isNaN(minutes) || minutes < 1) minutes = 1;
+    if (minutes > 30) minutes = 30;
+    survivalCustomMinutes = minutes;
+    input.value = String(minutes);
+    selectSurvivalMode('custom');
+    updateCustomLabel();
+  }
+
+  function updateCustomLabel() {
+    var label = document.getElementById('puzzleSurvivalCustomLabel');
+    if (label) label.textContent = 'Custom · ' + survivalCustomMinutes + ' min';
+  }
+
+  function getSurvivalDurationMs() {
+    if (survivalSelectedMode === 'survival') return 0;
+    if (survivalSelectedMode === '5min') return 5 * 60 * 1000;
+    if (survivalSelectedMode === 'custom') return Math.max(1, survivalCustomMinutes) * 60 * 1000;
+    return 3 * 60 * 1000;
+  }
+
+  function getSurvivalModeLabel() {
+    if (survivalSelectedMode === 'survival') return 'Survival';
+    if (survivalSelectedMode === '5min') return '5 min';
+    if (survivalSelectedMode === 'custom') return 'Custom · ' + survivalCustomMinutes + ' min';
+    return '3 min';
+  }
+
+  function isTimedSurvivalMode() {
+    return survivalSelectedMode !== 'survival';
+  }
+
+  function renderSurvivalPanels() {
+    var layout = document.getElementById('puzzleLayout');
+    if (layout) layout.setAttribute('data-survival-active', survivalActive ? 'true' : 'false');
+    var setupCard = document.getElementById('puzzleSurvivalSetup');
+    var activeCard = document.getElementById('puzzleSurvivalActive');
+    if (setupCard) setupCard.hidden = currentMode !== MODE_SURVIVAL || survivalActive;
+    if (activeCard) activeCard.hidden = currentMode !== MODE_SURVIVAL || !survivalActive;
+  }
+
+  function renderSurvivalLives() {
+    var lives = document.querySelectorAll('#puzzleSurvivalLives .puzzle-survival-life');
+    lives.forEach(function(el) {
+      var n = parseInt(el.getAttribute('data-life'), 10);
+      el.classList.toggle('is-alive', n <= survivalLives);
+      el.classList.toggle('is-lost', n > survivalLives);
+    });
+  }
+
+  function renderSurvivalActiveStats() {
+    var scoreEl = document.getElementById('puzzleSurvivalScore');
+    var mainScoreEl = document.getElementById('puzzleSurvivalMainScore');
+    var streakEl = document.getElementById('puzzleSurvivalStreak');
+    var modeEl = document.getElementById('puzzleSurvivalActiveMode');
+    var sideEl = document.getElementById('puzzleSurvivalSideLabel');
+    var chipEl = document.getElementById('puzzleSurvivalTurnChip');
+    var ratingEl = document.getElementById('puzzleSurvivalCurrentRating');
+    if (scoreEl) scoreEl.textContent = String(survivalWins);
+    if (mainScoreEl) mainScoreEl.textContent = String(survivalWins);
+    if (streakEl) streakEl.textContent = String(survivalAttempts + 1);
+    if (modeEl) modeEl.textContent = getSurvivalModeLabel();
+    if (sideEl) sideEl.textContent = (userColor === 'b' ? 'Black' : 'White') + ' to Move';
+    if (chipEl) chipEl.className = 'puzzle-survival-turn-chip is-' + (userColor === 'b' ? 'black' : 'white');
+    if (ratingEl) ratingEl.textContent = currentPuzzle && currentPuzzle.rating ? String(currentPuzzle.rating) : '—';
+    renderSurvivalTimerMode();
+    renderSurvivalRatingHistory();
+  }
+
+  function renderSurvivalTimerMode() {
+    var timerEl = document.getElementById('puzzleSurvivalTimer');
+    var noTimerEl = document.getElementById('puzzleSurvivalNoTimer');
+    var timed = isTimedSurvivalMode();
+    if (timerEl) timerEl.hidden = !timed;
+    if (noTimerEl) noTimerEl.hidden = timed;
+  }
+
+  function pushSurvivalRatingResult(correct) {
+    if (!currentPuzzle) return;
+    survivalRecentRatings.push({
+      rating: currentPuzzle.rating || 0,
+      correct: !!correct
+    });
+    survivalRecentRatings = survivalRecentRatings.slice(-6);
+    renderSurvivalRatingHistory();
+  }
+
+  function renderSurvivalRatingHistory() {
+    var historyEl = document.getElementById('puzzleSurvivalRatingHistory');
+    if (!historyEl) return;
+    if (!survivalRecentRatings.length) {
+      historyEl.innerHTML = '<span class="puzzle-survival-rating-empty">Ratings appear as you play.</span>';
+      return;
+    }
+    historyEl.innerHTML = survivalRecentRatings.map(function(entry) {
+      var cls = entry.correct ? 'is-correct' : 'is-wrong';
+      var icon = entry.correct ? '✓' : '×';
+      return '<span class="puzzle-survival-rating-pill ' + cls + '">' +
+        '<span class="puzzle-survival-rating-mark">' + icon + '</span>' +
+        '<span>' + String(entry.rating || '—') + '</span>' +
+      '</span>';
+    }).join('');
+  }
+
+  function getSurvivalAverageRating() {
+    var solved = survivalResults
+      .map(function(entry) { return entry.puzzleRating || 0; })
+      .filter(function(rating) { return rating > 0; });
+    if (!solved.length) return 0;
+    var total = solved.reduce(function(sum, rating) { return sum + rating; }, 0);
+    return Math.round(total / solved.length);
+  }
+
+  function getSurvivalMaxRating() {
+    var ratings = survivalResults
+      .map(function(entry) { return entry.puzzleRating || 0; })
+      .filter(function(rating) { return rating > 0; });
+    return ratings.length ? Math.max.apply(null, ratings) : 0;
+  }
+
+  function renderSurvivalSetupStats() {
+    var topEl = document.getElementById('puzzleSurvivalTopScore');
+    var todayEl = document.getElementById('puzzleSurvivalBestToday');
+    var top = 0;
+    var today = '--';
+    try {
+      top = parseInt(localStorage.getItem(survivalBestKey) || '0', 10) || 0;
+      var raw = localStorage.getItem(survivalBestTodayKey);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.date === getTodayKey()) today = String(parsed.score || 0);
+      }
+    } catch { /* storage unavailable */ }
+    if (topEl) topEl.textContent = String(top);
+    if (todayEl) todayEl.textContent = today;
+    renderSurvivalLeaderboard();
+  }
+
+  function getStoredSurvivalRuns() {
+    try {
+      var raw = localStorage.getItem(survivalRunsKey);
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveSurvivalRun(reason) {
+    var run = {
+      username: 'You',
+      score: survivalWins,
+      mode: getSurvivalModeLabel(),
+      modeKey: survivalSelectedMode,
+      date: getTodayKey(),
+      endedBy: reason || 'time',
+      attempts: survivalAttempts,
+      correct: survivalCorrect,
+      avgRating: getSurvivalAverageRating(),
+      maxRating: getSurvivalMaxRating(),
+      createdAt: new Date().toISOString()
+    };
+    try {
+      var runs = getStoredSurvivalRuns();
+      runs.unshift(run);
+      localStorage.setItem(survivalRunsKey, JSON.stringify(runs.slice(0, 25)));
+    } catch { /* storage unavailable */ }
+  }
+
+  function persistSurvivalBestScores() {
+    var top = 0;
+    var newBest = false;
+    try {
+      var rawTop = localStorage.getItem(survivalBestKey);
+      top = parseInt(rawTop || '0', 10) || 0;
+      newBest = survivalWins > top;
+      if (newBest || rawTop == null) {
+        localStorage.setItem(survivalBestKey, String(Math.max(top, survivalWins)));
+        top = Math.max(top, survivalWins);
+      }
+    } catch { /* storage unavailable */ }
+
+    try {
+      var todayKey = getTodayKey();
+      var rawToday = localStorage.getItem(survivalBestTodayKey);
+      var parsedToday = rawToday ? JSON.parse(rawToday) : null;
+      var hasToday = parsedToday && parsedToday.date === todayKey;
+      var prevToday = hasToday ? (parsedToday.score || 0) : 0;
+      if (!hasToday || survivalWins > prevToday) {
+        localStorage.setItem(survivalBestTodayKey, JSON.stringify({
+          date: todayKey,
+          score: Math.max(prevToday, survivalWins)
+        }));
+      }
+    } catch { /* storage unavailable */ }
+
+    return { top: top, newBest: newBest };
+  }
+
+  function renderSurvivalLeaderboard() {
+    var listEl = document.getElementById('puzzleSurvivalLeaderboard');
+    if (!listEl) return;
+    var filters = document.querySelectorAll('.puzzle-survival-filter');
+    filters.forEach(function(btn) {
+      btn.classList.toggle('is-active', btn.getAttribute('data-survival-filter') === survivalLeaderboardFilter);
+    });
+
+    var seeded = [
+      { username: 'RampBot', score: 18, mode: '3 min', modeKey: '3min', date: getTodayKey() },
+      { username: 'TacticLab', score: 14, mode: '5 min', modeKey: '5min', date: getTodayKey() },
+      { username: 'EndgameAce', score: 9, mode: 'Custom · 7 min', modeKey: 'custom', date: getTodayKey() },
+      { username: 'Marathon', score: 22, mode: 'Survival', modeKey: 'survival', date: getTodayKey() }
+    ];
+    var rows = getStoredSurvivalRuns().concat(seeded)
+      .filter(function(row) {
+        return survivalLeaderboardFilter === 'all' || row.modeKey === survivalLeaderboardFilter;
+      })
+      .sort(function(a, b) {
+        if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
+        return String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || ''));
+      })
+      .slice(0, 10);
+
+    if (!rows.length) {
+      listEl.innerHTML = '<div class="puzzle-summary-empty">No scores for this time mode yet.</div>';
+      return;
+    }
+
+    listEl.innerHTML = rows.map(function(row, index) {
+      return '<div class="puzzle-survival-leaderboard-row">' +
+        '<div class="puzzle-survival-rank">#' + (index + 1) + '</div>' +
+        '<div class="puzzle-survival-player">' +
+          '<span class="puzzle-survival-player-name">' + escapeHtml(row.username || 'Player') + '</span>' +
+          '<span class="puzzle-survival-player-meta">' + escapeHtml(row.mode || '3 min') + ' · ' + escapeHtml(formatDateLabel(row.date || getTodayKey())) + formatLeaderboardRating(row) + '</span>' +
+        '</div>' +
+        '<div class="puzzle-survival-leaderboard-score">' + String(row.score || 0) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function formatLeaderboardRating(row) {
+    if (!row || !row.maxRating) return '';
+    return ' · max ' + escapeHtml(row.maxRating);
+  }
+
+  function tickSurvivalTimer() {
+    if (!isTimedSurvivalMode()) return;
+    var el = document.getElementById('puzzleSurvivalTimer');
+    if (!el) return;
+    var remainingMs = Math.max(0, survivalEndsAt - Date.now());
+    var totalSeconds = Math.ceil(remainingMs / 1000);
+    var mm = Math.floor(totalSeconds / 60);
+    var ss = totalSeconds % 60;
+    el.textContent = mm + ':' + String(ss).padStart(2, '0');
+    el.classList.toggle('is-warning', totalSeconds <= 30 && totalSeconds > 10);
+    el.classList.toggle('is-danger', totalSeconds <= 10);
+    if (remainingMs <= 0) endSurvivalRun('time');
+  }
+
+  function startSurvivalTimer() {
+    stopSurvivalTimer();
+    renderSurvivalTimerMode();
+    if (!isTimedSurvivalMode()) return;
+    survivalEndsAt = Date.now() + getSurvivalDurationMs();
+    tickSurvivalTimer();
+    survivalTimerInterval = setInterval(tickSurvivalTimer, 250);
+  }
+
+  function stopSurvivalTimer() {
+    if (survivalTimerInterval) {
+      clearInterval(survivalTimerInterval);
+      survivalTimerInterval = null;
+    }
+  }
+
+  function showSurvivalGameOver(reason) {
+    var overlay = document.getElementById('puzzleSurvivalGameOver');
+    if (!overlay) return;
+    var heading = document.getElementById('puzzleSurvivalGameOverHeading');
+    if (heading) {
+      heading.textContent = reason === 'time' ? "Time's Up!"
+        : reason === 'quit' ? 'Run Ended'
+        : reason === 'lives' ? 'Out of Lives'
+        : 'Game Over';
+    }
+
+    var bestResult = persistSurvivalBestScores();
+    var top = bestResult.top;
+    var newBest = bestResult.newBest;
+
+    var scoreEl = document.getElementById('puzzleSurvivalResultScore');
+    var bestEl = document.getElementById('puzzleSurvivalResultBest');
+    var attemptsEl = document.getElementById('puzzleSurvivalResultAttempts');
+    var correctEl = document.getElementById('puzzleSurvivalResultCorrect');
+    var accuracyEl = document.getElementById('puzzleSurvivalResultAccuracy');
+    var modeEl = document.getElementById('puzzleSurvivalResultMode');
+    var livesLostEl = document.getElementById('puzzleSurvivalResultLivesLost');
+    var avgRatingEl = document.getElementById('puzzleSurvivalResultAvgRating');
+    if (scoreEl) scoreEl.textContent = String(survivalWins);
+    if (bestEl) bestEl.textContent = (newBest ? 'New best! · ' : '') + 'Top score: ' + top;
+    if (attemptsEl) attemptsEl.textContent = String(survivalAttempts);
+    if (correctEl) correctEl.textContent = String(survivalCorrect);
+    if (accuracyEl) accuracyEl.textContent = survivalAttempts > 0 ? Math.round((survivalCorrect / survivalAttempts) * 100) + '%' : '—';
+    if (modeEl) modeEl.textContent = getSurvivalModeLabel();
+    if (livesLostEl) livesLostEl.textContent = String(3 - survivalLives);
+    if (avgRatingEl) avgRatingEl.textContent = getSurvivalAverageRating() || '—';
+
+    overlay.hidden = false;
+    requestAnimationFrame(function() { overlay.classList.add('show'); });
+  }
+
+  function hideSurvivalGameOver() {
+    var overlay = document.getElementById('puzzleSurvivalGameOver');
+    if (!overlay) return;
+    overlay.classList.remove('show');
+    setTimeout(function() { overlay.hidden = true; }, 240);
+  }
+
+  function endSurvivalRun(reason) {
+    if (!survivalActive) return;
+    survivalActive = false;
+    survivalFailed = true;
+    stopSurvivalTimer();
+    clearAutoAdvance();
+    saveSurvivalRun(reason);
+    persistSurvivalBestScores();
+    renderSurvivalPanels();
+    renderSurvivalSetupStats();
+    showSurvivalGameOver(reason);
+  }
+
+  function setupDailyHero() {
+    var prevBtn = document.getElementById('puzzleDailyHeroPrev');
+    if (prevBtn) prevBtn.addEventListener('click', function() {
+      var newDate = shiftDateKey(currentDailyDate || getTodayKey(), -1);
+      openDailyPuzzle(newDate);
+    });
+
+    var nextBtn = document.getElementById('puzzleDailyHeroNext');
+    if (nextBtn) nextBtn.addEventListener('click', function() {
+      var newDate = shiftDateKey(currentDailyDate || getTodayKey(), 1);
+      if (newDate > getTodayKey()) return;
+      openDailyPuzzle(newDate);
+    });
+
+    var dateBtn = document.getElementById('puzzleDailyHeroDate');
+    if (dateBtn) dateBtn.addEventListener('click', function() {
+      // Open the completion modal in browse mode (no auto-show on solve)
+      completionModalMonth = getMonthKey(currentDailyDate || getTodayKey());
+      var overlay = document.getElementById('puzzleCompleteOverlay');
+      var heading = document.getElementById('puzzleCompleteHeading');
+      var msg = overlay && overlay.querySelector('.puzzle-complete-message');
+      if (heading) heading.textContent = 'Pick a date';
+      if (msg) msg.textContent = 'Browse past daily puzzles. Solved days are marked with a flame.';
+      renderCompletionCalendar();
+      if (overlay) {
+        overlay.hidden = false;
+        requestAnimationFrame(function() { overlay.classList.add('show'); });
+      }
+    });
+
+    var backBtn = document.getElementById('puzzleDailyHeroBack');
+    if (backBtn) backBtn.addEventListener('click', function() {
+      if (window.AppController && typeof window.AppController.switchToTab === 'function') {
+        window.AppController.switchToTab('home');
+      }
+    });
+
+    var settingsBtn = document.getElementById('puzzleDailyHeroSettings');
+    if (settingsBtn) settingsBtn.addEventListener('click', function() {
+      if (window.AppController && typeof window.AppController.switchToTab === 'function') {
+        window.AppController.switchToTab('settings');
+      }
+    });
+
+    var retryBtn = document.getElementById('puzzleDailyHeroRetry');
+    if (retryBtn) retryBtn.addEventListener('click', function() {
+      if (currentDailyDate) loadDailyPuzzleForDate(currentDailyDate);
+    });
+
+    var analyzeBtn = document.getElementById('puzzleDailyHeroAnalyze');
+    if (analyzeBtn) analyzeBtn.addEventListener('click', function() {
+      if (!puzzleChess) {
+        showToast('Load a puzzle first', 'error');
+        return;
+      }
+      var fen = puzzleChess.fen();
+      if (window.AppController && typeof window.AppController.loadFenPublic === 'function') {
+        window.AppController.loadFenPublic(fen);
+        window.AppController.switchToTab('analyze');
+      } else {
+        showToast('Analysis board unavailable', 'error');
+      }
+    });
+
+    var shareBtn = document.getElementById('puzzleDailyHeroShare');
+    if (shareBtn) shareBtn.addEventListener('click', function() {
+      var date = currentDailyDate || getTodayKey();
+      var url = window.location.origin + window.location.pathname + '#puzzle/daily/' + date;
+      copyToClipboard(url);
+      showToast('Daily puzzle link copied', 'success');
+    });
+  }
+
+  var completionModalMonth = '';
+
+  function setupCompletionModal() {
+    var overlay = document.getElementById('puzzleCompleteOverlay');
+    if (!overlay) return;
+
+    var closeBtn = document.getElementById('puzzleCompleteCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', hideCompletionModal);
+
+    overlay.addEventListener('click', function(event) {
+      if (event.target === overlay) hideCompletionModal();
+    });
+
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && overlay.classList.contains('show')) hideCompletionModal();
+    });
+
+    var prevMonth = document.getElementById('puzzleCompletePrevMonth');
+    if (prevMonth) prevMonth.addEventListener('click', function() {
+      completionModalMonth = shiftMonthKey(completionModalMonth || getMonthKey(getTodayKey()), -1);
+      renderCompletionCalendar();
+    });
+
+    var nextMonth = document.getElementById('puzzleCompleteNextMonth');
+    if (nextMonth) nextMonth.addEventListener('click', function() {
+      var next = shiftMonthKey(completionModalMonth || getMonthKey(getTodayKey()), 1);
+      if (next > getMonthKey(getTodayKey())) return;
+      completionModalMonth = next;
+      renderCompletionCalendar();
+    });
+
+    var grid = document.getElementById('puzzleCompleteCalGrid');
+    if (grid) {
+      grid.addEventListener('click', function(event) {
+        var btn = event.target.closest('.puzzle-complete-cal-cell');
+        if (!btn || btn.disabled) return;
+        var dateKey = btn.getAttribute('data-date');
+        if (!dateKey) return;
+        hideCompletionModal();
+        openDailyPuzzle(dateKey);
+      });
+    }
+
+    var moreBtn = document.getElementById('puzzleCompleteMoreBtn');
+    if (moreBtn) moreBtn.addEventListener('click', function() {
+      hideCompletionModal();
+      setMode(MODE_CLASSIC);
+      loadNextPuzzle();
+    });
+  }
+
+  function showCompletionModal() {
+    var overlay = document.getElementById('puzzleCompleteOverlay');
+    if (!overlay) return;
+    var heading = document.getElementById('puzzleCompleteHeading');
+    var msg = overlay.querySelector('.puzzle-complete-message');
+    if (heading) heading.textContent = 'Good job!';
+    if (msg) msg.textContent = 'Check back each day for a new puzzle! Puzzles get harder throughout the week.';
+    completionModalMonth = getMonthKey(currentDailyDate || getTodayKey());
+    renderCompletionCalendar();
+    overlay.hidden = false;
+    requestAnimationFrame(function() { overlay.classList.add('show'); });
+  }
+
+  function hideCompletionModal() {
+    var overlay = document.getElementById('puzzleCompleteOverlay');
+    if (!overlay) return;
+    overlay.classList.remove('show');
+    setTimeout(function() { overlay.hidden = true; }, 240);
+  }
+
+  function renderCompletionCalendar() {
+    var label = document.getElementById('puzzleCompleteMonthLabel');
+    var grid = document.getElementById('puzzleCompleteCalGrid');
+    if (!label || !grid) return;
+
+    var monthKey = completionModalMonth || getMonthKey(getTodayKey());
+    var parts = monthKey.split('-');
+    var year = parseInt(parts[0], 10);
+    var monthIndex = parseInt(parts[1], 10) - 1;
+    var monthDate = new Date(year, monthIndex, 1);
+    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    label.textContent = monthNames[monthIndex] + ' ' + year;
+
+    var firstDay = monthDate.getDay();
+    var leadingBlanks = (firstDay + 6) % 7;
+    var daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    var todayKey = getTodayKey();
+    var map = getStoredDailyMap();
+
+    var cells = '';
+    for (var i = 0; i < leadingBlanks; i++) {
+      cells += '<span class="puzzle-complete-cal-cell is-empty"></span>';
+    }
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dayKey = year + '-' + String(monthIndex + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      var entry = map[dayKey];
+      var classes = ['puzzle-complete-cal-cell'];
+      var disabled = '';
+      var fire = '';
+      if (dayKey > todayKey) {
+        classes.push('is-future');
+        disabled = 'disabled';
+      } else if (entry && entry.status === 'solved') {
+        classes.push('is-solved');
+        fire = '<span class="puzzle-complete-cal-fire" aria-hidden="true">🔥</span>';
+      } else if (entry && entry.status === 'missed') {
+        classes.push('is-missed');
+      }
+      if (dayKey === todayKey) classes.push('is-today');
+      cells += '<button type="button" class="' + classes.join(' ') + '" data-date="' + dayKey + '" ' + disabled + '>' +
+        fire + d + '</button>';
+    }
+    grid.innerHTML = cells;
   }
 
   function setDailyCalendarMinimized(minimized) {
@@ -236,7 +908,13 @@ const PuzzleController = (function() {
       return;
     }
     if (!changed) return;
-    if (currentMode === MODE_SURVIVAL) startSurvivalRun();
+    if (currentMode === MODE_SURVIVAL) {
+      // Show setup card; don't auto-start
+      survivalActive = false;
+      stopSurvivalTimer();
+      renderSurvivalPanels();
+      renderSurvivalSetupStats();
+    }
     else if (currentMode === MODE_DAILY) {
       currentDailyDate = getTodayKey();
       currentDailyMonth = getMonthKey(currentDailyDate);
@@ -277,7 +955,11 @@ const PuzzleController = (function() {
     renderDailyControls();
 
     if (mode === MODE_SURVIVAL) {
-      setStatus('Survival ready. One miss ends the run.', 'neutral');
+      survivalActive = false;
+      stopSurvivalTimer();
+      setStatus('Pick a time mode and press Play to begin.', 'neutral');
+      renderSurvivalPanels();
+      renderSurvivalSetupStats();
     } else if (mode === MODE_CUSTOM) {
       setStatus('Custom puzzles ready. Adjust difficulty and opening, then load a puzzle.', 'neutral');
     } else if (mode === MODE_DAILY) {
@@ -328,8 +1010,14 @@ const PuzzleController = (function() {
     survivalWins = 0;
     survivalResults = [];
     survivalFailed = false;
+    survivalLives = 3;
+    survivalAttempts = 0;
+    survivalCorrect = 0;
+    survivalRecentRatings = [];
     renderWinCount();
     renderSurvivalSummary();
+    renderSurvivalLives();
+    renderSurvivalActiveStats();
     syncSummaryVisibility();
   }
 
@@ -338,7 +1026,13 @@ const PuzzleController = (function() {
     resetSurvivalState();
     currentPuzzle = null;
     isFinished = false;
-    setStatus('Survival started. One miss ends the run.', 'neutral');
+    survivalActive = true;
+    setSurvivalSetupTab('play');
+    renderSurvivalPanels();
+    renderSurvivalLives();
+    renderSurvivalActiveStats();
+    startSurvivalTimer();
+    setStatus(isTimedSurvivalMode() ? 'Run started — solve as many as you can!' : 'Endurance run started — no timer, three lives.', 'neutral');
     loadRandomPuzzle();
   }
 
@@ -414,8 +1108,57 @@ const PuzzleController = (function() {
     var dailyCard = document.getElementById('puzzleDailyCard');
     if (dailyCard) dailyCard.style.display = currentMode === MODE_DAILY ? 'block' : 'none';
 
+    var layout = document.getElementById('puzzleLayout');
+    if (layout) layout.setAttribute('data-puzzle-mode', currentMode);
+
+    var dailyHero = document.getElementById('puzzleDailyHero');
+    if (dailyHero) dailyHero.hidden = currentMode !== MODE_DAILY;
+
     updatePrimaryButton();
     renderWinCount();
+    renderDailyHero();
+  }
+
+  function renderDailyHero() {
+    var hero = document.getElementById('puzzleDailyHero');
+    if (!hero || hero.hidden) return;
+    var dateLabel = document.getElementById('puzzleDailyHeroDateLabel');
+    var titleEl = document.getElementById('puzzleDailyHeroTitle');
+    var prevBtn = document.getElementById('puzzleDailyHeroPrev');
+    var nextBtn = document.getElementById('puzzleDailyHeroNext');
+    var statusEl = document.getElementById('puzzleDailyHeroStatus');
+    var statusLabel = document.getElementById('puzzleDailyHeroStatusLabel');
+    var activeDate = currentDailyDate || getTodayKey();
+    var todayKey = getTodayKey();
+
+    if (dateLabel) dateLabel.textContent = formatDateLabel(activeDate);
+    if (nextBtn) nextBtn.disabled = activeDate >= todayKey;
+    if (prevBtn) prevBtn.disabled = false;
+
+    if (titleEl) {
+      var title = 'Daily Puzzle';
+      if (currentPuzzle && currentPuzzle.themes && currentPuzzle.themes.length) {
+        title = humanizeTheme(currentPuzzle.themes[0]);
+      }
+      titleEl.textContent = title;
+    }
+
+    if (statusEl && statusLabel) {
+      var entry = getDailyEntry(activeDate);
+      var status = entry && entry.status === 'solved' ? 'solved'
+        : entry && entry.status === 'missed' ? 'missed'
+        : 'unsolved';
+      statusEl.setAttribute('data-status', status);
+      statusLabel.textContent = status === 'solved' ? 'Solved'
+        : status === 'missed' ? 'Attempted — keep trying'
+        : 'Daily Puzzle';
+    }
+  }
+
+  function humanizeTheme(theme) {
+    if (!theme) return 'Daily Puzzle';
+    var spaced = String(theme).replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim();
+    return spaced.charAt(0).toUpperCase() + spaced.slice(1);
   }
 
   function toggleModeButton(id, active) {
@@ -738,6 +1481,8 @@ const PuzzleController = (function() {
     hintedProgressPlys = {};
     ratingPenaltyAppliedThisPuzzle = false;
     decisionHistory = [];
+    var resultCard = document.getElementById('puzzleResultCard');
+    if (resultCard) resultCard.classList.remove('is-daily-solved');
 
     var chess = new Chess();
     chess.load(puzzle.fen);
@@ -757,6 +1502,7 @@ const PuzzleController = (function() {
     renderPuzzleMeta();
     renderDailyControls();
     renderWinCount();
+    renderSurvivalActiveStats();
     animatePuzzleEntry();
     startTimer();
     setStatus(
@@ -811,6 +1557,7 @@ const PuzzleController = (function() {
     }
 
     metaEl.textContent = parts.join(' · ') || 'Solve the line to improve your puzzle Elo.';
+    renderDailyHero();
   }
 
   function applyUciMove(chess, uci) {
@@ -850,6 +1597,11 @@ const PuzzleController = (function() {
     var playedUci = moveToUci(move);
 
     if (playedUci !== expectedUci) {
+      if (currentMode === MODE_SURVIVAL) {
+        showMoveQualityFeedback(move, 'blunder');
+        finishPuzzle(false, move);
+        return;
+      }
       var quality = classifyUserMove(move, expectedUci);
       var penaltyResult = applyWrongMoveRatingPenalty(quality);
       showMoveQualityFeedback(move, quality);
@@ -1088,6 +1840,9 @@ const PuzzleController = (function() {
 
       if (currentMode === MODE_SURVIVAL) {
         survivalWins += 1;
+        survivalCorrect += 1;
+        survivalAttempts += 1;
+        pushSurvivalRatingResult(true);
         survivalResults.push({
           index: survivalWins,
           puzzleRating: currentPuzzle && currentPuzzle.rating ? currentPuzzle.rating : 0,
@@ -1095,12 +1850,17 @@ const PuzzleController = (function() {
           delta: ratingResult.delta
         });
         renderWinCount();
+        renderSurvivalActiveStats();
         setStatus(successText + ' Next puzzle loading...', 'success');
         primePuzzlePrefetch();
         scheduleSurvivalAdvance();
       } else if (currentMode === MODE_DAILY) {
         renderWinCount();
         setStatus(successText, 'success');
+        var resultCard = document.getElementById('puzzleResultCard');
+        if (resultCard) resultCard.classList.add('is-daily-solved');
+        renderDailyHero();
+        setTimeout(showCompletionModal, 650);
       } else {
         renderWinCount();
         setStatus(successText + ' Next puzzle loading...', 'success');
@@ -1111,17 +1871,23 @@ const PuzzleController = (function() {
       return;
     }
 
-    showHint();
     if (currentMode === MODE_SURVIVAL) {
-      survivalFailed = true;
-      renderWinCount();
-      renderSurvivalSummary();
-      syncSummaryVisibility();
-      setStatus('Survival over. You cleared ' + survivalWins + ' puzzle' + (survivalWins === 1 ? '' : 's') + '.', 'error');
-      updatePrimaryButton();
+      survivalAttempts += 1;
+      survivalLives = Math.max(0, survivalLives - 1);
+      pushSurvivalRatingResult(false);
+      renderSurvivalLives();
+      renderSurvivalActiveStats();
+      if (survivalLives <= 0) {
+        endSurvivalRun('lives');
+        return;
+      }
+      setStatus('Incorrect — ' + survivalLives + ' ' + (survivalLives === 1 ? 'life' : 'lives') + ' left. Loading next puzzle...', 'error');
+      primePuzzlePrefetch();
+      scheduleSurvivalAdvance();
       return;
     }
 
+    showHint();
     var failResult = ratingPenaltyAppliedThisPuzzle
       ? { delta: 0, speedBonus: 0 }
       : applyRatingResult(false, elapsedMs);
@@ -1311,7 +2077,7 @@ const PuzzleController = (function() {
 
     var visible = currentMode === MODE_SURVIVAL && survivalFailed;
     layoutEl.classList.toggle('has-summary', visible);
-    panelEl.style.display = visible ? 'flex' : 'none';
+    panelEl.style.display = currentMode === MODE_SURVIVAL ? 'flex' : (visible ? 'flex' : 'none');
   }
 
   function setStatus(message, tone) {
@@ -1371,6 +2137,7 @@ const PuzzleController = (function() {
       ' · Puzzle Elo ' + (entry.puzzle.rating || '—') +
       ' · ' + status +
       ' · Attempts ' + (entry.attempts || 0);
+    renderDailyHero();
   }
 
   function refreshDailyHomeCard() {
@@ -1633,6 +2400,13 @@ const PuzzleController = (function() {
     return safeDate.slice(0, 7);
   }
 
+  function shiftDateKey(dateKey, offsetDays) {
+    var safeDate = normalizeDateKey(dateKey) || getTodayKey();
+    var parts = safeDate.split('-');
+    var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10) + offsetDays);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
   function shiftMonthKey(monthKey, offset) {
     var safeMonth = /^\d{4}-\d{2}$/.test(String(monthKey || '')) ? String(monthKey) : getMonthKey(getTodayKey());
     var parts = safeMonth.split('-');
@@ -1733,7 +2507,8 @@ const PuzzleController = (function() {
     getMode: getMode,
     openDailyPuzzle: openDailyPuzzle,
     refreshDailyHomeCard: refreshDailyHomeCard,
-    preload: preloadClassicPuzzle
+    preload: preloadClassicPuzzle,
+    computeDailyStreak: computeDailyStreak
   };
 })();
 
