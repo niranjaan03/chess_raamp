@@ -3516,10 +3516,7 @@ body::after {
   transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
 }
 
-.review-nav-controls #btnPlay {
-  display: none;
-}
-
+.review-nav-controls #btnPlay:not(:disabled),
 .review-nav-controls #btnPrev:not(:disabled),
 .review-nav-controls #btnNext:not(:disabled),
 .review-nav-controls #btnFirst:not(:disabled),
@@ -3540,6 +3537,7 @@ body::after {
   color: #f6e7bf;
 }
 
+.review-nav-controls #btnPlay:not(:disabled):hover,
 .review-nav-controls #btnPrev:not(:disabled):hover,
 .review-nav-controls #btnNext:not(:disabled):hover,
 .review-nav-controls #btnFirst:not(:disabled):hover,
@@ -6375,10 +6373,6 @@ body::after {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-}
-
-.review-nav-controls #btnPlay {
-  display: none;
 }
 
 .review-nav-controls .nav-btn {

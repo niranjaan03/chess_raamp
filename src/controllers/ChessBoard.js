@@ -982,7 +982,20 @@ const ChessBoard = (function() {
   }
 
   function setReviewMoveQuality(layer) {
-    reviewQualityLayer = normalizeReviewQualityLayer(layer);
+    var next = normalizeReviewQualityLayer(layer);
+    // Idempotent: if the incoming layer matches the existing one, keep the
+    // current animation timeline. Otherwise the fade-in restarts on every
+    // banner refresh and the glow visibly flickers.
+    if (next && reviewQualityLayer
+      && reviewQualityLayer.square === next.square
+      && reviewQualityLayer.from === next.from
+      && reviewQualityLayer.to === next.to
+      && reviewQualityLayer.quality === next.quality) {
+      reviewQualityLayer.label = next.label;
+      reviewQualityLayer.visual = next.visual;
+      return;
+    }
+    reviewQualityLayer = next;
     if (currentPosition) drawBoard(currentPosition);
     scheduleReviewQualityAnimation();
   }

@@ -1321,7 +1321,7 @@ const HomeController = (function() {
       summaryMeta = 'Link your account on the Home tab, then sync the latest 3 months here.';
     } else if (state.loading) {
       summaryTitle = 'Fetching @' + username + ' games';
-      summaryMeta = 'Loading games from ' + archiveLabel + '.';
+      summaryMeta = '';
     } else if (state.error) {
       summaryTitle = 'Could not load ' + archiveLabel;
       summaryMeta = String(state.error);
@@ -1332,7 +1332,7 @@ const HomeController = (function() {
       summaryTitle = 'No ' + filterLabel.toLowerCase() + ' in ' + archiveLabel;
       summaryMeta = '@' + username + ' · ' + wins + '-' + losses + '-' + draws + ' · ' + reviewed + ' reviewed';
     } else if ((state.filter || 'all') === 'all') {
-      summaryTitle = total + ' game' + (total !== 1 ? 's' : '') + ' in ' + archiveLabel;
+      summaryTitle = total + ' game' + (total !== 1 ? 's' : '');
       summaryMeta = '@' + username + ' · ' + wins + '-' + losses + '-' + draws + ' · ' + reviewed + ' reviewed';
     } else {
       summaryTitle = filtered + ' ' + filterLabel.toLowerCase() + ' in ' + archiveLabel;

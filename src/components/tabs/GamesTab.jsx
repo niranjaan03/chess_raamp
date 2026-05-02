@@ -13,7 +13,7 @@ export default function GamesTab({ onFetchLatest }) {
             </div>
             <div className="games-tab-controls" id="gamesTabControls" style={{ display: 'none' }}>
               <div className="games-tab-user" id="gamesTabUser"></div>
-              <button type="button" className="btn-sm-green" id="gamesTabFetch" onClick={onFetchLatest}>Sync 3 Months</button>
+              <button type="button" className="btn-sm-green" id="gamesTabFetch" onClick={onFetchLatest}>Sync</button>
             </div>
           </div>
 

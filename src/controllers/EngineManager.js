@@ -124,7 +124,13 @@ const EngineManager = (function() {
   }
 
   function getDefaultEngineCandidate() {
-    return ENGINE_CANDIDATES.find(canRunEngine) || ENGINE_CANDIDATES[0];
+    // Prefer the strongest single-thread build for auto mode. The threaded
+    // browser worker is available as an explicit power-user option, but it is
+    // much easier to overload during full-game review because each review can
+    // run several workers at once.
+    return ENGINE_CANDIDATES.find(function(engine) {
+      return !engine.requiresSharedArrayBuffer && canRunEngine(engine);
+    }) || ENGINE_CANDIDATES.find(canRunEngine) || ENGINE_CANDIDATES[0];
   }
 
   function getHardwareConcurrency() {
@@ -290,7 +296,11 @@ const EngineManager = (function() {
       var finished = false;
       var timeout = setTimeout(function() {
         cleanup();
-        reject(new Error('Stockfish browser worker timed out'));
+        try { self.worker.postMessage('stop'); } catch { /* worker may already be gone */ }
+        var timeoutError = new Error(self.engine.label + ' worker timed out');
+        timeoutError.code = 'STOCKFISH_TIMEOUT';
+        timeoutError.engineId = self.engine.id;
+        reject(timeoutError);
       }, timeoutMs || 15000);
 
       function cleanup() {
@@ -438,6 +448,7 @@ const EngineManager = (function() {
         }
       });
     }).then(function() {
+      self.searching = false;
       var lines = Array.from(linesByPv.values()).sort(function(a, b) {
         return a.line - b.line;
       });
@@ -448,6 +459,10 @@ const EngineManager = (function() {
         bestmove: bestmove,
         lines: lines
       };
+    }).catch(function(err) {
+      self.searching = false;
+      try { self.worker.postMessage('stop'); } catch { /* worker may already be gone */ }
+      throw err;
     });
   };
 
@@ -707,6 +722,21 @@ const EngineManager = (function() {
                 run: run
               }).then(function(result) {
                 results[index] = result;
+                completed++;
+                if (typeof onProgress === 'function') onProgress(completed, total);
+              }).catch(function(err) {
+                // A worker crash should abort the whole batch so the fallback
+                // engine can take over. A per-position timeout is recoverable —
+                // record the miss and keep grinding through the rest.
+                if (worker.crashed) throw err;
+                results[index] = {
+                  ok: false,
+                  engineId: worker.engine && worker.engine.id,
+                  engine: worker.engine && worker.engine.label,
+                  error: (err && err.message) || 'engine error',
+                  bestmove: null,
+                  lines: []
+                };
                 completed++;
                 if (typeof onProgress === 'function') onProgress(completed, total);
               });

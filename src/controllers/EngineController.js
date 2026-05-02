@@ -57,9 +57,9 @@ const EngineController = (function() {
   function getReviewProfile(totalPositions, strength, options) {
     var normalized = REVIEW_STRENGTHS.indexOf(strength) !== -1 ? strength : 'fast';
     var profiles = {
-      fast: { movetimeMs: 1000, depth: 12, concurrency: 4, threadsPerEngine: 2 },
-      balanced: { movetimeMs: 3000, depth: 16, concurrency: 3, threadsPerEngine: 2 },
-      slow: { movetimeMs: 7000, depth: 20, concurrency: 2, threadsPerEngine: 3 }
+      fast: { movetimeMs: 900, depth: 12, concurrency: 2, threadsPerEngine: 1 },
+      balanced: { movetimeMs: 2500, depth: 15, concurrency: 2, threadsPerEngine: 1 },
+      slow: { movetimeMs: 5000, depth: 18, concurrency: 1, threadsPerEngine: 1 }
     };
     var profile = Object.assign({}, profiles[normalized]);
     if (options && options.depth) profile.depth = Math.max(8, Math.min(18, parseInt(options.depth, 10) || profile.depth));

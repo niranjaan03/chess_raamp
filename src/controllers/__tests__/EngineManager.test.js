@@ -95,7 +95,8 @@ describe('EngineManager browser Stockfish', () => {
     expect(status.mode).toBe('browser-wasm');
     expect(status.local).toBe(true);
     expect(status.engine).toContain('Stockfish 18');
-    expect(FakeStockfishWorker.instances[0].url).toContain('/engines/stockfish-18/stockfish.js');
+    expect(status.engineId).toBe('sf18-full');
+    expect(FakeStockfishWorker.instances[0].url).toContain('/engines/stockfish-18/stockfish-18-single-6563532.js');
   });
 
   it('falls back to the strongest single-thread engine when shared-memory threads are unavailable', async () => {
