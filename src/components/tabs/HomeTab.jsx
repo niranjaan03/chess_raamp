@@ -27,16 +27,25 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
             </div>
             <div className="home-hero-stats" aria-label="Home overview">
               <div className="hero-stat-card">
-                <span className="hero-stat-value" id="hmStatGames">0</span>
-                <span className="hero-stat-label">Games saved</span>
+                <span className="hero-stat-value" id="hmHeroBullet">—</span>
+                <span className="hero-stat-label">
+                  <span className="hero-stat-icon hero-stat-icon-bullet" aria-hidden="true">&#9679;</span>
+                  <span>Bullet</span>
+                </span>
               </div>
               <div className="hero-stat-card">
-                <span className="hero-stat-value">18</span>
-                    <span className="hero-stat-label">Browser engine</span>
+                <span className="hero-stat-value" id="hmHeroRapid">—</span>
+                <span className="hero-stat-label">
+                  <span className="hero-stat-icon hero-stat-icon-rapid" aria-hidden="true">&#9201;</span>
+                  <span>Rapid</span>
+                </span>
               </div>
               <div className="hero-stat-card">
-                <span className="hero-stat-value">3</span>
-                <span className="hero-stat-label">Rating pools</span>
+                <span className="hero-stat-value" id="hmHeroBlitz">—</span>
+                <span className="hero-stat-label">
+                  <span className="hero-stat-icon hero-stat-icon-blitz" aria-hidden="true">&#9889;</span>
+                  <span>Blitz</span>
+                </span>
               </div>
             </div>
           </div>
@@ -100,114 +109,6 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
             <div className="home-card">
               <div className="hc-header">
                 <div className="hc-title-group">
-                  <span className="hc-title">My Profile</span>
-                  <span className="hc-subtitle">Engine preferences and linked handles</span>
-                </div>
-                <button type="button" className="hc-edit-btn" id="editProfileToggle">
-                  Edit
-                </button>
-              </div>
-              <div id="profileViewMode">
-                <div className="profile-display">
-                  <div className="profile-avatar-home">
-                    <span id="profileInitials">KV</span>
-                  </div>
-                  <div className="profile-info-home">
-                    <div className="profile-display-name" id="profileDisplayNameView">
-                      Guest
-                    </div>
-                    <div className="profile-accounts-row">
-                      <span className="account-chip chesscom-chip" id="chesscomChip" style={{ display: 'none' }}>
-                        &#9823; <span id="chesscomChipName"></span>
-                      </span>
-                      <span className="account-chip lichess-chip" id="lichessChip" style={{ display: 'none' }}>
-                        &#9820; <span id="lichessChipName"></span>
-                      </span>
-                      <span className="account-chip no-chip" id="noAccountsChip">
-                        No accounts linked
-                      </span>
-                    </div>
-                    <div className="profile-engine-row">
-                      Engine: <span id="profileEngineView">Selectable Browser Stockfish</span> · Depth:{' '}
-                      <span id="profileDepthView">20</span>
-                    </div>
-                  </div>
-                  <div className="profile-streak-row" id="profileStreakRow" aria-label="Visit streak">
-                    <span className="profile-streak-icon" aria-hidden="true">&#128293;</span>
-                    <div className="profile-streak-copy">
-                      <span className="profile-streak-value" id="profileStreakValue">1</span>
-                      <span className="profile-streak-label">day streak</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="profile-rating-stats">
-                  <div className="profile-rating-head">
-                    <span className="profile-rating-title">Chess.com Ratings</span>
-                    <span className="profile-rating-user" id="hmChesscomStatsUser">Not linked</span>
-                  </div>
-                  <div className="profile-rating-grid">
-                    <div className="psm-box">
-                      <div className="psm-num" id="hmStatBullet">—</div>
-                      <div className="psm-label">
-                        <span className="psm-label-icon psm-label-icon-bullet" aria-hidden="true">&#9679;</span>
-                        <span>Bullet</span>
-                      </div>
-                    </div>
-                    <div className="psm-box">
-                      <div className="psm-num" id="hmStatBlitz">—</div>
-                      <div className="psm-label">
-                        <span className="psm-label-icon psm-label-icon-blitz" aria-hidden="true">&#9889;</span>
-                        <span>Blitz</span>
-                      </div>
-                    </div>
-                    <div className="psm-box">
-                      <div className="psm-num" id="hmStatRapid">—</div>
-                      <div className="psm-label">
-                        <span className="psm-label-icon psm-label-icon-rapid" aria-hidden="true">&#9201;</span>
-                        <span>Rapid</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div id="profileEditMode" style={{ display: 'none' }}>
-                <div className="edit-form-grid">
-                  <div className="form-group">
-                    <label htmlFor="profileDisplayName">Display Name</label>
-                    <input
-                      type="text"
-                      id="profileDisplayName"
-                      className="dark-input full-width"
-                      placeholder="Your name"
-                      defaultValue=""
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Engine</label>
-                    <div className="settings-static-value settings-static-full">Selectable Browser Stockfish</div>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="prefDepth">Depth</label>
-                    <input
-                      type="number"
-                      min="8"
-                      max="40"
-                      id="prefDepth"
-                      className="dark-input full-width"
-                      defaultValue="20"
-                    />
-                  </div>
-                </div>
-                <button type="button" className="btn-full" id="saveProfile">
-                  Save Profile
-                </button>
-                <div className="save-status" id="saveStatus"></div>
-              </div>
-            </div>
-
-            <div className="home-card">
-              <div className="hc-header">
-                <div className="hc-title-group">
                   <span className="hc-title">Saved Profiles</span>
                   <span className="hc-subtitle">Switch between study setups</span>
                 </div>
@@ -217,6 +118,48 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
               </div>
               <div className="saved-profiles-list" id="savedProfilesList">
                 <div className="no-data">No saved profiles yet.</div>
+              </div>
+            </div>
+
+            <div className="home-card home-practice-card">
+              <div className="hc-header">
+                <div className="hc-title-group">
+                  <span className="hc-title">Practice</span>
+                  <span className="hc-subtitle">Opening lines and spaced repetition</span>
+                </div>
+                <button
+                  type="button"
+                  className="hc-edit-btn"
+                  onClick={() => onSwitchTab('openings')}
+                >
+                  Open
+                </button>
+              </div>
+              <div className="home-practice-body">
+                <div className="home-practice-stats">
+                  <div className="home-practice-stat">
+                    <span className="home-practice-stat-value" id="homePracticeDue">0</span>
+                    <span className="home-practice-stat-label">Due to review</span>
+                  </div>
+                  <div className="home-practice-stat">
+                    <span className="home-practice-stat-value" id="homePracticeMastered">0</span>
+                    <span className="home-practice-stat-label">Mastered</span>
+                  </div>
+                  <div className="home-practice-stat">
+                    <span className="home-practice-stat-value" id="homePracticeTracked">0</span>
+                    <span className="home-practice-stat-label">Tracked openings</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="home-practice-cta"
+                  onClick={() => onSwitchTab('openings')}
+                >
+                  <span>Start practicing</span>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 12h14m0 0l-6-6m6 6l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
               </div>
             </div>
 

@@ -3,10 +3,16 @@ const RAW_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && i
   : '';
 const CLEAN_BASE_URL = (!RAW_BASE_URL || RAW_BASE_URL === '/') ? '' : RAW_BASE_URL.replace(/\/$/, '');
 
-const MOVE_SOUND_SOURCES = {
-  classic: (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/chess-move.ogg',
-  premium: (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/premium-chime.wav',
-  glass: (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/glass-bell.wav'
+const SOUND_SOURCES = {
+  move: (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/move.mp3',
+  capture: (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/capture.mp3',
+  error: (CLEAN_BASE_URL ? CLEAN_BASE_URL : '') + '/sounds/error.mp3'
+};
+
+const MOVE_SOUND_STYLES = {
+  classic: 'move',
+  premium: 'move',
+  glass: 'move'
 };
 
 const MOVE_SOUND_KEY = 'kv_move_sound_enabled';
@@ -17,7 +23,7 @@ const SoundController = (function() {
   var enabled = false;
   var soundStyle = 'classic';
   var audioContext = null;
-  var moveBuffers = {};
+  var soundBuffers = {};
   var fallbackAudios = {};
 
   function init() {
@@ -32,9 +38,9 @@ const SoundController = (function() {
 
   function createFallbackAudios() {
     if (typeof Audio === 'undefined') return;
-    Object.keys(MOVE_SOUND_SOURCES).forEach(function(style) {
-      fallbackAudios[style] = new Audio(MOVE_SOUND_SOURCES[style]);
-      fallbackAudios[style].preload = 'auto';
+    Object.keys(SOUND_SOURCES).forEach(function(type) {
+      fallbackAudios[type] = new Audio(SOUND_SOURCES[type]);
+      fallbackAudios[type].preload = 'auto';
     });
   }
 
@@ -49,8 +55,8 @@ const SoundController = (function() {
   function preloadMoveSounds() {
     var ctx = ensureAudioContext();
     if (!ctx || typeof fetch !== 'function') return;
-    Object.keys(MOVE_SOUND_SOURCES).forEach(function(style) {
-      fetch(MOVE_SOUND_SOURCES[style])
+    Object.keys(SOUND_SOURCES).forEach(function(type) {
+      fetch(SOUND_SOURCES[type])
         .then(function(response) {
           if (!response.ok) throw new Error('Sound fetch failed');
           return response.arrayBuffer();
@@ -59,7 +65,7 @@ const SoundController = (function() {
           return ctx.decodeAudioData(buffer.slice(0));
         })
         .then(function(decoded) {
-          moveBuffers[style] = decoded;
+          soundBuffers[type] = decoded;
         })
         .catch(function() {
           /* Fallback audio element is enough if decode fails */
@@ -96,7 +102,7 @@ const SoundController = (function() {
     if (typeof window === 'undefined') return 'classic';
     try {
       var saved = localStorage.getItem(MOVE_SOUND_STYLE_KEY);
-      if (saved && Object.keys(MOVE_SOUND_SOURCES).indexOf(saved) !== -1) return saved;
+      if (saved && Object.keys(MOVE_SOUND_STYLES).indexOf(saved) !== -1) return saved;
       return 'classic';
     } catch (e) {
       return 'classic';
@@ -117,9 +123,22 @@ const SoundController = (function() {
     } catch { /* storage full */ }
   }
 
-  function playBufferedMove() {
+  function normalizeSoundType(type) {
+    return Object.keys(SOUND_SOURCES).indexOf(type) !== -1 ? type : 'move';
+  }
+
+  function isCaptureMove(moveInfo) {
+    if (!moveInfo) return false;
+    if (moveInfo.captured) return true;
+    if (moveInfo.san && String(moveInfo.san).indexOf('x') !== -1) return true;
+    if (moveInfo.flags && /[ce]/.test(String(moveInfo.flags))) return true;
+    return false;
+  }
+
+  function playBufferedSound(type) {
+    type = normalizeSoundType(type);
     var ctx = ensureAudioContext();
-    var buffer = moveBuffers[soundStyle];
+    var buffer = soundBuffers[type];
     if (!ctx || !buffer || ctx.state !== 'running') return false;
     var source = ctx.createBufferSource();
     var gain = ctx.createGain();
@@ -131,8 +150,9 @@ const SoundController = (function() {
     return true;
   }
 
-  function playFallbackMove() {
-    var fallback = fallbackAudios[soundStyle];
+  function playFallbackSound(type) {
+    type = normalizeSoundType(type);
+    var fallback = fallbackAudios[type];
     if (!fallback) return;
     try {
       var sound = fallback.cloneNode();
@@ -144,21 +164,34 @@ const SoundController = (function() {
     } catch { /* audio unavailable */ }
   }
 
-  function playMove() {
+  function playSound(type) {
     if (!enabled) return;
     init();
+    type = normalizeSoundType(type);
     var ctx = ensureAudioContext();
     if (ctx && ctx.state !== 'running') {
       ctx.resume()
         .then(function() {
-          if (!playBufferedMove()) playFallbackMove();
+          if (!playBufferedSound(type)) playFallbackSound(type);
         })
         .catch(function() {
-          playFallbackMove();
+          playFallbackSound(type);
         });
       return;
     }
-    if (!playBufferedMove()) playFallbackMove();
+    if (!playBufferedSound(type)) playFallbackSound(type);
+  }
+
+  function playMove(moveInfo) {
+    playSound(isCaptureMove(moveInfo) ? 'capture' : 'move');
+  }
+
+  function playCapture() {
+    playSound('capture');
+  }
+
+  function playError() {
+    playSound('error');
   }
 
   function setEnabled(value) {
@@ -172,7 +205,7 @@ const SoundController = (function() {
   }
 
   function setSoundStyle(style) {
-    if (Object.keys(MOVE_SOUND_SOURCES).indexOf(style) !== -1) {
+    if (Object.keys(MOVE_SOUND_STYLES).indexOf(style) !== -1) {
       soundStyle = style;
       persistSoundStylePreference(style);
     }
@@ -185,6 +218,8 @@ const SoundController = (function() {
   return {
     init: init,
     playMove: playMove,
+    playCapture: playCapture,
+    playError: playError,
     setEnabled: setEnabled,
     isEnabled: isEnabled,
     setSoundStyle: setSoundStyle,

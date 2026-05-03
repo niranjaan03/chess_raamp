@@ -350,6 +350,33 @@ const HomeController = (function() {
     try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch { /* corrupt data – start with empty db */ }
     var g = document.getElementById('hmStatGames');
     if (g) g.textContent = db.length;
+    updatePracticeStats();
+  }
+
+  function updatePracticeStats() {
+    var dueEl = document.getElementById('homePracticeDue');
+    var masteredEl = document.getElementById('homePracticeMastered');
+    var trackedEl = document.getElementById('homePracticeTracked');
+    if (!dueEl && !masteredEl && !trackedEl) return;
+
+    var srs = {};
+    try { srs = JSON.parse(localStorage.getItem('kv_opening_srs_v1') || '{}'); } catch { /* corrupt */ }
+
+    var now = Date.now();
+    var due = 0;
+    var mastered = 0;
+    var tracked = 0;
+    Object.keys(srs).forEach(function(k) {
+      var r = srs[k];
+      if (!r || !r.reps) return;
+      tracked++;
+      if (r.dueDate && r.dueDate <= now) due++;
+      if ((r.interval || 0) >= 21) mastered++;
+    });
+
+    if (dueEl) dueEl.textContent = String(due);
+    if (masteredEl) masteredEl.textContent = String(mastered);
+    if (trackedEl) trackedEl.textContent = String(tracked);
   }
 
   function setChesscomRatingsState(values, username) {
@@ -357,10 +384,20 @@ const HomeController = (function() {
     var blitzEl = document.getElementById('hmStatBlitz');
     var rapidEl = document.getElementById('hmStatRapid');
     var userEl = document.getElementById('hmChesscomStatsUser');
+    var heroBulletEl = document.getElementById('hmHeroBullet');
+    var heroBlitzEl = document.getElementById('hmHeroBlitz');
+    var heroRapidEl = document.getElementById('hmHeroRapid');
 
-    if (bulletEl) bulletEl.textContent = values && values.bullet ? values.bullet : '—';
-    if (blitzEl) blitzEl.textContent = values && values.blitz ? values.blitz : '—';
-    if (rapidEl) rapidEl.textContent = values && values.rapid ? values.rapid : '—';
+    var bulletText = values && values.bullet ? values.bullet : '—';
+    var blitzText = values && values.blitz ? values.blitz : '—';
+    var rapidText = values && values.rapid ? values.rapid : '—';
+
+    if (bulletEl) bulletEl.textContent = bulletText;
+    if (blitzEl) blitzEl.textContent = blitzText;
+    if (rapidEl) rapidEl.textContent = rapidText;
+    if (heroBulletEl) heroBulletEl.textContent = bulletText;
+    if (heroBlitzEl) heroBlitzEl.textContent = blitzText;
+    if (heroRapidEl) heroRapidEl.textContent = rapidText;
     if (userEl) userEl.textContent = username ? '@' + username : 'Not linked';
   }
 

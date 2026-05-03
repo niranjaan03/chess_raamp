@@ -2209,7 +2209,7 @@ const OpeningPracticeController = (function () {
     currentMoveIndex = learnMoveIndex;
     ChessBoard.setPosition(practiceChess);
     ChessBoard.setLastMove(result.from, result.to);
-    SoundController.playMove();
+    SoundController.playMove(result);
     updatePracticeProgress();
     renderPracticeMoveList();
     updateCoachPanel(false);
@@ -2490,7 +2490,7 @@ const OpeningPracticeController = (function () {
         awardArenaMoveScore();
       }
       currentMoveIndex++;
-      SoundController.playMove();
+      SoundController.playMove(moveResult);
       updatePracticeProgress();
       renderPracticeMoveList();
       updateCoachPanel(false);
@@ -2540,7 +2540,7 @@ const OpeningPracticeController = (function () {
       currentMoveIndex++;
       ChessBoard.setPosition(practiceChess);
       ChessBoard.setLastMove(result.from, result.to);
-      SoundController.playMove();
+      SoundController.playMove(result);
       if (practiceMode === 'time' && practiceChess.turn() === userColor) {
         resetTimeModeMoveClock();
       }
@@ -2611,7 +2611,7 @@ const OpeningPracticeController = (function () {
     if (history.length > 0) {
       var last = history[history.length - 1];
       ChessBoard.setLastMove(last.from, last.to);
-      SoundController.playMove();
+      SoundController.playMove(last);
     } else {
       ChessBoard.setLastMove(null, null);
     }
@@ -2850,13 +2850,14 @@ const OpeningPracticeController = (function () {
       ChessBoard.clearMarkers();
       updateCoachPanelForPuzzle('wrong');
       showPracticeStatus('error', 'Not the puzzle move. Try again.');
+      SoundController.playError();
       // Allow another attempt immediately after a short pause.
       setTimeout(function () { puzzleState.awaitingRetry = false; }, 150);
       return;
     }
 
     // Correct move.
-    SoundController.playMove();
+    SoundController.playMove(moveResult);
     puzzleState.progressPly += 1;
     ChessBoard.clearArrows();
 
@@ -2873,7 +2874,7 @@ const OpeningPracticeController = (function () {
       puzzleState.progressPly += 1;
       ChessBoard.setPosition(puzzleState.chess);
       ChessBoard.setLastMove(replyMove.from, replyMove.to);
-      setTimeout(function () { SoundController.playMove(); }, 140);
+      setTimeout(function () { SoundController.playMove(replyMove); }, 140);
     }
 
     if (puzzleState.progressPly >= solutionMoves.length) {

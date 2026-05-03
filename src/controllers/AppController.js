@@ -1953,7 +1953,7 @@ const AppController = (function() {
     // Set last move highlight
     if (pos.move && currentMoveIndex > 0) {
       ChessBoard.setLastMove(pos.move.from, pos.move.to);
-      SoundController.playMove();
+      SoundController.playMove(pos.move);
     } else {
       ChessBoard.setLastMove(null, null);
     }
@@ -2495,7 +2495,7 @@ const AppController = (function() {
     };
     sandboxState.variation.moves.push(entry);
     ChessBoard.setLastMove(move.from, move.to);
-    SoundController.playMove();
+    SoundController.playMove(move);
     renderAnalysisSandbox();
     updateFenDisplay();
     updateOpeningDisplay();
@@ -2650,7 +2650,7 @@ const AppController = (function() {
       chess.load(fen);
 
       ChessBoard.setLastMove(move.from, move.to);
-      SoundController.playMove();
+      SoundController.playMove(move);
       updateMovesList();
       updateActiveMoveHighlight();
       updateFenDisplay();
@@ -2684,7 +2684,7 @@ const AppController = (function() {
     
     ChessBoard.setLastMove(move.from, move.to);
     updateAnalyzePlayerInfo(null, getAnalyzeBottomColor());
-    SoundController.playMove();
+    SoundController.playMove(move);
     updateMovesList();
     updateActiveMoveHighlight();
     updateFenDisplay();

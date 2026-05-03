@@ -1137,9 +1137,9 @@ function renderPerformanceSummary(filtered, allPeriod) {
   const { winPct, total } = aggWLD(filtered);
   const wr = Math.round(winPct);
   if (total >= 5) {
-    const wColor = wr >= 55 ? '#4caf7d' : wr >= 45 ? '#d4af37' : '#ef5350';
+    const wKind = wr >= 55 ? 'good' : wr >= 45 ? 'warn' : 'bad';
     const wNote = wr >= 55 ? 'Strong result — keep the pressure up.' : wr >= 45 ? 'Hovering near 50/50 — small adjustments could tip the scale.' : 'Below break-even — focus on avoiding early blunders.';
-    insights.push({ icon: '&#9989;', text: `You won <strong style="color:${wColor}">${wr}%</strong> of ${total} games in this period. ${wNote}` });
+    insights.push({ kind: wKind, label: 'Win Rate', metric: `${wr}%`, sub: `${total} games`, icon: 'trophy', text: `${wNote}` });
   }
 
   // 2. Best time control
@@ -1147,9 +1147,9 @@ function renderPerformanceSummary(filtered, allPeriod) {
   if (tcData.length >= 2) {
     const best = tcData.reduce((a, b) => b.winRate > a.winRate ? b : a);
     const worst = tcData.reduce((a, b) => b.winRate < a.winRate ? b : a);
-    const tcColors = { rapid: '#4caf7d', blitz: '#d4af37', bullet: '#ef5350', daily: '#a78bfa' };
     if (best.tc !== worst.tc) {
-      insights.push({ icon: '&#9201;', text: `Your strongest format is <strong style="color:${tcColors[best.tc] || '#d4af37'}">${best.tc.charAt(0).toUpperCase() + best.tc.slice(1)}</strong> (${Math.round(best.winRate)}% wins). Consider playing more of it to grind rating.` });
+      const tcName = best.tc.charAt(0).toUpperCase() + best.tc.slice(1);
+      insights.push({ kind: 'info', label: 'Best Format', metric: tcName, sub: `${Math.round(best.winRate)}% win rate`, icon: 'clock', text: 'Consider playing more of it to grind rating.' });
     }
   }
 
@@ -1160,10 +1160,10 @@ function renderPerformanceSummary(filtered, allPeriod) {
     const last = ratedGames[ratedGames.length - 1].rating;
     const diff = last - first;
     const sign = diff >= 0 ? '+' : '';
-    const rColor = diff > 0 ? '#4caf7d' : diff < 0 ? '#ef5350' : '#888';
     if (Math.abs(diff) >= 5) {
+      const rKind = diff > 25 ? 'good' : diff > 0 ? 'good' : diff < -25 ? 'bad' : 'warn';
       const note = diff > 25 ? 'Excellent momentum — you\'re improving fast.' : diff > 0 ? 'Steady climb — consistency is paying off.' : diff < -25 ? 'Significant rating drop — review your most common loss patterns.' : 'Slight dip — a short break or opening study could help.';
-      insights.push({ icon: '&#128200;', text: `Rating moved <strong style="color:${rColor}">${sign}${diff} pts</strong> (${first} → ${last}) in this period. ${note}` });
+      insights.push({ kind: rKind, label: 'Rating Trend', metric: `${sign}${diff}`, sub: `${first} → ${last}`, icon: 'trend', text: note });
     }
   }
 
@@ -1173,7 +1173,7 @@ function renderPerformanceSummary(filtered, allPeriod) {
     const bestDay = dowData.reduce((a, b) => b.winRate > a.winRate ? b : a);
     const worstDay = dowData.reduce((a, b) => b.winRate < a.winRate ? b : a);
     if (bestDay.day !== worstDay.day && bestDay.winRate - worstDay.winRate > 8) {
-      insights.push({ icon: '&#128197;', text: `You play best on <strong style="color:#d4af37">${bestDay.day}</strong> (${Math.round(bestDay.winRate)}% win rate) and struggle most on <strong style="color:#ef5350">${worstDay.day}</strong> (${Math.round(worstDay.winRate)}%). Schedule your important games accordingly.` });
+      insights.push({ kind: 'info', label: 'Day-of-Week Edge', metric: bestDay.day, sub: `worst: ${worstDay.day} (${Math.round(worstDay.winRate)}%)`, icon: 'calendar', text: `You win <strong>${Math.round(bestDay.winRate)}%</strong> on ${bestDay.day} — schedule important games accordingly.` });
     }
   }
 
@@ -1188,19 +1188,47 @@ function renderPerformanceSummary(filtered, allPeriod) {
       const stronger = wPct > bPct ? 'White' : 'Black';
       const weaker = wPct > bPct ? 'Black' : 'White';
       const weakerPct = wPct > bPct ? bPct : wPct;
-      insights.push({ icon: '&#9823;', text: `You win ${gap}% more often as <strong style="color:#d4af37">${stronger}</strong> than ${weaker} (${weakerPct}%). Study your ${weaker} repertoire to close the gap.` });
+      insights.push({ kind: 'warn', label: 'Color Gap', metric: `${gap}%`, sub: `${stronger} > ${weaker} (${weakerPct}%)`, icon: 'pawn', text: `Study your <strong>${weaker}</strong> repertoire to close the gap.` });
     }
   }
 
   if (!insights.length) { e.innerHTML = ''; return; }
 
+  const iconSvg = (name) => {
+    const paths = {
+      trophy: '<path d="M8 4h8v3a4 4 0 1 1-8 0V4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 6h3M16 6h3M10 13v3M14 13v3M9 19h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+      clock: '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+      trend: '<path d="M4 17l6-6 4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 8h6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+      calendar: '<rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M4 9h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+      pawn: '<circle cx="12" cy="7" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M9 11h6l-1 4h2v3H8v-3h2l-1-4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">${paths[name] || ''}</svg>`;
+  };
+
   e.innerHTML = `
     <div class="pa-insights-header">
-      <span class="pa-insights-icon">&#129504;</span>
-      <div><div class="pa-insights-title">Performance Summary</div><div class="pa-insights-sub">Key takeaways from your games in this period</div></div>
+      <span class="pa-insights-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3a5 5 0 0 0-3 9c1 .8 1.5 1.5 1.5 3v1h3v-1c0-1.5.5-2.2 1.5-3a5 5 0 0 0-3-9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 19h4M10.5 21h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </span>
+      <div class="pa-insights-head-copy">
+        <div class="pa-insights-title">Performance Summary</div>
+        <div class="pa-insights-sub">Key takeaways from your games in this period</div>
+      </div>
+      <div class="pa-insights-count">${insights.length} signals</div>
     </div>
     <div class="pa-insights-list">
-      ${insights.map(ins => `<div class="pa-insight-item"><span class="pa-insight-icon">${ins.icon}</span><span class="pa-insight-text">${ins.text}</span></div>`).join('')}
+      ${insights.map(ins => `
+        <div class="pa-insight-item" data-kind="${ins.kind}">
+          <span class="pa-insight-glyph">${iconSvg(ins.icon)}</span>
+          <div class="pa-insight-body">
+            <div class="pa-insight-top">
+              <span class="pa-insight-label">${ins.label}</span>
+              <span class="pa-insight-metric">${ins.metric}</span>
+              <span class="pa-insight-sub">${ins.sub}</span>
+            </div>
+            <div class="pa-insight-text">${ins.text}</div>
+          </div>
+        </div>`).join('')}
     </div>`;
   });
 }

@@ -1611,6 +1611,7 @@ const PuzzleController = (function() {
         ? ' Puzzle Elo ' + penaltyResult.delta + '.'
         : '';
       setStatus(getQualityLabel(quality) + '. That was not the puzzle move.' + penaltyText + ' Use Try Again.', 'error');
+      SoundController.playError();
       return;
     }
 
@@ -1619,7 +1620,7 @@ const PuzzleController = (function() {
     awaitingRetry = false;
     currentProgressPly += 1;
     clearHint();
-    SoundController.playMove();
+    SoundController.playMove(move);
     showMoveQualityFeedback(move, classifyUserMove(move, expectedUci));
 
     if (currentProgressPly >= getSolutionMoves().length) {
@@ -1754,7 +1755,7 @@ const PuzzleController = (function() {
 
     if (lastReplyMove) {
       setTimeout(function() {
-        SoundController.playMove();
+        SoundController.playMove(lastReplyMove);
       }, 140);
     }
 

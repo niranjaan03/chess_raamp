@@ -6,12 +6,48 @@ export default function PlayerAnalyzeTab() {
       <div className="pa-layout">
 
         <div className="pa-hero">
-          <h1 className="pa-hero-title">Player Analyze</h1>
-          <p className="pa-hero-sub">Find rating leaks, opening weaknesses, and recurring loss patterns from recent games</p>
-          <div className="pa-search-row">
-            <input type="text" id="paUsernameInput" className="pa-search-input"
-              placeholder="Enter Chess.com username or @handle..." autoComplete="off" />
-            <button type="button" id="paAnalyzeBtn" className="pa-search-btn">Analyze &#9889;</button>
+          <div className="pa-hero-orbits" aria-hidden="true">
+            <span className="pa-hero-orbit pa-hero-orbit-1" />
+            <span className="pa-hero-orbit pa-hero-orbit-2" />
+            <span className="pa-hero-orbit pa-hero-orbit-3" />
+          </div>
+          <div className="pa-hero-eyebrow">
+            <span className="pa-hero-eyebrow-dot" aria-hidden="true" />
+            Performance Intelligence
+          </div>
+          <div className="pa-hero-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M3 17l5-5 4 4 8-8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M14 8h6v6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h1 className="pa-hero-title">
+            <span className="pa-hero-title-grad">Player Analyze</span>
+          </h1>
+          <p className="pa-hero-sub">Find rating leaks, opening weaknesses, and recurring loss patterns from recent games.</p>
+          <div className="pa-search-card">
+            <form className="pa-search-row" onSubmit={(e) => { e.preventDefault(); document.getElementById('paAnalyzeBtn').click(); }}>
+              <span className="pa-search-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+                  <path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </span>
+              <input type="text" id="paUsernameInput" className="pa-search-input"
+                placeholder="Chess.com username or @handle" autoComplete="off" />
+              <button type="submit" id="paAnalyzeBtn" className="pa-search-btn">
+                <span>Analyze</span>
+                <svg className="pa-search-btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+                </svg>
+              </button>
+            </form>
+            <div className="pa-search-hint">
+              <span>Try</span>
+              <button type="button" className="pa-search-chip" onClick={() => { var i = document.getElementById('paUsernameInput'); if (i) { i.value = 'magnuscarlsen'; i.focus(); } }}>magnuscarlsen</button>
+              <button type="button" className="pa-search-chip" onClick={() => { var i = document.getElementById('paUsernameInput'); if (i) { i.value = 'hikaru'; i.focus(); } }}>hikaru</button>
+              <button type="button" className="pa-search-chip" onClick={() => { var i = document.getElementById('paUsernameInput'); if (i) { i.value = 'gothamchess'; i.focus(); } }}>gothamchess</button>
+            </div>
           </div>
         </div>
 
