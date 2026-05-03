@@ -1741,15 +1741,56 @@ body::after {
 
 .home-action-tile:hover {
   transform: translateY(-2px);
-  border-color: rgba(247, 197, 68, 0.28);
+}
+
+.home-action-tile:nth-child(1):hover {
+  border-color: rgba(247, 197, 68, 0.55);
   background:
-    linear-gradient(180deg, rgba(64, 61, 56, 0.98), rgba(39, 39, 37, 0.96));
+    linear-gradient(180deg, rgba(247, 197, 68, 0.22), rgba(247, 197, 68, 0.08));
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(247, 197, 68, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.home-action-tile:nth-child(2):hover {
+  border-color: rgba(98, 209, 214, 0.55);
+  background:
+    linear-gradient(180deg, rgba(98, 209, 214, 0.22), rgba(98, 209, 214, 0.08));
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(98, 209, 214, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.home-action-tile:nth-child(3):hover {
+  border-color: rgba(183, 229, 106, 0.55);
+  background:
+    linear-gradient(180deg, rgba(183, 229, 106, 0.22), rgba(183, 229, 106, 0.08));
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(183, 229, 106, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.home-action-tile:nth-child(4):hover {
+  border-color: rgba(232, 102, 74, 0.55);
+  background:
+    linear-gradient(180deg, rgba(232, 102, 74, 0.22), rgba(232, 102, 74, 0.08));
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(232, 102, 74, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .home-action-tile:focus-visible {
   outline: 2px solid rgba(247, 197, 68, 0.42);
   outline-offset: 3px;
 }
+
+.home-action-tile:nth-child(2):focus-visible { outline-color: rgba(98, 209, 214, 0.55); }
+.home-action-tile:nth-child(3):focus-visible { outline-color: rgba(183, 229, 106, 0.55); }
+.home-action-tile:nth-child(4):focus-visible { outline-color: rgba(232, 102, 74, 0.55); }
 
 .home-action-icon {
   display: inline-flex;
@@ -6365,8 +6406,8 @@ body::after {
 .review-nav-controls {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 2fr 2fr 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -6376,13 +6417,13 @@ body::after {
 }
 
 .review-nav-controls .nav-btn {
-  height: 58px;
+  height: 40px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 10px;
   background: #303030;
   color: #666666;
-  font-size: 2rem;
-  font-weight: 950;
+  font-size: 1.25rem;
+  font-weight: 800;
   box-shadow: none;
 }
 
@@ -6646,13 +6687,13 @@ body::after {
   }
 
   .review-nav-controls {
-    gap: 8px;
+    gap: 6px;
   }
 
   .review-nav-controls .nav-btn {
-    height: 50px;
-    border-radius: 12px;
-    font-size: 1.55rem;
+    height: 36px;
+    border-radius: 9px;
+    font-size: 1.1rem;
   }
 
   .engine-settings-overlay {

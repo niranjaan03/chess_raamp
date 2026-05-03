@@ -54,15 +54,14 @@ const EngineController = (function() {
     return REVIEW_FAILURE_MESSAGE;
   }
 
-  function getReviewProfile(totalPositions, strength, options) {
+  function getReviewProfile(totalPositions, strength) {
     var normalized = REVIEW_STRENGTHS.indexOf(strength) !== -1 ? strength : 'fast';
     var profiles = {
-      fast: { movetimeMs: 900, depth: 12, concurrency: 2, threadsPerEngine: 1 },
-      balanced: { movetimeMs: 2500, depth: 15, concurrency: 2, threadsPerEngine: 1 },
-      slow: { movetimeMs: 5000, depth: 18, concurrency: 1, threadsPerEngine: 1 }
+      fast: { movetimeMs: 1000, depth: 12, concurrency: 4, threadsPerEngine: 2 },
+      balanced: { movetimeMs: 3000, depth: 16, concurrency: 3, threadsPerEngine: 2 },
+      slow: { movetimeMs: 7000, depth: 20, concurrency: 2, threadsPerEngine: 3 }
     };
-    var profile = Object.assign({}, profiles[normalized]);
-    if (options && options.depth) profile.depth = Math.max(8, Math.min(18, parseInt(options.depth, 10) || profile.depth));
+    var profile = profiles[normalized];
     var concurrency = Math.max(1, Math.min(profile.concurrency, totalPositions || 1));
     var chunkSize = Math.max(1, Math.ceil((totalPositions || 1) / concurrency));
     return {

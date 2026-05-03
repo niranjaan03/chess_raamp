@@ -124,13 +124,14 @@ const EngineManager = (function() {
   }
 
   function getDefaultEngineCandidate() {
-    // Prefer the strongest single-thread build for auto mode. The threaded
-    // browser worker is available as an explicit power-user option, but it is
-    // much easier to overload during full-game review because each review can
-    // run several workers at once.
-    return ENGINE_CANDIDATES.find(function(engine) {
-      return !engine.requiresSharedArrayBuffer && canRunEngine(engine);
-    }) || ENGINE_CANDIDATES.find(canRunEngine) || ENGINE_CANDIDATES[0];
+    // Prefer the threaded build when SharedArrayBuffer is available — it's
+    // dramatically faster for full-game review. Fall back to the strongest
+    // single-thread build when threading isn't available.
+    return ENGINE_CANDIDATES.find(canRunEngine)
+      || ENGINE_CANDIDATES.find(function(engine) {
+        return !engine.requiresSharedArrayBuffer;
+      })
+      || ENGINE_CANDIDATES[0];
   }
 
   function getHardwareConcurrency() {

@@ -74,9 +74,6 @@ export default function AnalyzeTab() {
                     <span className="review-panel-subtitle">Report, engine lines, and review settings</span>
                   </div>
                   <div className="moves-actions review-panel-actions">
-                    <button type="button" className="gr-start-review-btn review-primary-action" id="analyzeFullGame">
-                      Game Report
-                    </button>
                     <button type="button" className="analysis-settings-btn review-settings-gear" id="reviewSettingsGear" aria-label="Open game review settings">&#9881;</button>
                   </div>
                 </div>

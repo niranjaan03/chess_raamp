@@ -15,9 +15,11 @@ const HomeController = (function() {
   var chesscomStatsRequest = 0;
   var CHESSCOM_FETCH_MONTHS = 3;
   var GAMES_TAB_PAGE_SIZE = 50;
+  var CC_ARCHIVE_CACHE_KEY = 'kv_cc_archive_cache';
   var accountSyncRequests = {};
 
   function init() {
+    hydrateChesscomArchiveCache();
     setupImportTabs();
     setupAccountPanelTabs();
     setupAccountLinks();
@@ -26,6 +28,34 @@ const HomeController = (function() {
     setupHomeImport();
     setupRecentGamesList();
     refreshHomeData();
+  }
+
+  function hydrateChesscomArchiveCache() {
+    try {
+      var raw = localStorage.getItem(CC_ARCHIVE_CACHE_KEY);
+      if (!raw) return;
+      var cached = JSON.parse(raw);
+      if (!cached || !cached.username || !Array.isArray(cached.games)) return;
+      window._ccFetchedGames = cached.games;
+      window._ccFetchedUsername = cached.username;
+      window._ccFetchedArchiveKey = cached.archiveKey || null;
+      window._ccFetchedArchivePeriod = cached.archivePeriod || null;
+    } catch { /* ignore corrupt cache */ }
+  }
+
+  function saveChesscomArchiveCache() {
+    try {
+      if (!window._ccFetchedUsername || !Array.isArray(window._ccFetchedGames)) {
+        localStorage.removeItem(CC_ARCHIVE_CACHE_KEY);
+        return;
+      }
+      localStorage.setItem(CC_ARCHIVE_CACHE_KEY, JSON.stringify({
+        username: window._ccFetchedUsername,
+        archiveKey: window._ccFetchedArchiveKey || null,
+        archivePeriod: window._ccFetchedArchivePeriod || null,
+        games: window._ccFetchedGames
+      }));
+    } catch { /* storage full — silently skip persistence */ }
   }
 
   function refreshHomeData() {
@@ -1405,9 +1435,11 @@ const HomeController = (function() {
             modes: 'No archive'
           });
           container.innerHTML = buildGamesTabEmptyState('No games found in this period', 'Try again after you play a few games or switch to a newer archive range.');
+          saveChesscomArchiveCache();
           return;
         }
         window._ccFetchedGames = games;
+        saveChesscomArchiveCache();
         if (filters) filters.style.display = 'flex';
         if (sub) sub.textContent = 'Synced from Chess.com for ' + archiveLabel + '. Analyze any game directly from the archive range.';
         renderGamesTab(container, games, username);

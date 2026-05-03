@@ -2767,34 +2767,34 @@ const AppController = (function() {
       var pct = Math.max(1, Math.round(done / total * 100));
       setReviewBusyState(true, pct + '%');
     }, function(results, history, error) {
+      setReviewBusyState(false);
+
       if (error) {
         console.error('Full game analysis failed:', error);
-        resetGameReviewUI();
         showToast(error, 'error');
         return;
       }
 
-      setReviewBusyState(false);
-      
-      // Apply quality labels to moves
-      if (history) {
-        if (review.useOpeningBook === false) {
-          history.forEach(function(move) {
-            if (move && move.quality === 'book') move.quality = 'excellent';
+      try {
+        if (history) {
+          if (review.useOpeningBook === false) {
+            history.forEach(function(move) {
+              if (move && move.quality === 'book') move.quality = 'excellent';
+            });
+          }
+          history.forEach(function(move, i) {
+            var el = document.querySelector('.move-san[data-move-index="' + (i + 1) + '"]');
+            if (el && move.quality) {
+              el.setAttribute('data-quality', move.quality);
+            }
           });
         }
-        history.forEach(function(move, i) {
-          var el = document.querySelector('.move-san[data-move-index="' + (i + 1) + '"]');
-          if (el && move.quality) {
-            el.setAttribute('data-quality', move.quality);
-          }
-        });
+        showAccuracySection(history);
+        showToast('Full game analysis complete!', 'success');
+      } finally {
+        switchReviewTab('report');
       }
-      
-      // Show accuracy section
-      showAccuracySection(history);
-      showToast('Full game analysis complete!', 'success');
-      switchReviewTab('report');
+
       if (getCurrentGameReviewSettings().interface.review.autoplayShowMoves) {
         goFirst();
         startAutoPlay();
