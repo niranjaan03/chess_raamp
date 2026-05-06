@@ -16,7 +16,7 @@ const EngineManager = (function() {
     },
     {
       id: 'sf18-full',
-      label: 'Stockfish 18 Full WASM',
+      label: 'stockfish 18',
       script: getPublicPath('/engines/stockfish-18/stockfish-18-single-6563532.js'),
       supportsThreads: false
     },

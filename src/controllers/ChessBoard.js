@@ -818,14 +818,16 @@ const ChessBoard = (function() {
     if (!pos) return '';
 
     var choices = promotionPicker.color === 'w' ? ['q', 'r', 'b', 'n'] : ['n', 'b', 'r', 'q'];
-    var pickerWidth = squareSize * 0.92;
-    var top = promotionPicker.color === 'w' ? pos.y : pos.y - (squareSize * 3);
-    top = Math.max(0, Math.min(boardSize - squareSize * 4, top));
+    var pickerHeight = squareSize * 0.92;
+    var pickerWidth = squareSize * 4;
+    var top = promotionPicker.color === 'w' ? pos.y : pos.y + (squareSize - pickerHeight);
+    top = Math.max(0, Math.min(boardSize - pickerHeight, top));
     var left = Math.max(0, Math.min(boardSize - pickerWidth, pos.x + (squareSize - pickerWidth) / 2));
 
     var leftPct = (left / boardSize) * 100;
     var topPct = (top / boardSize) * 100;
     var widthPct = (pickerWidth / boardSize) * 100;
+    var heightPct = (pickerHeight / boardSize) * 100;
     var squarePct = (squareSize / boardSize) * 100;
     var color = promotionPicker.color;
 
@@ -845,6 +847,7 @@ const ChessBoard = (function() {
       '<div class="board-promotion-picker" role="dialog" aria-label="Choose promotion piece"' +
       ' style="left:' + leftPct.toFixed(3) + '%;top:' + topPct.toFixed(3) + '%;' +
       '--promotion-picker-width:' + widthPct.toFixed(3) + '%;' +
+      '--promotion-picker-height:' + heightPct.toFixed(3) + '%;' +
       '--promotion-square-size:' + squarePct.toFixed(3) + '%;">' +
       buttons +
       '</div>';

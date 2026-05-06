@@ -11,10 +11,46 @@ import pyarrow.parquet as pq
 
 
 ROOT = Path(__file__).resolve().parent.parent
-PUZZLE_DIR = ROOT / "puzzles"
-PUZZLE_FILES = sorted(PUZZLE_DIR.glob("*.parquet"))
+PUZZLE_DIR = ROOT / "puzzles_zstd"
+
+
+def _parse_bucket_range(path):
+    """Extract (lo, hi) from filenames like 'puzzles-0400-0599.parquet'.
+    Returns None for non-bucketed parquets so they're treated as wildcards."""
+    name = path.stem
+    if not name.startswith("puzzles-"):
+        return None
+    parts = name.split("-")
+    if len(parts) != 3:
+        return None
+    try:
+        return (int(parts[1]), int(parts[2]))
+    except ValueError:
+        return None
+
+
+PUZZLE_FILES = sorted(PUZZLE_DIR.glob("puzzles-*.parquet")) or sorted(PUZZLE_DIR.glob("*.parquet"))
 PARQUET_MAP = {path: pq.ParquetFile(path) for path in PUZZLE_FILES}
+FILE_RANGES = {path: _parse_bucket_range(path) for path in PUZZLE_FILES}
 ROW_GROUPS = [(path, idx) for path, parquet in PARQUET_MAP.items() for idx in range(parquet.num_row_groups)]
+
+
+def relevant_row_groups(target_rating, spread, min_rating):
+    """Return only the row groups whose containing file's rating bucket overlaps
+    [max(target-spread, min_rating), target+spread]. Files without an inferable
+    range (legacy unbucketed) are always included."""
+    lower = max(target_rating - spread, min_rating)
+    upper = target_rating + spread
+    result = []
+    for path, parquet in PARQUET_MAP.items():
+        rng = FILE_RANGES.get(path)
+        if rng is not None:
+            lo, hi = rng
+            if hi < lower or lo > upper:
+                continue
+        for idx in range(parquet.num_row_groups):
+            result.append((path, idx))
+    return result or ROW_GROUPS[:]
 DEFAULT_SPREAD = 140
 MAX_SPREAD = 520
 # Minimum popularity to serve — filters out poorly-rated / downvoted puzzles
@@ -147,7 +183,7 @@ def choose_puzzle(target_rating, spread, theme_filter, opening_filter, exclude_i
 
     current_spread = spread
     while current_spread <= MAX_SPREAD:
-        attempts = ROW_GROUPS[:]
+        attempts = relevant_row_groups(target_rating, current_spread, min_rating)
         random.shuffle(attempts)
         for path, row_group_index in attempts:
             payload = pick_from_row_group(path, row_group_index, target_rating, current_spread, theme_filter, opening_filter, exclude_ids, min_pop, min_rating)
@@ -156,7 +192,7 @@ def choose_puzzle(target_rating, spread, theme_filter, opening_filter, exclude_i
         current_spread += 100
 
     # Fallback: relax filters but keep minimum popularity
-    attempts = ROW_GROUPS[:]
+    attempts = relevant_row_groups(target_rating, MAX_SPREAD, min_rating)
     random.shuffle(attempts)
     for path, row_group_index in attempts:
         payload = pick_from_row_group(path, row_group_index, target_rating, MAX_SPREAD, "", "", exclude_ids, min_pop, min_rating)
@@ -165,7 +201,7 @@ def choose_puzzle(target_rating, spread, theme_filter, opening_filter, exclude_i
 
     # Last resort: drop popularity requirement entirely, but keep any explicit
     # rating floor requested by the caller.
-    attempts = ROW_GROUPS[:]
+    attempts = relevant_row_groups(target_rating, MAX_SPREAD, min_rating)
     random.shuffle(attempts)
     for path, row_group_index in attempts:
         payload = pick_from_row_group(path, row_group_index, target_rating, MAX_SPREAD, "", "", exclude_ids, 0, min_rating)

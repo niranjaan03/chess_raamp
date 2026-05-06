@@ -1,4 +1,5 @@
 puzzles/
+puzzles_zstd/
 stockfish/
 **/.DS_Store
 node_modules/

@@ -1036,11 +1036,35 @@ const PuzzleController = (function() {
     loadRandomPuzzle();
   }
 
+  function getProfilePeakRating() {
+    try {
+      var profile = JSON.parse(localStorage.getItem('kv_profile') || '{}');
+      var accounts = Array.isArray(profile.linkedAccounts) ? profile.linkedAccounts : [];
+      var peak = 0;
+      accounts.forEach(function(account) {
+        var rd = account && account.ratingData;
+        if (!rd) return;
+        ['bullet', 'blitz', 'rapid'].forEach(function(key) {
+          var n = parseInt(rd[key], 10);
+          if (Number.isFinite(n) && n > peak) peak = n;
+        });
+      });
+      return peak;
+    } catch { return 0; }
+  }
+
   function getPuzzleRating() {
     try {
       var saved = parseInt(localStorage.getItem(PUZZLE_RATING_KEY), 10);
       if (!isNaN(saved)) return Math.max(400, Math.min(3200, saved));
     } catch { /* corrupt data – use default rating */ }
+    // First-time user: seed from highest rating across linked profile accounts
+    var peak = getProfilePeakRating();
+    if (peak > 0) {
+      var seeded = Math.max(400, Math.min(3200, peak));
+      try { localStorage.setItem(PUZZLE_RATING_KEY, String(seeded)); } catch { /* storage full */ }
+      return seeded;
+    }
     return DEFAULT_PUZZLE_RATING;
   }
 
