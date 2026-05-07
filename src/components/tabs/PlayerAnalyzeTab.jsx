@@ -1,5 +1,22 @@
 import React from 'react';
 
+function SearchChip({ username }) {
+  const handleClick = () => {
+    const input = document.getElementById('paUsernameInput');
+    if (input) {
+      input.value = username;
+      input.focus();
+    }
+  };
+  return (
+    <button type="button" className="pa-search-chip" onClick={handleClick}>
+      {username}
+    </button>
+  );
+}
+
+const SAMPLE_USERNAMES = ['magnuscarlsen', 'hikaru', 'gothamchess'];
+
 export default function PlayerAnalyzeTab() {
   return (
     <div className="tab-content" id="tab-player-analyze">
@@ -44,9 +61,9 @@ export default function PlayerAnalyzeTab() {
             </form>
             <div className="pa-search-hint">
               <span>Try</span>
-              <button type="button" className="pa-search-chip" onClick={() => { var i = document.getElementById('paUsernameInput'); if (i) { i.value = 'magnuscarlsen'; i.focus(); } }}>magnuscarlsen</button>
-              <button type="button" className="pa-search-chip" onClick={() => { var i = document.getElementById('paUsernameInput'); if (i) { i.value = 'hikaru'; i.focus(); } }}>hikaru</button>
-              <button type="button" className="pa-search-chip" onClick={() => { var i = document.getElementById('paUsernameInput'); if (i) { i.value = 'gothamchess'; i.focus(); } }}>gothamchess</button>
+              {SAMPLE_USERNAMES.map((name) => (
+                <SearchChip key={name} username={name} />
+              ))}
             </div>
           </div>
         </div>

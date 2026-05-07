@@ -7,6 +7,7 @@ import Chess from '../lib/chess';
 import ChessBoard from './ChessBoard';
 import SoundController from './SoundController';
 import { escapeAttr, escapeHtml } from '../utils/dom.js';
+import { getJson, setJson } from '../utils/storage.js';
 import { getBaseOpeningName, getPuzzleTagForOpening } from '../lib/openingPuzzleMap.js';
 
 const FAVORITES_KEY = 'kv_opening_favorites';
@@ -446,71 +447,35 @@ const OpeningPracticeController = (function () {
 
   // ===== PERSISTENCE HELPERS =====
   function loadFavorites() {
-    if (typeof window === 'undefined') return {};
-    try {
-      return JSON.parse(localStorage.getItem(FAVORITES_KEY) || '{}');
-    } catch (e) {
-      return {};
-    }
+    return getJson(FAVORITES_KEY, {}) || {};
   }
 
   function saveFavorites() {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites || {}));
-    } catch (e) {
-      /* ignore storage errors */
-    }
+    setJson(FAVORITES_KEY, favorites || {});
   }
 
   function loadProgress() {
-    if (typeof window === 'undefined') return {};
-    try {
-      return JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
-    } catch (e) {
-      return {};
-    }
+    return getJson(PROGRESS_KEY, {}) || {};
   }
 
   function saveProgress() {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress || {}));
-    } catch (e) {
-      /* ignore */
-    }
+    setJson(PROGRESS_KEY, progress || {});
   }
 
   function loadLearnProgress() {
-    if (typeof window === 'undefined') return {};
-    try {
-      return JSON.parse(localStorage.getItem(LEARN_PROGRESS_KEY) || '{}');
-    } catch (e) { return {}; }
+    return getJson(LEARN_PROGRESS_KEY, {}) || {};
   }
 
   function saveLearnProgress() {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(LEARN_PROGRESS_KEY, JSON.stringify(learnProgress || {}));
-    } catch (e) { /* ignore */ }
+    setJson(LEARN_PROGRESS_KEY, learnProgress || {});
   }
 
   function loadTimeModeBests() {
-    if (typeof window === 'undefined') return {};
-    try {
-      return JSON.parse(localStorage.getItem(TIME_BESTS_KEY) || '{}');
-    } catch (e) {
-      return {};
-    }
+    return getJson(TIME_BESTS_KEY, {}) || {};
   }
 
   function saveTimeModeBests() {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(TIME_BESTS_KEY, JSON.stringify(timeModeBests || {}));
-    } catch (e) {
-      /* ignore */
-    }
+    setJson(TIME_BESTS_KEY, timeModeBests || {});
   }
 
   function createInitialTimeModeState() {
@@ -534,21 +499,11 @@ const OpeningPracticeController = (function () {
   }
 
   function loadArenaStats() {
-    if (typeof window === 'undefined') return {};
-    try {
-      return JSON.parse(localStorage.getItem(ARENA_STATS_KEY) || '{}');
-    } catch (e) {
-      return {};
-    }
+    return getJson(ARENA_STATS_KEY, {}) || {};
   }
 
   function saveArenaStats() {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(ARENA_STATS_KEY, JSON.stringify(arenaStats || {}));
-    } catch (e) {
-      /* ignore */
-    }
+    setJson(ARENA_STATS_KEY, arenaStats || {});
   }
 
   function createInitialArenaState() {
@@ -599,12 +554,7 @@ const OpeningPracticeController = (function () {
   }
 
   function loadOpeningStatsCache() {
-    if (typeof window === 'undefined') return {};
-    try {
-      return pruneOpeningStatsCache(JSON.parse(localStorage.getItem(OPENING_STATS_CACHE_KEY) || '{}'));
-    } catch (e) {
-      return {};
-    }
+    return pruneOpeningStatsCache(getJson(OPENING_STATS_CACHE_KEY, {}) || {});
   }
 
   function pruneOpeningStatsCache(cacheData) {
@@ -620,24 +570,17 @@ const OpeningPracticeController = (function () {
   }
 
   function saveOpeningStatsCache() {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(OPENING_STATS_CACHE_KEY, JSON.stringify(pruneOpeningStatsCache(openingStatsCache)));
-    } catch (e) {
-      /* ignore */
-    }
+    setJson(OPENING_STATS_CACHE_KEY, pruneOpeningStatsCache(openingStatsCache));
   }
 
   // ── SRS helpers ────────────────────────────────────────────────────────────
 
   function loadSRS() {
-    if (typeof window === 'undefined') return {};
-    try { return JSON.parse(localStorage.getItem(SRS_KEY) || '{}'); } catch (e) { return {}; }
+    return getJson(SRS_KEY, {}) || {};
   }
 
   function saveSRS() {
-    if (typeof window === 'undefined') return;
-    try { localStorage.setItem(SRS_KEY, JSON.stringify(srsData)); } catch { /* storage full */ }
+    setJson(SRS_KEY, srsData);
   }
 
   function updateSRS(srsId, rating) {

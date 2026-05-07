@@ -1,6 +1,23 @@
 /**
- * KnightVision - Main Application Controller
- * Orchestrates board, engine, UI, and data
+ * AppController — top-level orchestrator for the chess-analysis SPA.
+ *
+ * Owns: tab routing, the analysis board, game review, the move list,
+ * coach commentary, sandbox variation, history pushState wiring, and
+ * the cross-controller `init()` cascade.
+ *
+ * Lifecycle:
+ *   1. App.jsx calls `AppController.init()` once on mount.
+ *   2. init() kicks off ProfileController, AuthController, DatabaseController,
+ *      PlatformFetchController, ChessBoard, and registers the global
+ *      `data-action` click handlers used by rendered HTML.
+ *   3. switchTab('puzzle' | 'analyze' | …) lazy-inits per-tab controllers.
+ *
+ * Contract notes:
+ *   - The default export is the singleton — there is no class.
+ *   - `window.AppController` aliases this for cross-controller lookups
+ *     (kept intentionally to avoid import cycles); see App.jsx.
+ *   - Inline `onclick="AppController.foo(…)"` strings are forbidden;
+ *     use the data-action delegator in src/utils/actions.js instead.
  */
 
 import Chess from '../lib/chess';
@@ -12,6 +29,7 @@ import OpeningPracticeController from './OpeningPracticeController';
 import PuzzleController from './PuzzleController';
 import SoundController from './SoundController';
 import { bind, bindClick, escapeAttr, escapeHtml, getEl, setText } from '../utils/dom.js';
+import { registerActions } from '../utils/actions.js';
 import { showToast, copyToClipboard } from '../utils/toast.js';
 import { getJson, setJson } from '../utils/storage.js';
 import FeedbackController from './FeedbackController.js';
@@ -127,7 +145,30 @@ const AppController = (function() {
   // ===== INIT =====
   function init() {
     chess = new Chess();
-    
+
+    registerActions({
+      'app.openMoveQualityList': function(_target, args) {
+        var quality = args[0] || '';
+        var color = args[1] || '';
+        openMoveQualityList(quality, color || null);
+      },
+      'app.openCriticalMoment': function(_target, args) {
+        openCriticalMoment(parseInt(args[0], 10));
+      },
+      'app.loadReviewCandidateLine': function(_target, args) {
+        loadReviewCandidateLine(parseInt(args[0], 10));
+      },
+      'app.goToMoveByIndex': function(_target, args) {
+        goToMoveByIndex(parseInt(args[0], 10));
+      },
+      'app.loadFetchedGame': function(target) {
+        PlatformFetchController.loadFetchedGame(target);
+      },
+      'app.loadFetchedPGNGame': function(target) {
+        PlatformFetchController.loadFetchedPGNGame(target);
+      }
+    });
+
     ProfileController.loadProfile();
     AuthController.init({
       applyProfile: ProfileController.applyProfile,
@@ -874,13 +915,22 @@ const AppController = (function() {
   }
 
   // ===== BOARD COORDINATES =====
+  function renderCoordSpans(container, chars) {
+    container.textContent = '';
+    for (var i = 0; i < chars.length; i++) {
+      var span = document.createElement('span');
+      span.textContent = chars[i];
+      container.appendChild(span);
+    }
+  }
+
   function syncAnalyzeCoordinates(flipped) {
     var rankEl = document.getElementById('rankCoords');
     var fileEl = document.getElementById('fileCoords');
     var ranks = flipped ? '12345678' : '87654321';
     var files = flipped ? 'hgfedcba' : 'abcdefgh';
-    if (rankEl) rankEl.innerHTML = ranks.split('').map(function(r) { return '<span>' + r + '</span>'; }).join('');
-    if (fileEl) fileEl.innerHTML = files.split('').map(function(f) { return '<span>' + f + '</span>'; }).join('');
+    if (rankEl) renderCoordSpans(rankEl, ranks);
+    if (fileEl) renderCoordSpans(fileEl, files);
   }
 
   function setupCoordinates() {
@@ -3041,11 +3091,11 @@ const AppController = (function() {
           var rowSelected = selectedMoveQuality === q;
           var wSelected = selectedMoveQuality === q && selectedMoveQualityColor === 'w';
           var bSelected = selectedMoveQuality === q && selectedMoveQualityColor === 'b';
-          return '<div class="gr-classify-row gr-quality-click-row' + (rowSelected ? ' is-selected' : '') + '" data-quality="' + escapeAttr(q) + '" onclick="AppController.openMoveQualityList(\'' + escapeAttr(q) + '\', null)">' +
+          return '<div class="gr-classify-row gr-quality-click-row' + (rowSelected ? ' is-selected' : '') + '" data-quality="' + escapeAttr(q) + '" data-action="app.openMoveQualityList" data-arg-0="' + escapeAttr(q) + '" data-arg-1="">' +
             '<div class="gr-cl-icon"><span class="qi ' + meta.iconClass + '">' + meta.icon + '</span></div>' +
-            '<button type="button" class="gr-cl-label gr-quality-label-btn" onclick="AppController.openMoveQualityList(\'' + escapeAttr(q) + '\', null); event.stopPropagation();">' + meta.label + '</button>' +
-            '<button type="button" class="gr-cl-wval gr-quality-count-btn' + (wSelected ? ' is-selected' : '') + '" aria-label="Show White ' + escapeAttr(meta.label) + ' moves" onclick="AppController.openMoveQualityList(\'' + escapeAttr(q) + '\', \'w\'); event.stopPropagation();">' + (counts.w[q] || 0) + '</button>' +
-            '<button type="button" class="gr-cl-bval gr-quality-count-btn' + (bSelected ? ' is-selected' : '') + '" aria-label="Show Black ' + escapeAttr(meta.label) + ' moves" onclick="AppController.openMoveQualityList(\'' + escapeAttr(q) + '\', \'b\'); event.stopPropagation();">' + (counts.b[q] || 0) + '</button>' +
+            '<button type="button" class="gr-cl-label gr-quality-label-btn" data-action="app.openMoveQualityList" data-arg-0="' + escapeAttr(q) + '" data-arg-1="" data-stop-propagation="1">' + meta.label + '</button>' +
+            '<button type="button" class="gr-cl-wval gr-quality-count-btn' + (wSelected ? ' is-selected' : '') + '" aria-label="Show White ' + escapeAttr(meta.label) + ' moves" data-action="app.openMoveQualityList" data-arg-0="' + escapeAttr(q) + '" data-arg-1="w" data-stop-propagation="1">' + (counts.w[q] || 0) + '</button>' +
+            '<button type="button" class="gr-cl-bval gr-quality-count-btn' + (bSelected ? ' is-selected' : '') + '" aria-label="Show Black ' + escapeAttr(meta.label) + ' moves" data-action="app.openMoveQualityList" data-arg-0="' + escapeAttr(q) + '" data-arg-1="b" data-stop-propagation="1">' + (counts.b[q] || 0) + '</button>' +
           '</div>';
         }).join('') +
       '</div>';
@@ -3107,7 +3157,7 @@ const AppController = (function() {
   }
 
   function readStoredProfile() {
-    try { return JSON.parse(localStorage.getItem('kv_profile') || '{}'); } catch { return {}; }
+    return getJson('kv_profile', {}) || {};
   }
 
   function normalizePlayerLookupName(raw) {
@@ -3257,7 +3307,7 @@ const AppController = (function() {
       var meta = getQualityMeta(move.quality);
       var san = move.san || move.playedMove || '?';
       var tilt = index === 0 ? ' is-tilt-left' : index === 1 ? ' is-flat' : ' is-tilt-right';
-      return '<button type="button" class="learn-move-chip is-' + escapeAttr(move.quality || '') + tilt + '" onclick="AppController.openCriticalMoment(' + item.idx + ')">' +
+      return '<button type="button" class="learn-move-chip is-' + escapeAttr(move.quality || '') + tilt + '" data-action="app.openCriticalMoment" data-arg-0="' + escapeAttr(item.idx) + '">' +
         '<span class="qi ' + escapeAttr(meta.iconClass || '') + '">' + meta.icon + '</span>' +
         '<span>' + escapeHtml(san) + '</span>' +
       '</button>';
@@ -4662,7 +4712,7 @@ const AppController = (function() {
       }
       var depth = candidate.depth ? '<span class="gr-candidate-depth">d' + escapeHtml(candidate.depth) + '</span>' : '';
       var rowClass = 'gr-candidate-row' + (candidate.isBest ? ' is-best' : '') + (candidate.isPlayed ? ' is-played' : '');
-      return '<button type="button" class="' + rowClass + '" onclick="AppController.loadReviewCandidateLine(' + idx + ')">' +
+      return '<button type="button" class="' + rowClass + '" data-action="app.loadReviewCandidateLine" data-arg-0="' + escapeAttr(idx) + '">' +
         '<span class="gr-candidate-rank">' + escapeHtml(candidate.rank || idx + 1) + '</span>' +
         '<span class="gr-candidate-main">' +
           '<span class="gr-candidate-top">' +
@@ -4838,7 +4888,7 @@ const AppController = (function() {
     var san = pos.san || (pos.move && pos.move.san) || '?';
     var pieceIcon = getMovePieceIcon(pos, moveInfo);
     var qualityAttr = quality ? ' data-quality="' + escapeAttr(quality) + '"' : '';
-    return '<button type="button" class="move-san analysis-move-pill" data-move-index="' + index + '"' + qualityAttr + ' onclick="AppController.goToMoveByIndex(' + index + ')">' +
+    return '<button type="button" class="move-san analysis-move-pill" data-move-index="' + index + '"' + qualityAttr + ' data-action="app.goToMoveByIndex" data-arg-0="' + escapeAttr(index) + '">' +
       '<span class="move-piece-icon" aria-hidden="true">' + escapeHtml(pieceIcon) + '</span>' +
       '<span class="move-san-text">' + escapeHtml(san) + '</span>' +
       buildMoveQualityBadge(quality) +
@@ -5037,8 +5087,23 @@ const AppController = (function() {
     btn.hidden = !enginePreviewSnapshot;
   }
 
-  // Public API
-  return {
+  /**
+   * Public API.
+   *
+   * @typedef {Object} AppControllerAPI
+   * @property {() => void} init  Boot once from App.jsx mount.
+   * @property {(index: number) => void} goToMoveByIndex  Jump the board to a specific move ply.
+   * @property {(idx: number) => void} openCriticalMoment  Open the critical-moment view at index.
+   * @property {(quality: string, color: 'w'|'b'|null) => void} openMoveQualityList
+   * @property {() => void} closeMoveQualityList
+   * @property {(direction: -1|1) => void} stepMoveQualitySelection
+   * @property {(idx: number) => void} loadReviewCandidateLine
+   * @property {(tab: string, options?: { from?: string, replace?: boolean }) => void} switchToTab
+   * @property {(pgn: string) => void} loadPGNPublic
+   * @property {(fen: string) => void} loadFenPublic
+   * @property {() => void} triggerAutoReview
+   */
+  return /** @type {AppControllerAPI} */ ({
     init: init,
     goToMoveByIndex: goToMoveByIndex,
     openCriticalMoment: openCriticalMoment,
@@ -5071,7 +5136,7 @@ const AppController = (function() {
     formatReviewAccuracyValue: formatReviewAccuracyValue,
     isLowClockValue: isLowClockValue,
     triggerAutoReview: triggerAutoReview
-  };
+  });
 })();
 
 export default AppController;

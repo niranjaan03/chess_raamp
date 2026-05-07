@@ -10,51 +10,65 @@
 import { showToast } from '../utils/toast.js';
 import { state, DEFAULT_ENGINE_ID } from './state.js';
 import AuthController from './AuthController.js';
+import { getJson, setJson } from '../utils/storage.js';
 
 function loadProfile() {
-  try {
-    var saved = localStorage.getItem('kv_profile');
-    if (saved) {
-      state.profile = migrateProfileAccounts(JSON.parse(saved));
-      localStorage.setItem('kv_profile', JSON.stringify(state.profile));
-      applyProfile();
-    }
-  } catch { /* corrupt profile data – keep defaults */ }
+  var saved = getJson('kv_profile', null);
+  if (saved && typeof saved === 'object') {
+    state.profile = migrateProfileAccounts(saved);
+    setJson('kv_profile', state.profile);
+    applyProfile();
+  }
+}
+
+function setText(id, value) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function setValue(id, value) {
+  var el = document.getElementById(id);
+  if (el) el.value = value;
 }
 
 function applyProfile() {
+  // Many of these elements live in tabs that may not be in the DOM
+  // depending on which JSX is mounted; tolerate missing nodes.
   if (state.profile.displayName) {
-    document.getElementById('profileName').textContent = state.profile.displayName;
-    document.getElementById('profileDisplayName').value = state.profile.displayName;
+    setText('profileName', state.profile.displayName);
+    setValue('profileDisplayName', state.profile.displayName);
   }
-  if (state.profile.chesscomUsername) document.getElementById('chesscomUsername').value = state.profile.chesscomUsername;
-  if (state.profile.lichessUsername) document.getElementById('lichessUsername').value = state.profile.lichessUsername;
+  if (state.profile.chesscomUsername) setValue('chesscomUsername', state.profile.chesscomUsername);
+  if (state.profile.lichessUsername) setValue('lichessUsername', state.profile.lichessUsername);
   if (state.profile.prefDepth) {
-    document.getElementById('prefDepth').value = state.profile.prefDepth;
-    document.getElementById('depthSlider').value = state.profile.prefDepth;
-    document.getElementById('depthVal').textContent = state.profile.prefDepth;
+    setValue('prefDepth', state.profile.prefDepth);
+    setValue('depthSlider', state.profile.prefDepth);
+    setText('depthVal', state.profile.prefDepth);
   }
 }
 
+function readValue(id, fallback) {
+  var el = document.getElementById(id);
+  return el ? el.value : (fallback || '');
+}
+
 function saveProfile() {
-  var existingProfile = {};
-  try { existingProfile = JSON.parse(localStorage.getItem('kv_profile') || '{}'); } catch(e) { existingProfile = {}; }
-  existingProfile = migrateProfileAccounts(existingProfile);
+  var existingProfile = migrateProfileAccounts(getJson('kv_profile', {}) || {});
   state.profile = {
-    displayName: document.getElementById('profileDisplayName').value,
-    chesscomUsername: document.getElementById('chesscomUsername').value,
-    lichessUsername: document.getElementById('lichessUsername').value,
+    displayName: readValue('profileDisplayName', existingProfile.displayName),
+    chesscomUsername: readValue('chesscomUsername', existingProfile.chesscomUsername),
+    lichessUsername: readValue('lichessUsername', existingProfile.lichessUsername),
     linkedAccounts: Array.isArray(existingProfile.linkedAccounts) ? existingProfile.linkedAccounts : [],
     activeAccountId: existingProfile.activeAccountId || '',
     prefEngine: DEFAULT_ENGINE_ID,
-    prefDepth: document.getElementById('prefDepth').value,
+    prefDepth: readValue('prefDepth', existingProfile.prefDepth || '20'),
     savedAt: new Date().toISOString()
   };
   state.profile = migrateProfileAccounts(state.profile);
 
   try {
-    localStorage.setItem('kv_profile', JSON.stringify(state.profile));
-    document.getElementById('profileName').textContent = state.profile.displayName || 'Guest';
+    setJson('kv_profile', state.profile);
+    setText('profileName', state.profile.displayName || 'Guest');
     var ss = document.getElementById('saveStatus');
     if (ss) { ss.textContent = '✓ Saved!'; setTimeout(function() { ss.textContent = ''; }, 2000); }
     showToast('Profile saved!', 'success');

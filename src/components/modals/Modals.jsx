@@ -4,11 +4,18 @@ import { createPortal } from 'react-dom';
 export function FeedbackModal() {
   if (typeof document === 'undefined') return null;
   return createPortal(
-    <div className="modal-overlay feedback-modal-overlay" id="feedbackModal" style={{ display: 'none' }}>
+    <div
+      className="modal-overlay feedback-modal-overlay"
+      id="feedbackModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="feedbackModalTitle"
+      style={{ display: 'none' }}
+    >
       <div className="modal feedback-modal">
         <div className="modal-header feedback-modal-header">
           <div>
-            <h3>Your feedback matters</h3>
+            <h3 id="feedbackModalTitle">Your feedback matters</h3>
             <p className="feedback-modal-subtitle">Help us improve chess ramp. What&apos;s on your mind?</p>
           </div>
           <button type="button" className="modal-close" id="feedbackModalClose" aria-label="Close feedback window">
@@ -63,11 +70,18 @@ export function FeedbackModal() {
 export function AuthModal() {
   if (typeof document === 'undefined') return null;
   return createPortal(
-    <div className="modal-overlay auth-modal-overlay" id="authModal" style={{ display: 'none' }}>
+    <div
+      className="modal-overlay auth-modal-overlay"
+      id="authModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="authModalTitle"
+      style={{ display: 'none' }}
+    >
       <div className="modal auth-modal">
         <div className="modal-header">
           <div>
-            <h3>Account Center</h3>
+            <h3 id="authModalTitle">Account Center</h3>
             <p className="feedback-modal-subtitle">Sign in with Google or continue with email on this device.</p>
           </div>
           <button type="button" className="modal-close" id="authModalClose" aria-label="Close account center">

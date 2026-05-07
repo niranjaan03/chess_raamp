@@ -8,6 +8,7 @@
 
 import { showToast } from '../utils/toast.js';
 import { state, DEFAULT_ENGINE_ID } from './state.js';
+import { getJson, setJson, removeItem } from '../utils/storage.js';
 
 const RAW_GOOGLE_CLIENT_ID = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID)
   ? import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -39,34 +40,23 @@ function getDefaultProfile() {
 }
 
 function getStoredAuthAccounts() {
-  try {
-    var saved = JSON.parse(localStorage.getItem(AUTH_ACCOUNTS_KEY) || '[]');
-    return Array.isArray(saved) ? saved : [];
-  } catch (e) {
-    return [];
-  }
+  var saved = getJson(AUTH_ACCOUNTS_KEY, []);
+  return Array.isArray(saved) ? saved : [];
 }
 
 function saveStoredAuthAccounts(accounts) {
-  try {
-    localStorage.setItem(AUTH_ACCOUNTS_KEY, JSON.stringify(accounts));
-  } catch { /* storage full */ }
+  setJson(AUTH_ACCOUNTS_KEY, accounts);
 }
 
 function getStoredAuthSession() {
-  try {
-    var saved = localStorage.getItem(AUTH_SESSION_KEY);
-    return saved ? JSON.parse(saved) : null;
-  } catch (e) {
-    return null;
-  }
+  return getJson(AUTH_SESSION_KEY, null);
 }
 
 function saveAuthSession(session) {
   state.authSession = session || null;
   try {
-    if (state.authSession) localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(state.authSession));
-    else localStorage.removeItem(AUTH_SESSION_KEY);
+    if (state.authSession) setJson(AUTH_SESSION_KEY, state.authSession);
+    else removeItem(AUTH_SESSION_KEY);
   } catch { /* storage full */ }
 }
 
@@ -89,9 +79,7 @@ function sanitizeProfileForAccount(sourceProfile) {
 }
 
 function persistProfileState(syncAccount) {
-  try {
-    localStorage.setItem('kv_profile', JSON.stringify(state.profile));
-  } catch { /* storage full */ }
+  setJson('kv_profile', state.profile);
   if (syncAccount !== false) persistProfileToAuthenticatedAccount();
 }
 

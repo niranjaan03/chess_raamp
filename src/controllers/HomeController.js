@@ -1,13 +1,27 @@
 /**
- * KnightVision - Home Page Controller
- * Manages home page: profile, linked accounts (Chess.com / Lichess),
- * saved profiles, imports, recent games, and the Games tab.
+ * HomeController — owns the home page, profile/account linking,
+ * saved-profile picker, recent-games rail, and the Games tab grid.
+ *
+ * Persistence keys (all read via getJson/setJson):
+ *   - kv_profile           Active profile, including linked accounts
+ *   - kv_saved_profiles    Switcher entries for multi-profile users
+ *   - kv_visit_streak      Daily-visit streak counter
+ *   - kv_database          Locally-imported games (also used by Database tab)
+ *   - kv_opening_srs_v1    Practice progress (consumed for the home stats)
+ *
+ * Backend contract:
+ *   - Chess.com data via /api/chesscom/* (proxy with fallback to direct)
+ *   - Lichess data via /api/lichess/* (likewise)
+ *   - All requests routed through AppController.fetchChesscomWithFallback
+ *     / fetchTextWithFallback so error envelopes get unwrapped.
  */
 
 import AppController from './AppController.js';
 import PuzzleController from './PuzzleController.js';
 import { bindClick, escapeAttr, escapeHtml, getEl } from '../utils/dom.js';
 import { showToast } from '../utils/toast.js';
+import { getJson, setJson } from '../utils/storage.js';
+import { registerActions } from '../utils/actions.js';
 
 const DEFAULT_ENGINE_LABEL = 'Selectable Browser Stockfish';
 
@@ -19,6 +33,12 @@ const HomeController = (function() {
   var accountSyncRequests = {};
 
   function init() {
+    registerActions({
+      'home.setGamesTabPage': function(_target, args) { setGamesTabPage(parseInt(args[0], 10)); },
+      'home.loadChesscomGame': function(_target, args) { loadChesscomGame(parseInt(args[0], 10)); },
+      'home.shareGame': function(_target, args) { shareGame(parseInt(args[0], 10)); },
+      'home.loadPlatformGame': function(target) { loadPlatformGame(target); }
+    });
     hydrateChesscomArchiveCache();
     setupImportTabs();
     setupAccountPanelTabs();
@@ -40,22 +60,53 @@ const HomeController = (function() {
       window._ccFetchedUsername = cached.username;
       window._ccFetchedArchiveKey = cached.archiveKey || null;
       window._ccFetchedArchivePeriod = cached.archivePeriod || null;
+      window._ccFetchedAt = typeof cached.fetchedAt === 'number' ? cached.fetchedAt : null;
     } catch { /* ignore corrupt cache */ }
   }
 
   function saveChesscomArchiveCache() {
+    if (!window._ccFetchedUsername || !Array.isArray(window._ccFetchedGames)) {
+      try { localStorage.removeItem(CC_ARCHIVE_CACHE_KEY); } catch { /* noop */ }
+      return;
+    }
+    var payload = {
+      username: window._ccFetchedUsername,
+      archiveKey: window._ccFetchedArchiveKey || null,
+      archivePeriod: window._ccFetchedArchivePeriod || null,
+      fetchedAt: window._ccFetchedAt || Date.now(),
+      games: window._ccFetchedGames
+    };
     try {
-      if (!window._ccFetchedUsername || !Array.isArray(window._ccFetchedGames)) {
-        localStorage.removeItem(CC_ARCHIVE_CACHE_KEY);
-        return;
-      }
-      localStorage.setItem(CC_ARCHIVE_CACHE_KEY, JSON.stringify({
-        username: window._ccFetchedUsername,
-        archiveKey: window._ccFetchedArchiveKey || null,
-        archivePeriod: window._ccFetchedArchivePeriod || null,
-        games: window._ccFetchedGames
-      }));
-    } catch { /* storage full — silently skip persistence */ }
+      localStorage.setItem(CC_ARCHIVE_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+      // Quota likely exceeded — retry with a slim copy that drops large optional fields.
+      try {
+        payload.games = window._ccFetchedGames.map(function(g) {
+          if (!g) return g;
+          var slim = {};
+          for (var k in g) {
+            if (!Object.prototype.hasOwnProperty.call(g, k)) continue;
+            if (k === 'pgn' || k === 'PGN' || k === 'tcn' || k === 'fen_history') continue;
+            slim[k] = g[k];
+          }
+          return slim;
+        });
+        localStorage.setItem(CC_ARCHIVE_CACHE_KEY, JSON.stringify(payload));
+      } catch { /* still too big — skip persistence */ }
+    }
+  }
+
+  function formatRelativeTime(ts) {
+    if (!ts) return '';
+    var seconds = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+    if (seconds < 60) return 'just now';
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + ' min ago';
+    var hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + ' hr ago';
+    var days = Math.floor(hours / 24);
+    if (days < 7) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+    return new Date(ts).toLocaleDateString();
   }
 
   function refreshHomeData() {
@@ -92,8 +143,8 @@ const HomeController = (function() {
 
   function getProfile() {
     try {
-      var migrated = migrateProfileAccounts(JSON.parse(localStorage.getItem('kv_profile') || '{}'));
-      localStorage.setItem('kv_profile', JSON.stringify(migrated));
+      var migrated = migrateProfileAccounts(getJson('kv_profile', {}) || {});
+      setJson('kv_profile', migrated);
       return migrated;
     } catch(e) { return migrateProfileAccounts({}); }
   }
@@ -221,24 +272,18 @@ const HomeController = (function() {
   }
 
   function getVisitStreak() {
-    try {
-      var saved = JSON.parse(localStorage.getItem('kv_visit_streak') || '{}');
-      return {
-        lastVisit: saved.lastVisit || '',
-        streak: Math.max(1, parseInt(saved.streak, 10) || 1)
-      };
-    } catch (e) {
-      return { lastVisit: '', streak: 1 };
-    }
+    var saved = getJson('kv_visit_streak', {}) || {};
+    return {
+      lastVisit: saved.lastVisit || '',
+      streak: Math.max(1, parseInt(saved.streak, 10) || 1)
+    };
   }
 
   function saveVisitStreak(data) {
-    try {
-      localStorage.setItem('kv_visit_streak', JSON.stringify({
-        lastVisit: data.lastVisit,
-        streak: data.streak
-      }));
-    } catch { /* storage full */ }
+    setJson('kv_visit_streak', {
+      lastVisit: data.lastVisit,
+      streak: data.streak
+    });
   }
 
   function updateVisitStreak() {
@@ -346,8 +391,8 @@ const HomeController = (function() {
   }
 
   function updateHomeStats() {
-    var db = [];
-    try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch { /* corrupt data – start with empty db */ }
+    var db = getJson('kv_database', []) || [];
+    if (!Array.isArray(db)) db = [];
     var g = document.getElementById('hmStatGames');
     if (g) g.textContent = db.length;
     updatePracticeStats();
@@ -359,8 +404,7 @@ const HomeController = (function() {
     var trackedEl = document.getElementById('homePracticeTracked');
     if (!dueEl && !masteredEl && !trackedEl) return;
 
-    var srs = {};
-    try { srs = JSON.parse(localStorage.getItem('kv_opening_srs_v1') || '{}'); } catch { /* corrupt */ }
+    var srs = getJson('kv_opening_srs_v1', {}) || {};
 
     var now = Date.now();
     var due = 0;
@@ -495,7 +539,8 @@ const HomeController = (function() {
   }
 
   function getSavedProfiles() {
-    try { return JSON.parse(localStorage.getItem('kv_saved_profiles') || '[]'); } catch(e) { return []; }
+    var saved = getJson('kv_saved_profiles', []);
+    return Array.isArray(saved) ? saved : [];
   }
 
   function getSavedProfileDisplayName(p) {
@@ -1026,8 +1071,8 @@ const HomeController = (function() {
   }
 
   function isGameReviewed(white, black, result) {
-    var db = [];
-    try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch { /* corrupt data – start with empty db */ }
+    var db = getJson('kv_database', []) || [];
+    if (!Array.isArray(db)) db = [];
     return db.some(function(g) {
       return g.white === white && g.black === black && g.result === result;
     });
@@ -1154,6 +1199,9 @@ const HomeController = (function() {
     if (window._ccFetchedGames && window._ccFetchedGames.length && username && window._ccFetchedUsername === username) {
       var container = document.getElementById('gamesTabList');
       if (container) renderGamesTab(container, window._ccFetchedGames, username);
+      if (sub && window._ccFetchedAt) {
+        sub.textContent = 'Cached archive · last synced ' + formatRelativeTime(window._ccFetchedAt) + '. Press Sync to refresh.';
+      }
     } else if (username) {
       var emptyContainer = document.getElementById('gamesTabList');
       if (emptyContainer) {
@@ -1335,7 +1383,7 @@ const HomeController = (function() {
       if (page === currentPage) {
         buttons += '<button type="button" class="games-page-btn is-active" aria-current="page">' + page + '</button>';
       } else {
-        buttons += '<button type="button" class="games-page-btn" onclick="HomeController.setGamesTabPage(' + page + ')">' + page + '</button>';
+        buttons += '<button type="button" class="games-page-btn" data-action="home.setGamesTabPage" data-arg-0="' + page + '">' + page + '</button>';
       }
       lastPage = page;
     });
@@ -1343,9 +1391,9 @@ const HomeController = (function() {
     return '<nav class="games-pagination" aria-label="Games pagination">' +
       '<div class="games-page-summary">Showing ' + startNumber + '-' + endNumber + ' of ' + total + ' &middot; ' + GAMES_TAB_PAGE_SIZE + ' per page</div>' +
       '<div class="games-page-controls">' +
-        '<button type="button" class="games-page-btn games-page-nav" ' + (currentPage <= 1 ? 'disabled' : 'onclick="HomeController.setGamesTabPage(' + (currentPage - 1) + ')"') + '>Previous</button>' +
+        '<button type="button" class="games-page-btn games-page-nav" ' + (currentPage <= 1 ? 'disabled' : 'data-action="home.setGamesTabPage" data-arg-0="' + (currentPage - 1) + '"') + '>Previous</button>' +
         buttons +
-        '<button type="button" class="games-page-btn games-page-nav" ' + (currentPage >= pageCount ? 'disabled' : 'onclick="HomeController.setGamesTabPage(' + (currentPage + 1) + ')"') + '>Next</button>' +
+        '<button type="button" class="games-page-btn games-page-nav" ' + (currentPage >= pageCount ? 'disabled' : 'data-action="home.setGamesTabPage" data-arg-0="' + (currentPage + 1) + '"') + '>Next</button>' +
       '</div>' +
     '</nav>';
   }
@@ -1476,6 +1524,7 @@ const HomeController = (function() {
           return;
         }
         window._ccFetchedGames = games;
+        window._ccFetchedAt = Date.now();
         saveChesscomArchiveCache();
         if (filters) filters.style.display = 'flex';
         if (sub) sub.textContent = 'Synced from Chess.com for ' + archiveLabel + '. Analyze any game directly from the archive range.';
@@ -1596,8 +1645,8 @@ const HomeController = (function() {
             '</div>' +
           '</div>' +
           '<div class="gt-actions">' +
-            '<button type="button" class="gt-btn gt-btn-analyze" onclick="HomeController.loadChesscomGame(' + idx + ')"><span class="gt-btn-icon" aria-hidden="true">&#8599;</span><span>Analyze</span></button>' +
-            '<button type="button" class="gt-btn gt-btn-share" onclick="HomeController.shareGame(' + idx + ')"><span class="gt-btn-icon" aria-hidden="true">&#128279;</span><span>Share</span></button>' +
+            '<button type="button" class="gt-btn gt-btn-analyze" data-action="home.loadChesscomGame" data-arg-0="' + idx + '"><span class="gt-btn-icon" aria-hidden="true">&#8599;</span><span>Analyze</span></button>' +
+            '<button type="button" class="gt-btn gt-btn-share" data-action="home.shareGame" data-arg-0="' + idx + '"><span class="gt-btn-icon" aria-hidden="true">&#128279;</span><span>Share</span></button>' +
           '</div>' +
         '</article>'
       };
@@ -1739,7 +1788,7 @@ const HomeController = (function() {
       var result = g.winner ? (g.winner === 'white' ? '1-0' : '0-1') : '½-½';
       var gameId = g.id || '';
 
-      return '<div class="fetch-game-item" data-id="' + escapeAttr(gameId) + '" data-platform="lichess" onclick="HomeController.loadPlatformGame(this)">' +
+      return '<div class="fetch-game-item" data-id="' + escapeAttr(gameId) + '" data-platform="lichess" data-action="home.loadPlatformGame">' +
         '<span>' + escapeHtml(white) + ' vs ' + escapeHtml(black) + '</span>' +
         '<span class="fetch-game-result ' + (result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d') + '">' + escapeHtml(result) + '</span>' +
         '</div>';
@@ -1895,8 +1944,8 @@ const HomeController = (function() {
   function renderRecentGames() {
     var container = document.getElementById('homeRecentGames');
     if (!container) return;
-    var db = [];
-    try { db = JSON.parse(localStorage.getItem('kv_database') || '[]'); } catch { /* corrupt data – start with empty db */ }
+    var db = getJson('kv_database', []) || [];
+    if (!Array.isArray(db)) db = [];
     if (!db.length) {
       container.innerHTML =
         '<div class="dashboard-empty-state">' +

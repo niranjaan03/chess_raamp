@@ -1,7 +1,24 @@
+/**
+ * PuzzleController — owns every puzzle mode (rated, daily, survival,
+ * endurance, time-attack) plus the puzzle-rating ladder.
+ *
+ * Lifecycle:
+ *   - `init()` is called lazily by AppController.switchTab on first
+ *     activation of the puzzle tab. Repeat calls are guarded.
+ *   - All persistent state lives under the `cr_*` namespace via
+ *     getJson/setJson. Never JSON.parse(localStorage…) directly.
+ *
+ * Backend contract:
+ *   - GET /api/puzzles/next?rating=…&spread=…&theme=…&exclude=…
+ *     Served by server/puzzleBridge.js → server/puzzle_query.py.
+ *   - The bridge auto-restarts on Python crashes; clients still need
+ *     to handle 5xx (rare but possible during a restart window).
+ */
 import Chess from '../lib/chess';
 import ChessBoard from './ChessBoard';
 import SoundController from './SoundController';
 import { showToast, copyToClipboard } from '../utils/toast.js';
+import { getJson, setJson } from '../utils/storage.js';
 
 const PUZZLE_RATING_KEY = 'cr_puzzle_rating';
 const PUZZLE_WINS_KEY = 'cr_puzzle_wins';
@@ -143,6 +160,7 @@ const PuzzleController = (function() {
     bindCustomFilter('puzzleDifficultySelect');
     bindCustomFilter('puzzleThemeSelect');
     bindCustomFilter('puzzleOpeningSelect');
+    bindCustomFilterPlay();
 
     var prevMonthBtn = document.getElementById('puzzleDailyPrevMonthBtn');
     if (prevMonthBtn) prevMonthBtn.addEventListener('click', function() {
@@ -404,7 +422,7 @@ const PuzzleController = (function() {
       var icon = entry.correct ? '✓' : '×';
       return '<span class="puzzle-survival-rating-pill ' + cls + '">' +
         '<span class="puzzle-survival-rating-mark">' + icon + '</span>' +
-        '<span>' + String(entry.rating || '—') + '</span>' +
+        '<span>' + escapeHtml(entry.rating || '—') + '</span>' +
       '</span>';
     }).join('');
   }
@@ -862,6 +880,25 @@ const PuzzleController = (function() {
     field.addEventListener('change', function() {
       if (currentMode !== MODE_CUSTOM) return;
       clearPrefetch();
+      markCustomFiltersDirty(true);
+    });
+  }
+
+  function markCustomFiltersDirty(dirty) {
+    var btn = document.getElementById('puzzleFilterPlayBtn');
+    if (!btn) return;
+    btn.classList.toggle('is-dirty', !!dirty);
+  }
+
+  function bindCustomFilterPlay() {
+    var btn = document.getElementById('puzzleFilterPlayBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      if (currentMode !== MODE_CUSTOM) {
+        activateMode(MODE_CUSTOM);
+      }
+      clearPrefetch();
+      markCustomFiltersDirty(false);
       loadNextPuzzle();
     });
   }
@@ -1038,7 +1075,7 @@ const PuzzleController = (function() {
 
   function getProfilePeakRating() {
     try {
-      var profile = JSON.parse(localStorage.getItem('kv_profile') || '{}');
+      var profile = getJson('kv_profile', {}) || {};
       var accounts = Array.isArray(profile.linkedAccounts) ? profile.linkedAccounts : [];
       var peak = 0;
       accounts.forEach(function(account) {
@@ -1291,6 +1328,8 @@ const PuzzleController = (function() {
       currentMode,
       config.targetRating,
       config.spread,
+      config.minRating || 0,
+      config.maxRating || 0,
       config.opening || '',
       config.theme || ''
     ].join('|');
@@ -1302,12 +1341,23 @@ const PuzzleController = (function() {
     var spread = 140;
     var opening = '';
     var theme = '';
+    var minRating = 0;
+    var maxRating = 0;
     var loadingText = 'Loading a puzzle near your rating...';
 
     if (currentMode === MODE_CUSTOM) {
-      var difficultyConfig = getCustomDifficultyConfig();
-      targetRating = getCustomTargetRating();
-      spread = difficultyConfig.spread;
+      // Custom mode: the selected Elo defines a 100-pt bucket [elo, elo+99].
+      // Difficulty narrows the upper bucket: standard=full, hard=upper half, extra-hard=top quarter.
+      var bucketLow = getCustomTargetRating();
+      var bucketHigh = bucketLow + 99;
+      var difficultyEl = document.getElementById('puzzleDifficultySelect');
+      var difficulty = difficultyEl ? difficultyEl.value : 'hard';
+      if (difficulty === 'extra-hard') bucketLow = bucketLow + 75;
+      else if (difficulty === 'hard') bucketLow = bucketLow + 50;
+      minRating = bucketLow;
+      maxRating = bucketHigh;
+      targetRating = Math.floor((bucketLow + bucketHigh) / 2);
+      spread = Math.max(60, Math.ceil((bucketHigh - bucketLow) / 2) + 10);
       opening = getCustomOpening();
       theme = getCustomTheme();
       loadingText = 'Loading a custom puzzle...';
@@ -1326,6 +1376,8 @@ const PuzzleController = (function() {
       spread: spread,
       opening: opening,
       theme: theme,
+      minRating: minRating,
+      maxRating: maxRating,
       loadingText: loadingText
     };
   }
@@ -1347,7 +1399,7 @@ const PuzzleController = (function() {
 
     prefetchedSignature = signature;
     var token = ++prefetchToken;
-    prefetchPromise = requestPuzzle(config.targetRating, config.spread, config.opening, config.theme, getExcludeIds())
+    prefetchPromise = requestPuzzle(config.targetRating, config.spread, config.opening, config.theme, getExcludeIds(), { minRating: config.minRating, maxRating: config.maxRating })
       .then(function(puzzle) {
         if (token !== prefetchToken) return puzzle;
         prefetchedPuzzle = puzzle;
@@ -1403,10 +1455,10 @@ const PuzzleController = (function() {
           return cachedPuzzle;
         }
         if (puzzle) return puzzle;
-        return requestPuzzle(config.targetRating, config.spread, config.opening, config.theme, getExcludeIds());
+        return requestPuzzle(config.targetRating, config.spread, config.opening, config.theme, getExcludeIds(), { minRating: config.minRating, maxRating: config.maxRating });
       });
     } else {
-      request = requestPuzzle(config.targetRating, config.spread, config.opening, config.theme, getExcludeIds());
+      request = requestPuzzle(config.targetRating, config.spread, config.opening, config.theme, getExcludeIds(), { minRating: config.minRating, maxRating: config.maxRating });
     }
 
     request
@@ -1482,6 +1534,7 @@ const PuzzleController = (function() {
     if (theme) url += '&theme=' + encodeURIComponent(theme);
     if (exclude) url += '&exclude=' + encodeURIComponent(exclude);
     if (opts.minRating) url += '&minRating=' + encodeURIComponent(opts.minRating);
+    if (opts.maxRating) url += '&maxRating=' + encodeURIComponent(opts.maxRating);
 
     return fetch(url)
       .then(function(r) {
@@ -2355,18 +2408,12 @@ const PuzzleController = (function() {
   }
 
   function getStoredDailyMap() {
-    try {
-      var saved = JSON.parse(localStorage.getItem(DAILY_PUZZLES_KEY) || '{}');
-      return saved && typeof saved === 'object' ? saved : {};
-    } catch (e) {
-      return {};
-    }
+    var saved = getJson(DAILY_PUZZLES_KEY, {});
+    return saved && typeof saved === 'object' ? saved : {};
   }
 
   function saveStoredDailyMap(map) {
-    try {
-      localStorage.setItem(DAILY_PUZZLES_KEY, JSON.stringify(map));
-    } catch { /* storage full */ }
+    setJson(DAILY_PUZZLES_KEY, map);
   }
 
   function getDailyEntry(dateKey) {

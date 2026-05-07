@@ -1,4 +1,5 @@
 import https from 'node:https';
+import { createRateLimiter } from './rateLimit.js';
 
 // Chess.com published data API has a 5s edge cache already; we add a small
 // in-process cache to absorb retries/burst clicks without re-hitting the CDN.
@@ -261,17 +262,33 @@ function createMiddleware() {
   };
 }
 
+function createLimiter() {
+  // Protect Chess.com upstream from accidental bursts.
+  return createRateLimiter({
+    pathPrefix: '/api/chesscom/',
+    windowMs: 60_000,
+    max: 60,
+    message: 'Too many Chess.com requests; slow down.'
+  });
+}
+
 export function chesscomBridgeMiddleware() {
-  return createMiddleware();
+  const limiter = createLimiter();
+  const handler = createMiddleware();
+  return function chesscomBridgeChain(req, res, next) {
+    limiter(req, res, function() { handler(req, res, next); });
+  };
 }
 
 export function chesscomBridgePlugin() {
   return {
     name: 'chesscom-bridge',
     configureServer(server) {
+      server.middlewares.use(createLimiter());
       server.middlewares.use(createMiddleware());
     },
     configurePreviewServer(server) {
+      server.middlewares.use(createLimiter());
       server.middlewares.use(createMiddleware());
     }
   };

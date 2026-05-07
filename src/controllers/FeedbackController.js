@@ -3,23 +3,16 @@
  * Persists submissions to localStorage under `kv_feedback`.
  */
 
-import { showToast, copyToClipboard } from '../utils/toast.js';
+import { showToast } from '../utils/toast.js';
+import { getJson, setJson } from '../utils/storage.js';
 
 const FeedbackController = (function() {
   var feedbackCategory = 'feature';
 
   function init() {
-    var openBtn = document.getElementById('openFeedbackModal');
-    if (openBtn) openBtn.addEventListener('click', function() { open('feature'); });
-
-    document.querySelectorAll('.support-card-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        open(this.getAttribute('data-feedback-category') || 'feature');
-      });
-    });
-
-    var copyBtn = document.getElementById('copySupportLinkBtn');
-    if (copyBtn) copyBtn.addEventListener('click', copySupportLink);
+    // Note: the legacy SupportTab markup (#openFeedbackModal,
+    // #copySupportLinkBtn, .support-card-btn) was removed —
+    // switchTab('support') opens this modal directly via FeedbackController.open.
 
     var modal = document.getElementById('feedbackModal');
     var closeBtn = document.getElementById('feedbackModalClose');
@@ -98,31 +91,17 @@ const FeedbackController = (function() {
     };
 
     try {
-      var existing = JSON.parse(localStorage.getItem('kv_feedback') || '[]');
+      var stored = getJson('kv_feedback', []);
+      var existing = Array.isArray(stored) ? stored : [];
       existing.unshift(feedbackEntry);
       if (existing.length > 50) existing = existing.slice(0, 50);
-      localStorage.setItem('kv_feedback', JSON.stringify(existing));
+      setJson('kv_feedback', existing);
       showToast('Feedback saved. Thank you.', 'success');
       close();
     } catch (e) {
       console.error('Feedback save failed', e);
       showToast('Could not save feedback', 'error');
     }
-  }
-
-  function copySupportLink() {
-    var text = 'Check out chess ramp: ' + window.location.href;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text)
-        .then(function() { showToast('Feedback link copied', 'success'); })
-        .catch(function() {
-          copyToClipboard(text);
-          showToast('Feedback link copied', 'success');
-        });
-      return;
-    }
-    copyToClipboard(text);
-    showToast('Feedback link copied', 'success');
   }
 
   return {

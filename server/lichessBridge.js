@@ -1,5 +1,11 @@
 import https from 'node:https';
+import { createRateLimiter } from './rateLimit.js';
 
+// Lichess returns per-user, fast-changing data (recent games, ratings).
+// Short TTL — just enough to absorb double-clicks and retry-on-error
+// without serving stale games. See chesscomBridge.js for the matching
+// Chess.com cache; opening-stats keeps a much longer TTL because that
+// data is aggregate and slow-changing.
 const CACHE_TTL_MS = 10 * 1000;
 const cache = new Map();
 
@@ -136,17 +142,32 @@ function createMiddleware() {
   };
 }
 
+function createLimiter() {
+  return createRateLimiter({
+    pathPrefix: '/api/lichess/',
+    windowMs: 60_000,
+    max: 60,
+    message: 'Too many Lichess requests; slow down.'
+  });
+}
+
 export function lichessBridgeMiddleware() {
-  return createMiddleware();
+  const limiter = createLimiter();
+  const handler = createMiddleware();
+  return function lichessBridgeChain(req, res, next) {
+    limiter(req, res, function() { handler(req, res, next); });
+  };
 }
 
 export function lichessBridgePlugin() {
   return {
     name: 'lichess-bridge',
     configureServer(server) {
+      server.middlewares.use(createLimiter());
       server.middlewares.use(createMiddleware());
     },
     configurePreviewServer(server) {
+      server.middlewares.use(createLimiter());
       server.middlewares.use(createMiddleware());
     }
   };

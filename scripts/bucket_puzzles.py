@@ -18,8 +18,8 @@ import pyarrow.parquet as pq
 import pyarrow.compute as pc
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC_DIR = ROOT / "puzzles_zstd"
-OUT_DIR = ROOT / "puzzles_zstd"
+SRC_DIR = ROOT / "puzzles dataset"
+OUT_DIR = ROOT / "puzzles dataset"
 BUCKET_WIDTH = 200
 KEEP = ["PuzzleId", "FEN", "Moves", "Rating", "Popularity", "NbPlays", "Themes", "OpeningTags"]
 

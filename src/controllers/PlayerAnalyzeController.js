@@ -2,6 +2,7 @@
 // Comprehensive Chess.com player analytics — mirrors ChessAnalytics.py
 
 import { bind, bindClick, escapeAttr, escapeHtml } from '../utils/dom.js';
+import { getJson } from '../utils/storage.js';
 
 const CHESS_API = 'https://api.chess.com/pub/player';
 const CHESS_PROXY = '/api/chesscom/player';
@@ -41,7 +42,7 @@ function getStoredChesscomUsername() {
     return normalizeAnalyzeUsername(window._ccFetchedUsername);
   }
   try {
-    const profile = JSON.parse(localStorage.getItem('kv_profile') || '{}');
+    const profile = getJson('kv_profile', {}) || {};
     const accounts = Array.isArray(profile.linkedAccounts) ? profile.linkedAccounts : [];
     const active = accounts.find(account => account && account.id === profile.activeAccountId && account.platform === 'chesscom');
     const chesscom = active || accounts.find(account => account && account.platform === 'chesscom');

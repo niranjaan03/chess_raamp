@@ -56,10 +56,22 @@ export default function HomeTab({ onSwitchTab, onOpenDailyPuzzle }) {
                 <strong>+0.6</strong>
               </div>
               <div className="hero-board-mini">
-                <span></span><span>&#9820;</span><span></span><span>&#9818;</span>
-                <span>&#9823;</span><span></span><span>&#9823;</span><span></span>
-                <span></span><span>&#9816;</span><span></span><span>&#9813;</span>
-                <span>&#9814;</span><span></span><span>&#9812;</span><span></span>
+                {/* rank 8 */}
+                <span className="b">&#9820;</span><span className="b">&#9822;</span><span className="b">&#9821;</span><span className="b">&#9819;</span><span className="b">&#9818;</span><span className="b">&#9821;</span><span className="b">&#9822;</span><span className="b">&#9820;</span>
+                {/* rank 7 */}
+                <span className="b">&#9823;</span><span className="b">&#9823;</span><span className="b">&#9823;</span><span className="b">&#9823;</span><span></span><span className="b">&#9823;</span><span className="b">&#9823;</span><span className="b">&#9823;</span>
+                {/* rank 6 */}
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                {/* rank 5 */}
+                <span></span><span></span><span></span><span></span><span className="b">&#9823;</span><span></span><span></span><span></span>
+                {/* rank 4 */}
+                <span></span><span></span><span></span><span></span><span className="w">&#9817;</span><span></span><span></span><span></span>
+                {/* rank 3 */}
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                {/* rank 2 */}
+                <span className="w">&#9817;</span><span className="w">&#9817;</span><span className="w">&#9817;</span><span className="w">&#9817;</span><span></span><span className="w">&#9817;</span><span className="w">&#9817;</span><span className="w">&#9817;</span>
+                {/* rank 1 */}
+                <span className="w">&#9814;</span><span className="w">&#9816;</span><span className="w">&#9815;</span><span className="w">&#9813;</span><span className="w">&#9812;</span><span className="w">&#9815;</span><span className="w">&#9816;</span><span className="w">&#9814;</span>
               </div>
               <div className="hero-line-card">
                 <span>Best move</span>

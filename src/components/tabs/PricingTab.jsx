@@ -33,7 +33,19 @@ export default function PricingTab() {
               </li>
               <li className="pricing-feature is-included">
                 <span className="pricing-feature-icon">&#10003;</span>
+                Sync games from Chess.com &amp; Lichess
+              </li>
+              <li className="pricing-feature is-included">
+                <span className="pricing-feature-icon">&#10003;</span>
                 Game report with accuracy %
+              </li>
+              <li className="pricing-feature is-included">
+                <span className="pricing-feature-icon">&#10003;</span>
+                Player Analyze — rating leaks &amp; weaknesses
+              </li>
+              <li className="pricing-feature is-included">
+                <span className="pricing-feature-icon">&#10003;</span>
+                Personal game database with search
               </li>
               <li className="pricing-feature is-included">
                 <span className="pricing-feature-icon">&#10003;</span>

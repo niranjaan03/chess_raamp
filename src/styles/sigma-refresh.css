@@ -2125,13 +2125,13 @@ body::after {
 
 .hero-board-mini {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   aspect-ratio: 1;
   margin: 12px 0;
   overflow: hidden;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: repeating-conic-gradient(from 45deg, #e7d1a4 0 25%, #657c57 0 50%) 0 0 / 50% 50%;
+  background: repeating-conic-gradient(#e7d1a4 0 25%, #657c57 0 50%) 0 0 / 25% 25%;
 }
 
 .hero-board-mini span {
@@ -2139,15 +2139,18 @@ body::after {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  color: #fff6dd;
-  font-size: 2.3rem;
+  font-size: 1.15rem;
   line-height: 1;
-  text-shadow: 0 3px 8px rgba(0, 0, 0, 0.28);
 }
 
-.hero-board-mini span:nth-child(-n + 8) {
+.hero-board-mini span.w {
+  color: #fff6dd;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+
+.hero-board-mini span.b {
   color: #17201c;
-  text-shadow: 0 2px 6px rgba(255, 255, 255, 0.18);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.25);
 }
 
 .hero-line-card strong {
@@ -2556,7 +2559,7 @@ body::after {
   }
 
   .hero-board-mini span {
-    font-size: 1.85rem;
+    font-size: 1.45rem;
   }
 
   .home-col:last-child {

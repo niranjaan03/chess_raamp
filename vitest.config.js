@@ -2,9 +2,6 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    environment: 'jsdom',
-    globals: true,
-    include: ['src/**/__tests__/**/*.test.{js,jsx}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
@@ -20,5 +17,25 @@ export default defineConfig({
         'src/controllers/PuzzleController.js',
       ],
     },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'browser',
+          environment: 'jsdom',
+          globals: true,
+          include: ['src/**/__tests__/**/*.test.{js,jsx}'],
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: 'server',
+          environment: 'node',
+          globals: true,
+          include: ['server/**/__tests__/**/*.test.{js,mjs}'],
+        }
+      }
+    ]
   },
 });

@@ -1,4 +1,6 @@
 import React from 'react';
+import '../../styles/openings.css';
+import '../../styles/opening-practice.css';
 
 function OpeningModePage() {
   return (

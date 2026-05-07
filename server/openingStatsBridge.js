@@ -1,3 +1,10 @@
+import { createRateLimiter } from './rateLimit.js';
+
+// 12-hour TTL is intentional: TrueElo's opening stats are aggregate
+// numbers that move on the scale of months, and scraping their HTML
+// is expensive (one request per opening × side). The platform bridges
+// (chesscom/lichess) use a 10s TTL because they serve user-specific
+// fast-changing data — different lifecycles, different policies.
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const cache = new Map();
 
@@ -188,17 +195,32 @@ function createMiddleware() {
   };
 }
 
+function createLimiter() {
+  return createRateLimiter({
+    pathPrefix: '/api/opening-stats',
+    windowMs: 60_000,
+    max: 60,
+    message: 'Too many opening-stats requests; slow down.'
+  });
+}
+
 export function openingStatsBridgeMiddleware() {
-  return createMiddleware();
+  const limiter = createLimiter();
+  const handler = createMiddleware();
+  return function openingStatsBridgeChain(req, res, next) {
+    limiter(req, res, function() { handler(req, res, next); });
+  };
 }
 
 export function openingStatsBridgePlugin() {
   return {
     name: 'opening-stats-bridge',
     configureServer(server) {
+      server.middlewares.use(createLimiter());
       server.middlewares.use(createMiddleware());
     },
     configurePreviewServer(server) {
+      server.middlewares.use(createLimiter());
       server.middlewares.use(createMiddleware());
     }
   };

@@ -1,5 +1,6 @@
 puzzles/
 puzzles_zstd/
+puzzles dataset/
 stockfish/
 **/.DS_Store
 node_modules/

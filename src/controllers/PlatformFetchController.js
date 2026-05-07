@@ -203,7 +203,7 @@ function fetchLichessGames(username, container) {
         var resultClass = result === '1-0' ? (isUserWhite ? 'result-w' : 'result-l') :
                          result === '0-1' ? (isUserWhite ? 'result-l' : 'result-w') : 'result-d';
 
-        return '<div class="fetch-game-item" data-id="' + escapeAttr(g.id) + '" data-platform="lichess" onclick="AppController.loadFetchedGame(this)">' +
+        return '<div class="fetch-game-item" data-id="' + escapeAttr(g.id) + '" data-platform="lichess" data-action="app.loadFetchedGame">' +
           escapeHtml(white) + ' vs ' + escapeHtml(black) + ' — ' + (opening ? escapeHtml(opening.substring(0, 25)) : '') +
           '<span class="fetch-game-result ' + resultClass + '">' + escapeHtml(result) + '</span>' +
           '</div>';
@@ -238,7 +238,7 @@ function fetchChessComGames(username, container) {
         var opening = g.opening || g.eco || '';
         var date = g.date || (g.headers ? g.headers.Date : '');
         var resultClass = result === '1-0' ? 'result-w' : result === '0-1' ? 'result-l' : 'result-d';
-        return '<div class="fetch-game-item" data-pgn="' + encodeAttributeValue(g.pgn || '') + '" onclick="AppController.loadFetchedPGNGame(this)">' +
+        return '<div class="fetch-game-item" data-pgn="' + encodeAttributeValue(g.pgn || '') + '" data-action="app.loadFetchedPGNGame">' +
           '<strong>' + escapeHtml(white) + '</strong> vs <strong>' + escapeHtml(black) + '</strong>' +
           (opening ? ' — ' + escapeHtml(opening.substring(0, 28)) : '') +
           '<span class="fetch-game-result ' + resultClass + '">' + escapeHtml(result) + '</span>' +
@@ -299,30 +299,61 @@ function parseChesscomArchivePayload(text, source) {
   throw createChesscomInvalidResponseError(source);
 }
 
-function fetchChesscomWithFallback(proxyUrl, directUrl, responseType) {
-  function parse(response) {
-    if (responseType === 'json') return response.json();
-    return response.text();
+// Best-effort: extract a human-readable message from an error response
+// without crashing if the body isn't JSON. Many of our bridges return
+// `{ok:false, error:'...'}` on 5xx, which is more informative than
+// `HTTP 502`.
+async function readErrorMessage(response) {
+  try {
+    var text = await response.clone().text();
+    if (!text) return '';
+    try {
+      var parsed = JSON.parse(text);
+      if (parsed && typeof parsed.error === 'string') return parsed.error;
+    } catch { /* not JSON, fall through to raw text */ }
+    return text.length > 200 ? text.slice(0, 200) + '…' : text;
+  } catch {
+    return '';
   }
+}
+
+async function safeParse(response, responseType) {
+  // Wrap response.json()/text() so a malformed body doesn't bubble up
+  // as an unwrapped SyntaxError that callers can't recognize.
+  try {
+    if (responseType === 'json') return await response.json();
+    return await response.text();
+  } catch (err) {
+    var e = new Error('Invalid response body: ' + (err && err.message ? err.message : 'parse failed'));
+    e.parseError = true;
+    throw e;
+  }
+}
+
+function fetchChesscomWithFallback(proxyUrl, directUrl, responseType) {
   return fetch(proxyUrl, { cache: 'no-store' })
-    .then(function(r) {
-      if (r.ok) return parse(r);
+    .then(async function(r) {
+      if (r.ok) return safeParse(r, responseType);
       if (r.status === 404) {
         var err = new Error('Not found on Chess.com (404)');
         err.status = 404;
         throw err;
       }
-      throw new Error('proxy-unavailable');
+      var msg = await readErrorMessage(r);
+      var proxyErr = new Error(msg ? 'Proxy error: ' + msg : 'proxy-unavailable');
+      proxyErr.status = r.status;
+      throw proxyErr;
     })
     .catch(function(err) {
       if (err && err.status === 404) throw err;
-      return fetch(directUrl, { cache: 'no-store' }).then(function(r) {
+      return fetch(directUrl, { cache: 'no-store' }).then(async function(r) {
         if (!r.ok) {
-          var e = new Error('HTTP ' + r.status);
+          var msg = await readErrorMessage(r);
+          var e = new Error(msg ? 'HTTP ' + r.status + ': ' + msg : 'HTTP ' + r.status);
           e.status = r.status;
           throw e;
         }
-        return parse(r);
+        return safeParse(r, responseType);
       });
     });
 }

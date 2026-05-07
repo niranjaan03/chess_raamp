@@ -14,6 +14,7 @@ import ChessBoard from './ChessBoard';
 import { analyzeGameWithChessKit } from '../lib/chesskit/gameAnalyzer.js';
 import { MoveClassification } from '../lib/chesskit/enums.js';
 import { escapeAttr, escapeHtml, setText } from '../utils/dom.js';
+import { registerActions } from '../utils/actions.js';
 
 const EngineController = (function() {
   var REVIEW_MULTI_PV = 2;
@@ -77,6 +78,9 @@ const EngineController = (function() {
   // ---------- Live analysis (single FEN) ----------
 
   function init() {
+    registerActions({
+      'engine.loadLine': function(target) { loadLine(target); }
+    });
     var statusEl = document.getElementById('engineStatus');
     if (statusEl) {
       statusEl.classList.remove('is-ready', 'is-offline');
@@ -343,7 +347,7 @@ const EngineController = (function() {
         ? '<span class="line-best-label"><span aria-hidden="true">♛</span> is best</span>'
         : '';
 
-      return `<button type="button" class="${lineClass}" data-pv="${escapeAttr(line.pv || '')}" onclick="EngineController.loadLine(this)">
+      return `<button type="button" class="${lineClass}" data-pv="${escapeAttr(line.pv || '')}" data-action="engine.loadLine">
         <span class="line-piece-icon">${escapeHtml(pieceIcon)}</span>
         <span class="line-main-move">${escapeHtml(firstSan)}</span>
         <span class="${evalClass}">${escapeHtml(evalDisplay)}</span>
@@ -470,7 +474,7 @@ const EngineController = (function() {
       var tagClass = idx === 0 ? 'gr-live-card-tag best' : idx === 1 ? 'gr-live-card-tag good' : 'gr-live-card-tag alt';
       var tag = tagLabel ? '<span class="' + tagClass + '">' + tagLabel + '</span>' : '';
 
-      return '<button type="button" class="gr-live-card' + (idx === 0 ? ' is-best' : '') + '" data-pv="' + escapeAttr(line.pv || '') + '" onclick="EngineController.loadLine(this)">' +
+      return '<button type="button" class="gr-live-card' + (idx === 0 ? ' is-best' : '') + '" data-pv="' + escapeAttr(line.pv || '') + '" data-action="engine.loadLine">' +
         '<span class="' + evalClass + '">' + escapeHtml(evalDisplay) + '</span>' +
         '<div class="gr-live-card-body">' +
           '<div class="gr-live-card-top">' +

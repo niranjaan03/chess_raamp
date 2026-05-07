@@ -211,6 +211,12 @@ export default function PuzzleTab() {
                 </select>
               </div>
             </div>
+            <div className="puzzle-filter-actions">
+              <button type="button" className="puzzle-filter-play-btn" id="puzzleFilterPlayBtn">
+                <span className="puzzle-filter-play-icon" aria-hidden="true">▶</span>
+                <span>Play</span>
+              </button>
+            </div>
           </div>
 
           <div className="puzzle-filter-card is-minimized" id="puzzleDailyCard" style={{ display: 'none' }}>

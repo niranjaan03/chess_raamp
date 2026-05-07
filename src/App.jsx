@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import AppController from './controllers/AppController';
 import HomeController from './controllers/HomeController';
 import PuzzleController from './controllers/PuzzleController';
@@ -12,14 +12,25 @@ import ImportTab from './components/tabs/ImportTab.jsx';
 import GamesTab from './components/tabs/GamesTab.jsx';
 import PuzzleTab from './components/tabs/PuzzleTab.jsx';
 import DatabaseTab from './components/tabs/DatabaseTab.jsx';
-import OpeningsTab from './components/tabs/OpeningsTab.jsx';
 import ProfileTab from './components/tabs/ProfileTab.jsx';
-import SupportTab from './components/tabs/SupportTab.jsx';
-import PricingTab from './components/tabs/PricingTab.jsx';
 import SettingsTab from './components/tabs/SettingsTab.jsx';
-import PlayerAnalyzeTab from './components/tabs/PlayerAnalyzeTab.jsx';
+
+// Lazy: tabs whose DOM is only needed when activated
+const OpeningsTab = lazy(() => import('./components/tabs/OpeningsTab.jsx'));
+const PlayerAnalyzeTab = lazy(() => import('./components/tabs/PlayerAnalyzeTab.jsx'));
+const PricingTab = lazy(() => import('./components/tabs/PricingTab.jsx'));
 
 import { FeedbackModal, AuthModal } from './components/modals/Modals.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
+import { attachAllModals } from './utils/modalA11y.js';
+
+function lazyTabFallback(tabId) {
+  return (
+    <div className="tab-content" id={tabId} style={{ padding: '24px', color: '#a8b3c2' }}>
+      <p>Could not load this tab. Try reloading the page.</p>
+    </div>
+  );
+}
 
 function showBootError(error) {
   if (typeof document === 'undefined') return;
@@ -59,13 +70,18 @@ function showBootError(error) {
 function App() {
   useEffect(() => {
     try {
+      // Cross-controller lookups still go through these globals to avoid
+      // import cycles (e.g. AppController.switchTab -> HomeController.refresh).
+      // They are NOT used by inline onclick handlers anymore — those are
+      // delegated through src/utils/actions.js. Treat any new inline handler
+      // string as an XSS regression.
       if (typeof window !== 'undefined') {
         window.AppController = AppController;
         window.HomeController = HomeController;
-        window.PuzzleController = PuzzleController;
       }
 
       AppController.init();
+      attachAllModals();
     } catch (error) {
       console.error('App boot failed', error);
       showBootError(error);
@@ -86,7 +102,7 @@ function App() {
   };
 
   return (
-    <>
+    <ErrorBoundary>
       <Navbar />
       <NavDrawer />
 
@@ -97,12 +113,23 @@ function App() {
         <GamesTab onFetchLatest={handleGamesTabFetch} />
         <PuzzleTab />
         <DatabaseTab />
-        <OpeningsTab />
+        <ErrorBoundary fallback={lazyTabFallback('tab-openings')}>
+          <Suspense fallback={<div className="tab-content" id="tab-openings" />}>
+            <OpeningsTab />
+          </Suspense>
+        </ErrorBoundary>
         <ProfileTab />
-        <SupportTab />
-        <PricingTab />
+        <ErrorBoundary fallback={lazyTabFallback('tab-pricing')}>
+          <Suspense fallback={<div className="tab-content" id="tab-pricing" />}>
+            <PricingTab />
+          </Suspense>
+        </ErrorBoundary>
         <SettingsTab />
-        <PlayerAnalyzeTab />
+        <ErrorBoundary fallback={lazyTabFallback('tab-player-analyze')}>
+          <Suspense fallback={<div className="tab-content" id="tab-player-analyze" />}>
+            <PlayerAnalyzeTab />
+          </Suspense>
+        </ErrorBoundary>
       </div>
 
       <FeedbackModal />
@@ -117,7 +144,7 @@ function App() {
           <span className="streak-notif-label" id="streakNotificationLabel">day streak</span>
         </span>
       </div>
-    </>
+    </ErrorBoundary>
   );
 }
 
