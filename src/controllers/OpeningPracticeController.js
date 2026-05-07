@@ -2646,9 +2646,8 @@ const OpeningPracticeController = (function () {
 
     var modeBtn = document.getElementById('practiceModeBtn');
     if (modeBtn) {
-      var meta = MODE_META[practiceMode] || MODE_META.practice;
-      modeBtn.textContent = meta.title;
-      modeBtn.title = 'Cycle training mode';
+      modeBtn.textContent = 'Mode';
+      modeBtn.title = 'Choose training mode';
     }
 
     updateTimeModePanel();
