@@ -183,6 +183,435 @@ const OpeningPracticeController = (function () {
   var arenaStats = loadArenaStats();
   var arenaState = createInitialArenaState();
 
+  // ── Practice settings (gear menu) ────────────────────────────────────────
+  var OPN_SETTINGS_KEY = 'cr_opn_practice_settings_v1';
+  var DEFAULT_OPN_SETTINGS = {
+    evalBar: true,
+    confetti: true,
+    playSounds: true,
+    haptic: true,
+    pieceSet: 'classic',
+    boardTheme: 'blue',
+    trainingArrows: 'hint',
+    learnDialog: 'manual'
+  };
+  var practiceSettings = loadPracticeSettings();
+  var settingsView = 'root';
+
+  function loadPracticeSettings() {
+    var stored = getJson(OPN_SETTINGS_KEY, {}) || {};
+    var out = {};
+    Object.keys(DEFAULT_OPN_SETTINGS).forEach(function (k) {
+      out[k] = (stored && Object.prototype.hasOwnProperty.call(stored, k)) ? stored[k] : DEFAULT_OPN_SETTINGS[k];
+    });
+    return out;
+  }
+  function savePracticeSettings() {
+    setJson(OPN_SETTINGS_KEY, practiceSettings);
+  }
+  function getPracticeSetting(key) {
+    return Object.prototype.hasOwnProperty.call(practiceSettings, key)
+      ? practiceSettings[key]
+      : DEFAULT_OPN_SETTINGS[key];
+  }
+  function setPracticeSetting(key, value) {
+    practiceSettings[key] = value;
+    savePracticeSettings();
+    applyPracticeSetting(key, value);
+    syncPracticeSettingsMenu();
+  }
+  function togglePracticeSetting(key) {
+    setPracticeSetting(key, !getPracticeSetting(key));
+  }
+
+  function applyPracticeSetting(key, value) {
+    if (key === 'pieceSet') {
+      try { ChessBoard.setPieceStyle(value); } catch (e) { /* board not yet inited */ }
+    } else if (key === 'boardTheme') {
+      try { ChessBoard.setTheme(value); } catch (e) { /* board not yet inited */ }
+    } else if (key === 'playSounds') {
+      try { SoundController.setEnabled(!!value); } catch (e) { /* noop */ }
+    } else if (key === 'evalBar') {
+      updatePracticeEvalBar();
+    }
+  }
+  function applyAllPracticeSettings() {
+    Object.keys(practiceSettings).forEach(function (k) {
+      try { applyPracticeSetting(k, practiceSettings[k]); } catch (_e) { /* keep iterating */ }
+    });
+  }
+
+  var PIECE_VALUES_FEN = { P: 1, N: 3, B: 3, R: 5, Q: 9, p: -1, n: -3, b: -3, r: -5, q: -9 };
+  function updatePracticeEvalBar() {
+    var rail = document.getElementById('practiceEvalRail');
+    var whiteFill = document.getElementById('practiceEvalFillWhite');
+    var score = document.getElementById('practiceEvalScore');
+    if (!rail || !whiteFill || !score) return;
+    if (!getPracticeSetting('evalBar')) {
+      rail.style.display = 'none';
+      var stage = rail.parentNode;
+      if (stage && stage.classList && stage.classList.contains('opn-board-stage')) {
+        stage.style.gridTemplateColumns = 'minmax(0, 1fr)';
+      }
+      return;
+    }
+    rail.style.display = '';
+    var stage2 = rail.parentNode;
+    if (stage2 && stage2.classList && stage2.classList.contains('opn-board-stage')) {
+      stage2.style.gridTemplateColumns = '';
+    }
+    if (!practiceChess) {
+      whiteFill.style.height = '50%';
+      score.textContent = '0.0';
+      return;
+    }
+    var fen = '';
+    try { fen = practiceChess.fen ? practiceChess.fen() : ''; } catch (_e) { fen = ''; }
+    var diff = 0;
+    if (fen) {
+      var placement = fen.split(' ')[0] || '';
+      for (var i = 0; i < placement.length; i++) {
+        var ch = placement.charAt(i);
+        if (PIECE_VALUES_FEN[ch] !== undefined) diff += PIECE_VALUES_FEN[ch];
+      }
+    }
+    var clamped = Math.max(-9, Math.min(9, diff));
+    var pct = 50 + (clamped / 9) * 45;
+    whiteFill.style.height = pct + '%';
+    score.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(1);
+  }
+
+  function triggerHapticFeedback(durationMs) {
+    if (!getPracticeSetting('haptic')) return;
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try { navigator.vibrate(durationMs || 12); } catch (_e) { /* noop */ }
+    }
+  }
+
+  function showPracticeConfetti() {
+    if (!getPracticeSetting('confetti')) return;
+    var host = document.getElementById('openingPracticeView');
+    if (!host) return;
+    var layer = document.createElement('div');
+    layer.className = 'opn-confetti-layer';
+    var colors = ['#ffd866', '#d4a52e', '#f7e6b0', '#ef9a9a', '#81c784', '#90caf9'];
+    for (var i = 0; i < 36; i++) {
+      var p = document.createElement('span');
+      p.className = 'opn-confetti-piece';
+      p.style.left = (Math.random() * 100) + '%';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDelay = (Math.random() * 0.4) + 's';
+      p.style.animationDuration = (1.4 + Math.random() * 1.0) + 's';
+      p.style.transform = 'rotate(' + Math.floor(Math.random() * 360) + 'deg)';
+      layer.appendChild(p);
+    }
+    host.appendChild(layer);
+    setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, 2600);
+  }
+
+  function syncPracticeSettingsMenu() {
+    var menu = document.getElementById('practiceSettingsMenu');
+    if (!menu) return;
+    Array.prototype.forEach.call(menu.querySelectorAll('[data-toggle]'), function (btn) {
+      var key = btn.getAttribute('data-toggle');
+      var on = !!getPracticeSetting(key);
+      btn.classList.toggle('is-on', on);
+      var check = btn.querySelector('.opn-set-check');
+      if (check) check.textContent = on ? '✓' : '';
+    });
+    Array.prototype.forEach.call(menu.querySelectorAll('[data-set]'), function (btn) {
+      var key = btn.getAttribute('data-set');
+      var value = btn.getAttribute('data-value');
+      var active = String(getPracticeSetting(key)) === String(value);
+      btn.classList.toggle('is-active', active);
+      var radio = btn.querySelector('.opn-set-radio');
+      if (radio) radio.textContent = active ? '✓' : '';
+    });
+  }
+
+  function setSettingsView(name) {
+    var menu = document.getElementById('practiceSettingsMenu');
+    if (!menu) return;
+    settingsView = name || 'root';
+    Array.prototype.forEach.call(menu.querySelectorAll('.opn-settings-view'), function (v) {
+      var visible = v.getAttribute('data-view') === settingsView;
+      v.style.display = visible ? '' : 'none';
+    });
+    if (settingsView === 'selectLine') renderSelectLineList();
+    syncPracticeSettingsMenu();
+  }
+  function openSettingsMenu() {
+    var menu = document.getElementById('practiceSettingsMenu');
+    var btn = document.getElementById('practiceSettingsBtn');
+    if (!menu) return;
+    closePracticeModeMenu();
+    menu.style.display = '';
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    setSettingsView('root');
+    setTimeout(function () { document.addEventListener('mousedown', handleSettingsOutsideClick, true); }, 0);
+  }
+  function closeSettingsMenu() {
+    var menu = document.getElementById('practiceSettingsMenu');
+    var btn = document.getElementById('practiceSettingsBtn');
+    if (menu) menu.style.display = 'none';
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', handleSettingsOutsideClick, true);
+  }
+  function handleSettingsOutsideClick(e) {
+    var menu = document.getElementById('practiceSettingsMenu');
+    var btn = document.getElementById('practiceSettingsBtn');
+    if (!menu) return;
+    if (menu.contains(e.target)) return;
+    if (btn && btn.contains(e.target)) return;
+    closeSettingsMenu();
+  }
+
+  function renderSelectLineList() {
+    var list = document.getElementById('practiceSelectLineList');
+    if (!list) return;
+    if (!currentOpening || !currentOpening.variations || !currentOpening.variations.length) {
+      list.innerHTML = '<div class="opn-set-empty">Select an opening first.</div>';
+      return;
+    }
+    var html = '';
+    var activeVar = currentVariation;
+    currentOpening.variations.forEach(function (v, idx) {
+      var name = v.name || v.fullName || ('Line ' + (idx + 1));
+      var active = activeVar === v ? ' is-active' : '';
+      html += '<button type="button" class="opn-settings-row' + active + '" data-line-idx="' + idx + '">' +
+        '<span class="opn-set-label">' + escapeHtml(name) + '</span>' +
+        '<span class="opn-set-radio">' + (active ? '✓' : '') + '</span>' +
+        '</button>';
+    });
+    list.innerHTML = html;
+  }
+
+  function handlePracticeSettingsAction(action) {
+    if (action === 'flipBoard') {
+      ChessBoard.flip();
+      try { updatePracticeCoordinates(); } catch (e) { /* not yet defined in this scope path */ }
+      closeSettingsMenu();
+    } else if (action === 'lichess') {
+      var pgn = practiceChess ? practiceChess.pgn() : (currentVariation ? currentVariation.pgn : '');
+      if (!pgn) { showPracticeStatus('error', 'No PGN to share yet.'); return; }
+      var url = 'https://lichess.org/paste?pgn=' + encodeURIComponent(pgn);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      closeSettingsMenu();
+    } else if (action === 'copyPgn') {
+      var pgn2 = practiceChess ? practiceChess.pgn() : (currentVariation ? currentVariation.pgn : '');
+      copyPracticeText(pgn2, 'PGN');
+    } else if (action === 'copyFen') {
+      var fen = practiceChess ? practiceChess.fen() : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+      copyPracticeText(fen, 'FEN');
+    } else if (action === 'resetProgress') {
+      handleResetProgress();
+    }
+  }
+
+  function copyPracticeText(text, label) {
+    if (!text) { showPracticeStatus('error', 'Nothing to copy yet.'); return; }
+    var done = function () { showPracticeStatus('success', label + ' copied to clipboard.'); closeSettingsMenu(); };
+    var fail = function () { showPracticeStatus('error', 'Could not copy ' + label + '.'); };
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text) ? done() : fail(); });
+    } else {
+      fallbackCopy(text) ? done() : fail();
+    }
+  }
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (_e) { return false; }
+  }
+
+  function handleResetProgress() {
+    if (!currentOpening) {
+      showPracticeStatus('hint', 'Select an opening first.');
+      return;
+    }
+    var openingId = getOpeningId(currentOpening);
+    var ok = (typeof window !== 'undefined' && typeof window.confirm === 'function')
+      ? window.confirm('Reset all progress for "' + (currentOpening.name || 'this opening') + '"? This clears learn progress and SRS records for its lines.')
+      : true;
+    if (!ok) return;
+    if (learnProgress && learnProgress[openingId]) {
+      delete learnProgress[openingId];
+      saveLearnProgress();
+    }
+    if (currentOpening.variations) {
+      currentOpening.variations.forEach(function (v) {
+        var vid = getCanonicalVariationId(currentOpening, v);
+        if (vid && srsData && srsData[vid]) delete srsData[vid];
+      });
+      saveSRS();
+    }
+    if (progress && progress[openingId]) {
+      delete progress[openingId];
+      saveProgress();
+    }
+    try { renderModeCards(); } catch (e) { /* noop */ }
+    try { updateLinesCounter(); } catch (e) { /* noop */ }
+    try { updateReviewBanner(); } catch (e) { /* noop */ }
+    showPracticeStatus('success', 'Progress reset for ' + (currentOpening.name || 'this opening') + '.');
+    closeSettingsMenu();
+  }
+
+  var practiceModeMenuBound = false;
+  function renderPracticeModeMenu() {
+    var list = document.getElementById('practiceModeMenuList');
+    if (!list) return;
+    var modes = ['learn', 'practice', 'drill', 'time', 'puzzles', 'arena'];
+    var discovered = currentOpening ? getDiscoveredLines(currentOpening) : 0;
+    var totalVariations = currentOpening && currentOpening.variations ? currentOpening.variations.length : 0;
+    var unlockReq = { learn: 0, practice: 0, drill: 3, time: 3, puzzles: 2, arena: 2 };
+    var html = '';
+    modes.forEach(function (mode) {
+      var meta = MODE_META[mode] || MODE_META.practice;
+      var isActive = practiceMode === mode;
+      var req = unlockReq[mode] || 0;
+      var locked = req > 0 && discovered < req;
+      var sub;
+      if (locked) {
+        sub = 'Learn ' + req + ' line' + (req > 1 ? 's' : '') + ' to unlock';
+      } else if (mode === 'learn') {
+        sub = discovered + '/' + totalVariations + ' lines completed';
+      } else if (mode === 'practice') {
+        sub = (currentOpening && currentVariation && isVariationPerfected(currentOpening, currentVariation) ? 1 : 0) + '/1 lines perfected';
+      } else if (mode === 'drill') {
+        sub = 'Replay the line from memory';
+      } else if (mode === 'time') {
+        sub = 'Race the clock through this line';
+      } else if (mode === 'puzzles') {
+        sub = 'Solve positions from this opening';
+      } else if (mode === 'arena') {
+        sub = 'Random lines until one mistake';
+      } else {
+        sub = '';
+      }
+      html += '<button type="button" class="opn-mode-menu-row' +
+        (isActive ? ' is-active' : '') +
+        (locked ? ' is-locked' : '') +
+        '" data-mode="' + escapeAttr(mode) + '"' + (locked ? ' disabled' : '') + '>' +
+        '<span class="opn-mode-menu-icon">' + meta.icon + '</span>' +
+        '<span class="opn-mode-menu-text">' +
+        '<span class="opn-mode-menu-title">' + escapeHtml(meta.title === 'Time' ? 'Time Trials' : meta.title) + '</span>' +
+        '<span class="opn-mode-menu-sub">' + escapeHtml(sub) + '</span>' +
+        '</span>' +
+        '</button>';
+    });
+    list.innerHTML = html;
+  }
+  function openPracticeModeMenu() {
+    if (!currentVariation) {
+      showPracticeStatus('hint', 'Select a variation to switch modes.');
+      return;
+    }
+    var menu = document.getElementById('practiceModeMenu');
+    if (!menu) return;
+    closeSettingsMenu();
+    renderPracticeModeMenu();
+    menu.style.display = '';
+    setTimeout(function () { document.addEventListener('mousedown', handleModeMenuOutsideClick, true); }, 0);
+  }
+  function closePracticeModeMenu() {
+    var menu = document.getElementById('practiceModeMenu');
+    if (menu) menu.style.display = 'none';
+    document.removeEventListener('mousedown', handleModeMenuOutsideClick, true);
+  }
+  function handleModeMenuOutsideClick(e) {
+    var menu = document.getElementById('practiceModeMenu');
+    var btn = document.getElementById('practiceModeBtn');
+    if (!menu) return;
+    if (menu.contains(e.target)) return;
+    if (btn && btn.contains(e.target)) return;
+    closePracticeModeMenu();
+  }
+  function bindPracticeModeMenu() {
+    if (practiceModeMenuBound) return;
+    practiceModeMenuBound = true;
+    document.addEventListener('click', function (e) {
+      if (!e || !e.target || !e.target.closest) return;
+      var modeBtn = e.target.closest('#practiceModeBtn');
+      if (modeBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var menu = document.getElementById('practiceModeMenu');
+        if (!menu) return;
+        if (menu.style.display !== 'none') closePracticeModeMenu();
+        else openPracticeModeMenu();
+        return;
+      }
+      var menuRoot = document.getElementById('practiceModeMenu');
+      if (!menuRoot || menuRoot.style.display === 'none') return;
+      var row = e.target.closest('.opn-mode-menu-row');
+      if (!row || !menuRoot.contains(row)) return;
+      if (row.hasAttribute('disabled')) return;
+      var mode = row.getAttribute('data-mode');
+      if (!mode) return;
+      closePracticeModeMenu();
+      setPracticeMode(mode);
+    });
+  }
+
+  var practiceSettingsBound = false;
+  function bindPracticeSettingsMenu() {
+    if (practiceSettingsBound) return;
+    practiceSettingsBound = true;
+    document.addEventListener('click', function (e) {
+      if (!e || !e.target || !e.target.closest) return;
+      var gear = e.target.closest('#practiceSettingsBtn');
+      if (gear) {
+        e.preventDefault();
+        e.stopPropagation();
+        var menu = document.getElementById('practiceSettingsMenu');
+        if (!menu) return;
+        var visible = menu.style.display !== 'none';
+        if (visible) closeSettingsMenu(); else openSettingsMenu();
+        return;
+      }
+      var menuRoot = document.getElementById('practiceSettingsMenu');
+      if (!menuRoot || menuRoot.style.display === 'none') return;
+      if (!menuRoot.contains(e.target)) return;
+      var target = e.target.closest('button');
+      if (!target || !menuRoot.contains(target)) return;
+      if (target.hasAttribute('data-toggle')) {
+        togglePracticeSetting(target.getAttribute('data-toggle'));
+        return;
+      }
+      if (target.hasAttribute('data-view-go')) {
+        setSettingsView(target.getAttribute('data-view-go'));
+        return;
+      }
+      if (target.hasAttribute('data-view-back')) {
+        setSettingsView('root');
+        return;
+      }
+      if (target.hasAttribute('data-set')) {
+        setPracticeSetting(target.getAttribute('data-set'), target.getAttribute('data-value'));
+        return;
+      }
+      if (target.hasAttribute('data-line-idx')) {
+        var idx = parseInt(target.getAttribute('data-line-idx'), 10);
+        if (!isNaN(idx) && currentOpening && currentOpening.variations[idx]) {
+          closeSettingsMenu();
+          startPractice(idx, practiceMode);
+        }
+        return;
+      }
+      if (target.hasAttribute('data-action')) {
+        handlePracticeSettingsAction(target.getAttribute('data-action'));
+        return;
+      }
+    });
+  }
+
   // ── Opening puzzles state ─────────────────────────────────────────────────
   // Puzzles are served from the shared Lichess dataset and filtered by the
   // BASE opening family tag so every variation of the same opening pulls from
@@ -2162,6 +2591,14 @@ const OpeningPracticeController = (function () {
       loadOpeningPuzzle();
       return;
     }
+    // In Practice mode with manual dialog behavior, › advances the opponent's reply.
+    if (practiceMode === 'practice' && isPracticing
+        && getPracticeSetting('learnDialog') === 'manual'
+        && currentMoveIndex < expectedMoves.length
+        && practiceChess && practiceChess.turn() !== userColor) {
+      autoPlayOpponentMove();
+      return;
+    }
     if (practiceMode !== 'learn') return;
     if (!expectedMoves || !expectedMoves.length) return;
     if (learnMoveIndex >= expectedMoves.length) { onVariationComplete(); return; }
@@ -2376,6 +2813,7 @@ const OpeningPracticeController = (function () {
     awaitingPracticeRetry = false;
     practiceRetryFen = '';
     showPracticeTryAgainBtn(false);
+    showPracticeNextLineBtn(false);
     stopTimeModeTimer();
     timeModeState = createInitialTimeModeState();
     hideSRSPanel();
@@ -2423,8 +2861,11 @@ const OpeningPracticeController = (function () {
       var turn = practiceChess.turn();
       if (turn !== userColor) {
         setTimeout(function () { autoPlayOpponentMove(); }, 250);
+      } else {
+        refreshTrainingArrow();
       }
     }
+    updatePracticeEvalBar();
 
     renderRelatedLines();
   }
@@ -2463,6 +2904,8 @@ const OpeningPracticeController = (function () {
       }
       currentMoveIndex++;
       SoundController.playMove(moveResult);
+      triggerHapticFeedback(10);
+      ChessBoard.clearArrows();
       updatePracticeProgress();
       renderPracticeMoveList();
       updateCoachPanel(false);
@@ -2473,10 +2916,14 @@ const OpeningPracticeController = (function () {
         return;
       }
 
-      // Auto-play opponent's next move after a short delay
-      setTimeout(function () {
-        autoPlayOpponentMove();
-      }, 400);
+      if (practiceMode === 'practice' && getPracticeSetting('learnDialog') === 'manual') {
+        showPracticeStatus('hint', 'Press › for opponent\'s reply.');
+      } else {
+        // Auto-play opponent's next move after a short delay
+        setTimeout(function () {
+          autoPlayOpponentMove();
+        }, 400);
+      }
     } else {
       if (practiceMode === 'arena') {
         failArenaSession(moveResult, expectedSAN);
@@ -2571,6 +3018,8 @@ const OpeningPracticeController = (function () {
       updatePracticeProgress();
       renderPracticeMoveList();
       updateCoachPanel(false);
+      refreshTrainingArrow();
+      updatePracticeEvalBar();
 
       if (currentMoveIndex >= expectedMoves.length) {
         onVariationComplete();
@@ -2600,6 +3049,7 @@ const OpeningPracticeController = (function () {
     var hint = expectedMoves[currentMoveIndex];
     showPracticeStatus('hint', practiceMode === 'time' ? 'Hint used — follow the arrow quickly.' : 'Hint: The next move is ' + hint);
 
+    if (getPracticeSetting('trainingArrows') === 'never') return;
     // Show arrow on board for the hint
     var tempChess = new Chess();
     tempChess.load(practiceChess.fen());
@@ -2607,6 +3057,21 @@ const OpeningPracticeController = (function () {
     if (moveObj) {
       ChessBoard.setArrows([{ from: moveObj.from, to: moveObj.to, color: 'rgba(100, 200, 100, 0.8)' }]);
     }
+  }
+
+  function refreshTrainingArrow() {
+    if (!isPracticing) return;
+    if (getPracticeSetting('trainingArrows') !== 'always') return;
+    if (!practiceChess || currentMoveIndex >= expectedMoves.length) return;
+    var turnColor = practiceChess.turn();
+    if (turnColor !== userColor) return;
+    if (practiceMode === 'arena' || practiceMode === 'drill' || practiceMode === 'time') return;
+    var nextMove = expectedMoves[currentMoveIndex];
+    if (!nextMove) return;
+    var t = new Chess();
+    t.load(practiceChess.fen());
+    var m = t.move(nextMove);
+    if (m) ChessBoard.setArrows([{ from: m.from, to: m.to, color: 'rgba(100, 200, 100, 0.55)' }]);
   }
 
   function goToPrevMove() {
@@ -3151,7 +3616,7 @@ const OpeningPracticeController = (function () {
       var wrongLabel = wrongMoveNum + (wrongIsWhite ? '.' : '...') + ' ' + options.played;
       var bookLabel = wrongMoveNum + (wrongIsWhite ? '.' : '...') + ' ' + options.expected;
       body.innerHTML =
-        '<div class="opn-coach-move-label" style="color:#ef9a9a">' + wrongLabel + ' <span class="coach-color-badge ' + (wrongIsWhite ? 'white-badge' : 'black-badge') + '">' + (wrongIsWhite ? 'White' : 'Black') + '</span></div>' +
+        '<div class="opn-coach-move-label" style="color:#b9412e">' + wrongLabel + ' <span class="coach-color-badge ' + (wrongIsWhite ? 'white-badge' : 'black-badge') + '">' + (wrongIsWhite ? 'White' : 'Black') + '</span></div>' +
         '<div class="opn-coach-move-explain">Off the main line. Take a moment to look at the structure before retrying.</div>' +
         '<div class="opn-coach-move-label" style="margin-top:10px">Book move — ' + bookLabel + '</div>' +
         '<div class="opn-coach-move-explain">' + getExplanation(options.expected, wrongIdx) + '</div>' +
@@ -3453,6 +3918,54 @@ const OpeningPracticeController = (function () {
     }
     markVariationComplete(currentOpening, currentVariation);
     showSRSPanel();
+    showPracticeConfetti();
+    triggerHapticFeedback(40);
+    if (practiceMode === 'practice' || practiceMode === 'learn' || practiceMode === 'drill') {
+      showPracticeNextLineBtn(true);
+    }
+  }
+
+  function showPracticeNextLineBtn(show) {
+    var btn = document.getElementById('practiceNextLineBtn');
+    if (!btn) return;
+    if (show) {
+      var idx = currentOpening && currentVariation && currentOpening.variations
+        ? currentOpening.variations.indexOf(currentVariation)
+        : -1;
+      var hasNext = idx >= 0 && idx < (currentOpening.variations.length - 1);
+      btn.disabled = !hasNext;
+      btn.textContent = hasNext ? 'Next Line →' : 'No more lines in this opening';
+      btn.style.display = '';
+    } else {
+      btn.style.display = 'none';
+      btn.disabled = false;
+    }
+  }
+
+  function goToNextLine() {
+    if (!currentOpening || !currentOpening.variations || !currentOpening.variations.length) return;
+    var idx = currentVariation ? currentOpening.variations.indexOf(currentVariation) : -1;
+    var nextIdx = idx + 1;
+    if (nextIdx >= currentOpening.variations.length) {
+      showPracticeStatus('hint', 'You\'re on the last line of this opening.');
+      return;
+    }
+    showPracticeNextLineBtn(false);
+    hideSRSPanel();
+    startPractice(nextIdx, practiceMode);
+  }
+
+  function goToPrevLine() {
+    if (!currentOpening || !currentOpening.variations || !currentOpening.variations.length) return;
+    var idx = currentVariation ? currentOpening.variations.indexOf(currentVariation) : -1;
+    var prevIdx = idx - 1;
+    if (prevIdx < 0) {
+      showPracticeStatus('hint', 'You\'re on the first line of this opening.');
+      return;
+    }
+    showPracticeNextLineBtn(false);
+    hideSRSPanel();
+    startPractice(prevIdx, practiceMode);
   }
 
   function showSRSPanel() {
@@ -3603,6 +4116,11 @@ const OpeningPracticeController = (function () {
 
   // ===== INIT =====
   function init() {
+    // Bind the settings + mode menus immediately so they work as soon
+    // as the practice view is shown — independent of opening-data loading.
+    bindPracticeSettingsMenu();
+    bindPracticeModeMenu();
+    syncPracticeSettingsMenu();
     // Lazy-load the opening data (1.3MB) only when the Practice tab is opened
     if (OPENING_DATA) {
       setupUI();
@@ -3700,16 +4218,29 @@ const OpeningPracticeController = (function () {
     if (hintBtn) hintBtn.addEventListener('click', showHint);
 
     var prevBtn = document.getElementById('practicePrevBtn');
-    if (prevBtn) prevBtn.addEventListener('click', goToPrevMove);
+    if (prevBtn) {
+      prevBtn.title = 'Previous line';
+      prevBtn.addEventListener('click', goToPrevLine);
+    }
 
     var nextBtn = document.getElementById('practiceNextBtn');
-    if (nextBtn) nextBtn.addEventListener('click', goToNextLearnMove);
+    if (nextBtn) {
+      nextBtn.title = 'Next line';
+      nextBtn.addEventListener('click', goToNextLine);
+    }
 
     var resetBtn = document.getElementById('practiceResetBtn');
     if (resetBtn) resetBtn.addEventListener('click', resetPractice);
 
     var tryAgainBtn = document.getElementById('practiceTryAgainBtn');
     if (tryAgainBtn) tryAgainBtn.addEventListener('click', handlePracticeTryAgain);
+
+    var nextLineBtn = document.getElementById('practiceNextLineBtn');
+    if (nextLineBtn) nextLineBtn.addEventListener('click', goToNextLine);
+
+    bindPracticeSettingsMenu();
+    applyAllPracticeSettings();
+    syncPracticeSettingsMenu();
 
     var flipBtn = document.getElementById('practiceFlipBtn');
     if (flipBtn) {
@@ -3719,18 +4250,7 @@ const OpeningPracticeController = (function () {
       });
     }
 
-    var modeBtn = document.getElementById('practiceModeBtn');
-    if (modeBtn) {
-      modeBtn.addEventListener('click', function () {
-        if (!currentVariation) {
-          showPracticeStatus('hint', 'Select a variation to switch modes.');
-          return;
-        }
-        var cycle = ['learn', 'practice', 'drill', 'time', 'arena', 'puzzles'];
-        var nextMode = cycle[(cycle.indexOf(practiceMode) + 1 + cycle.length) % cycle.length];
-        setPracticeMode(nextMode);
-      });
-    }
+    // Mode button click is handled by bindPracticeModeMenu (opens the mode panel).
 
     // Review queue
     var startReviewBtn = document.getElementById('startReviewBtn');

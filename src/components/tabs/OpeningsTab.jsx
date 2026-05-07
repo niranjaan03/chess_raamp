@@ -160,25 +160,114 @@ export default function OpeningsTab() {
             <span id="practiceSideCopy"></span>
           </div>
 
-          <div className="opn-board-coordinate-shell">
-            <div className="opn-board-frame">
-              <canvas id="practiceChessBoard" width="640" height="640"></canvas>
-              <div id="practiceBoardOverlay" className="board-overlay"></div>
+          <div className="opn-board-stage">
+            <div className="opn-eval-rail" id="practiceEvalRail" aria-label="Evaluation">
+              <span className="opn-eval-side">White</span>
+              <div id="practiceEvalBar" className="opn-eval-bar" aria-hidden="true">
+                <div className="opn-eval-fill opn-eval-fill-white" id="practiceEvalFillWhite"></div>
+                <div className="opn-eval-fill opn-eval-fill-black" id="practiceEvalFillBlack"></div>
+              </div>
+              <span className="opn-eval-side">Black</span>
+              <div className="opn-eval-score" id="practiceEvalScore">0.0</div>
             </div>
-            <div className="opn-board-rank-coords" id="practiceRankCoords" aria-hidden="true"></div>
-            <div className="opn-board-file-coords" id="practiceFileCoords" aria-hidden="true"></div>
+            <div className="opn-board-coordinate-shell">
+              <div className="opn-board-frame">
+                <canvas id="practiceChessBoard" width="640" height="640"></canvas>
+                <div id="practiceBoardOverlay" className="board-overlay"></div>
+              </div>
+              <div className="opn-board-rank-coords" id="practiceRankCoords" aria-hidden="true"></div>
+              <div className="opn-board-file-coords" id="practiceFileCoords" aria-hidden="true"></div>
+            </div>
           </div>
 
           <div id="practiceStatus" className="practice-status" style={{ display: 'none' }}></div>
 
           <button type="button" id="practiceTryAgainBtn" className="opn-ctrl-btn opn-ctrl-try-again" style={{ display: 'none' }}>&#8634; Try Again</button>
 
+          <button type="button" id="practiceNextLineBtn" className="opn-ctrl-btn opn-ctrl-next-line" style={{ display: 'none' }}>Next Line &rarr;</button>
+
           <div className="opn-bottom-bar">
-            <button type="button" className="opn-ctrl-btn opn-ctrl-icon" id="practiceFlipBtn" title="Flip board">&#8645;</button>
+            <button type="button" className="opn-ctrl-btn opn-ctrl-icon" id="practiceSettingsBtn" title="Settings" aria-haspopup="true" aria-expanded="false">&#9881;</button>
             <button type="button" className="opn-ctrl-btn opn-ctrl-hint" id="practiceHintBtn" title="Show hint">&#128161; Hint</button>
             <button type="button" className="opn-ctrl-btn opn-ctrl-mode" id="practiceModeBtn" title="Switch mode">Mode</button>
             <button type="button" className="opn-ctrl-btn opn-ctrl-nav" id="practicePrevBtn" title="Previous move">&#8249;</button>
             <button type="button" className="opn-ctrl-btn opn-ctrl-nav" id="practiceNextBtn" title="Next move">&#8250;</button>
+            <button type="button" id="practiceFlipBtn" style={{ display: 'none' }}></button>
+          </div>
+
+          <div id="practiceModeMenu" className="opn-mode-menu" role="menu" style={{ display: 'none' }}>
+            <div className="opn-mode-menu-header">Choose a mode</div>
+            <div className="opn-mode-menu-list" id="practiceModeMenuList"></div>
+          </div>
+
+          <div id="practiceSettingsMenu" className="opn-settings-menu" role="menu" style={{ display: 'none' }}>
+            <div className="opn-settings-view" data-view="root">
+              <div className="opn-settings-section-title">Settings</div>
+              <button type="button" className="opn-settings-row" data-toggle="evalBar"><span className="opn-set-check"></span><span className="opn-set-label">Show Evaluation Bar</span></button>
+              <button type="button" className="opn-settings-row" data-toggle="confetti"><span className="opn-set-check"></span><span className="opn-set-label">Show Confetti</span></button>
+              <button type="button" className="opn-settings-row" data-toggle="playSounds"><span className="opn-set-check"></span><span className="opn-set-label">Play Sounds</span></button>
+              <button type="button" className="opn-settings-row" data-toggle="haptic"><span className="opn-set-check"></span><span className="opn-set-label">Haptic Feedback</span></button>
+
+              <div className="opn-settings-section-title">Board Style</div>
+              <button type="button" className="opn-settings-row" data-view-go="pieceSet"><span className="opn-set-label">Piece Set</span><span className="opn-set-chevron">&rsaquo;</span></button>
+              <button type="button" className="opn-settings-row" data-view-go="boardTheme"><span className="opn-set-label">Chessboard Theme</span><span className="opn-set-chevron">&rsaquo;</span></button>
+              <button type="button" className="opn-settings-row" data-action="flipBoard"><span className="opn-set-label">Flip Board</span></button>
+
+              <div className="opn-settings-section-title">Export &amp; Share</div>
+              <button type="button" className="opn-settings-row" data-action="lichess"><span className="opn-set-label">Open in Lichess</span></button>
+              <button type="button" className="opn-settings-row" data-action="copyPgn"><span className="opn-set-label">Copy PGN</span></button>
+              <button type="button" className="opn-settings-row" data-action="copyFen"><span className="opn-set-label">Copy FEN</span></button>
+
+              <div className="opn-settings-section-title">Learn Settings</div>
+              <button type="button" className="opn-settings-row" data-view-go="trainingArrows"><span className="opn-set-label">Training Arrows</span><span className="opn-set-chevron">&rsaquo;</span></button>
+              <button type="button" className="opn-settings-row" data-view-go="learnDialog"><span className="opn-set-label">Learn Dialog Behavior</span><span className="opn-set-chevron">&rsaquo;</span></button>
+              <button type="button" className="opn-settings-row" data-view-go="selectLine"><span className="opn-set-label">Select Line</span><span className="opn-set-chevron">&rsaquo;</span></button>
+              <button type="button" className="opn-settings-row opn-settings-danger" data-action="resetProgress"><span className="opn-set-label">Reset Progress</span></button>
+            </div>
+
+            <div className="opn-settings-view" data-view="pieceSet" style={{ display: 'none' }}>
+              <button type="button" className="opn-settings-back" data-view-back>&lsaquo; Piece Set</button>
+              <div className="opn-settings-options" data-options="pieceSet">
+                <button type="button" className="opn-settings-row" data-set="pieceSet" data-value="classic"><span className="opn-set-label">Classic</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="pieceSet" data-value="modern"><span className="opn-set-label">Modern</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="pieceSet" data-value="outline"><span className="opn-set-label">Outline</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="pieceSet" data-value="bold"><span className="opn-set-label">Bold</span><span className="opn-set-radio"></span></button>
+              </div>
+            </div>
+
+            <div className="opn-settings-view" data-view="boardTheme" style={{ display: 'none' }}>
+              <button type="button" className="opn-settings-back" data-view-back>&lsaquo; Chessboard Theme</button>
+              <div className="opn-settings-options" data-options="boardTheme">
+                <button type="button" className="opn-settings-row" data-set="boardTheme" data-value="green"><span className="opn-set-label">Green</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="boardTheme" data-value="blue"><span className="opn-set-label">Blue</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="boardTheme" data-value="brown"><span className="opn-set-label">Brown</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="boardTheme" data-value="purple"><span className="opn-set-label">Purple</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="boardTheme" data-value="dark"><span className="opn-set-label">Dark</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="boardTheme" data-value="red"><span className="opn-set-label">Red</span><span className="opn-set-radio"></span></button>
+              </div>
+            </div>
+
+            <div className="opn-settings-view" data-view="trainingArrows" style={{ display: 'none' }}>
+              <button type="button" className="opn-settings-back" data-view-back>&lsaquo; Training Arrows</button>
+              <div className="opn-settings-options" data-options="trainingArrows">
+                <button type="button" className="opn-settings-row" data-set="trainingArrows" data-value="always"><span className="opn-set-label">Always show</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="trainingArrows" data-value="hint"><span className="opn-set-label">Only on hint</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="trainingArrows" data-value="never"><span className="opn-set-label">Never</span><span className="opn-set-radio"></span></button>
+              </div>
+            </div>
+
+            <div className="opn-settings-view" data-view="learnDialog" style={{ display: 'none' }}>
+              <button type="button" className="opn-settings-back" data-view-back>&lsaquo; Learn Dialog Behavior</button>
+              <div className="opn-settings-options" data-options="learnDialog">
+                <button type="button" className="opn-settings-row" data-set="learnDialog" data-value="auto"><span className="opn-set-label">Auto-advance after correct move</span><span className="opn-set-radio"></span></button>
+                <button type="button" className="opn-settings-row" data-set="learnDialog" data-value="manual"><span className="opn-set-label">Wait for me to press &rsaquo;</span><span className="opn-set-radio"></span></button>
+              </div>
+            </div>
+
+            <div className="opn-settings-view" data-view="selectLine" style={{ display: 'none' }}>
+              <button type="button" className="opn-settings-back" data-view-back>&lsaquo; Select Line</button>
+              <div className="opn-settings-options" data-options="selectLine" id="practiceSelectLineList"></div>
+            </div>
           </div>
 
           <button type="button" id="practiceResetBtn" style={{ display: 'none' }}></button>
@@ -192,13 +281,19 @@ export default function OpeningsTab() {
             <span className="opn-train-step" id="opnTrainStep">#1</span>
           </div>
 
-          <div className="opn-coach-bubble" id="coachExplanation">
-            <div className="opn-coach-head">
-              <span className="opn-coach-icon">&#9822;</span>
-              <span className="opn-coach-label">Coach</span>
+          <div className="opn-coach-row">
+            <div className="opn-coach-avatar" aria-hidden="true">
+              <span className="opn-coach-piece">&#9822;</span>
+              <span className="opn-coach-crown">&#128081;</span>
             </div>
-            <div className="opn-coach-body" id="opnCoachBody">
-              Select a variation to begin. Use <strong>›</strong> to step through moves in Learn mode.
+            <div className="opn-coach-bubble" id="coachExplanation">
+              <div className="opn-coach-head" style={{ display: 'none' }}>
+                <span className="opn-coach-icon">&#9822;</span>
+                <span className="opn-coach-label">Coach</span>
+              </div>
+              <div className="opn-coach-body" id="opnCoachBody">
+                Select a variation to begin. Use <strong>›</strong> to step through moves in Learn mode.
+              </div>
             </div>
           </div>
 
