@@ -158,6 +158,8 @@ const OpeningPracticeController = (function () {
   var userColor = 'w';          // Which color the user plays
   var practiceMode = 'learn';
   var isPracticing = false;
+  var awaitingPracticeRetry = false;
+  var practiceRetryFen = '';
   var learnMoveIndex = 0;       // Position cursor in learn-mode walk-through
   var learnProgress = loadLearnProgress(); // {openingId: {discovered: {varId: true}}}
   var searchQuery = '';
@@ -1497,9 +1499,26 @@ const OpeningPracticeController = (function () {
     return 'Excellent! You completed this variation!';
   }
 
+  function updatePracticeCoordinates() {
+    var rankEl = document.getElementById('practiceRankCoords');
+    var fileEl = document.getElementById('practiceFileCoords');
+    if (!rankEl || !fileEl) return;
+    var flipped = !!(ChessBoard && ChessBoard.getFlipped && ChessBoard.getFlipped());
+    var ranks = flipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1'];
+    var files = flipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    rankEl.innerHTML = ranks.map(function(label) { return '<span>' + label + '</span>'; }).join('');
+    fileEl.innerHTML = files.map(function(label) { return '<span>' + label + '</span>'; }).join('');
+  }
+
   function renderModeCards() {
     var grid = document.getElementById('opnModeGrid');
     if (!grid) return;
+    if (isPracticing) {
+      grid.style.display = 'none';
+      grid.innerHTML = '';
+      return;
+    }
+    grid.style.display = '';
     var html = '';
     ['learn', 'practice', 'drill', 'time', 'puzzles', 'arena'].forEach(function(mode) {
       var meta = MODE_META[mode];
@@ -1913,7 +1932,8 @@ const OpeningPracticeController = (function () {
     ChessBoard.clearArrows();
     ChessBoard.clearMarkers();
     ChessBoard.setFlipped(userColor === 'b');
-    ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [], interactive: true });
+    updatePracticeCoordinates();
+    ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [], interactive: true, showCoordinates: false });
 
     updatePracticeModeUI();
     updatePracticeMeta();
@@ -2258,6 +2278,10 @@ const OpeningPracticeController = (function () {
     var previousMode = practiceMode;
     practiceMode = normalizePracticeMode(mode);
 
+    if (previousMode === 'practice' && practiceMode !== 'practice' && awaitingPracticeRetry) {
+      handlePracticeTryAgain();
+    }
+
     if (previousMode === 'puzzles' && practiceMode !== 'puzzles') {
       exitOpeningPuzzleMode();
       return;
@@ -2349,6 +2373,9 @@ const OpeningPracticeController = (function () {
     learnMoveIndex = 0;
     sessionHints = 0;
     sessionErrors = 0;
+    awaitingPracticeRetry = false;
+    practiceRetryFen = '';
+    showPracticeTryAgainBtn(false);
     stopTimeModeTimer();
     timeModeState = createInitialTimeModeState();
     hideSRSPanel();
@@ -2378,10 +2405,11 @@ const OpeningPracticeController = (function () {
     ChessBoard.setPosition(practiceChess);
     ChessBoard.setLastMove(null, null);
     ChessBoard.setFlipped(userColor === 'b');
+    updatePracticeCoordinates();
     if (practiceMode === 'learn') {
-      ChessBoard.setOptions({ interactionColor: null, allowedMoves: [], interactive: true });
+      ChessBoard.setOptions({ interactionColor: null, allowedMoves: [], interactive: true, showCoordinates: false });
     } else {
-      ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [], interactive: true });
+      ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [], interactive: true, showCoordinates: false });
     }
 
     // Update UI
@@ -2422,6 +2450,7 @@ const OpeningPracticeController = (function () {
     }
 
     if (!isPracticing || !expectedMoves.length) return;
+    if (awaitingPracticeRetry) return;
 
     var expectedSAN = expectedMoves[currentMoveIndex];
 
@@ -2453,8 +2482,32 @@ const OpeningPracticeController = (function () {
         failArenaSession(moveResult, expectedSAN);
         return;
       }
-      // Wrong move — undo it
       sessionErrors++;
+      if (practiceMode === 'practice') {
+        // Leave the wrong move on the board, lock input, prompt for Try Again.
+        awaitingPracticeRetry = true;
+        practiceChess.undo();
+        practiceRetryFen = practiceChess.fen();
+        var replayMove = {
+          from: moveResult.from,
+          to: moveResult.to
+        };
+        if (moveResult.promotion) replayMove.promotion = moveResult.promotion;
+        practiceChess.move(replayMove);
+        SoundController.playMove(moveResult);
+        ChessBoard.setPosition(practiceChess);
+        ChessBoard.setLastMove(moveResult.from, moveResult.to);
+        ChessBoard.clearArrows();
+        ChessBoard.setOptions({ interactionColor: null, allowedMoves: [], interactive: false });
+        showPracticeStatus(
+          'error',
+          'Not the main line — ' + moveResult.san + '. The book move was ' + expectedSAN + '. Click Try Again to revert.'
+        );
+        updateCoachPanel(false, { wrongMove: true, played: moveResult.san, expected: expectedSAN });
+        showPracticeTryAgainBtn(true);
+        return;
+      }
+      // Wrong move — undo it
       practiceChess.undo();
       ChessBoard.setPosition(practiceChess);
       ChessBoard.clearArrows();
@@ -2471,6 +2524,34 @@ const OpeningPracticeController = (function () {
           : 'Incorrect move! Try again. The correct move is for ' + (practiceChess.turn() === 'w' ? 'White' : 'Black') + '.'
       );
     }
+  }
+
+  function showPracticeTryAgainBtn(show) {
+    var btn = document.getElementById('practiceTryAgainBtn');
+    if (!btn) return;
+    btn.onclick = handlePracticeTryAgain;
+    btn.style.display = show ? '' : 'none';
+  }
+
+  function handlePracticeTryAgain() {
+    if (!awaitingPracticeRetry) return;
+    if (practiceRetryFen && practiceChess && typeof practiceChess.load === 'function') {
+      practiceChess.load(practiceRetryFen);
+    } else {
+      practiceChess.undo();
+    }
+    ChessBoard.setPosition(practiceChess);
+    ChessBoard.clearArrows();
+    if (currentMoveIndex > 0) {
+      // Re-light the previous move marker if we have one
+      ChessBoard.setLastMove(null, null);
+    }
+    ChessBoard.setOptions({ interactionColor: userColor, allowedMoves: [], interactive: true, showCoordinates: false });
+    awaitingPracticeRetry = false;
+    practiceRetryFen = '';
+    showPracticeTryAgainBtn(false);
+    clearPracticeStatus();
+    updateCoachPanel(currentMoveIndex === 0);
   }
 
   function autoPlayOpponentMove() {
@@ -2536,6 +2617,10 @@ const OpeningPracticeController = (function () {
       return;
     }
     if (practiceMode === 'time' || practiceMode === 'arena') return;
+    if (awaitingPracticeRetry) {
+      handlePracticeTryAgain();
+      return;
+    }
     if (currentMoveIndex <= 0) return;
 
     // Undo the last two moves (opponent + user) or one if at start
@@ -2753,12 +2838,14 @@ const OpeningPracticeController = (function () {
     puzzleState.userColor = chess.turn();
 
     ChessBoard.setFlipped(puzzleState.userColor === 'b');
+    updatePracticeCoordinates();
     ChessBoard.setPosition(chess);
     ChessBoard.setLastMove(setupMove ? setupMove.from : null, setupMove ? setupMove.to : null);
     ChessBoard.clearArrows();
     ChessBoard.clearMarkers();
     ChessBoard.setOptions({
       showArrows: true,
+      showCoordinates: false,
       lastMoveMode: 'to',
       interactionColor: puzzleState.userColor,
       allowedMoves: []
@@ -3052,9 +3139,25 @@ const OpeningPracticeController = (function () {
     if (currentEl) currentEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
-  function updateCoachPanel(isStart) {
+  function updateCoachPanel(isStart, options) {
     var body = document.getElementById('opnCoachBody') || document.getElementById('coachExplanation');
     if (!body) return;
+    options = options || {};
+
+    if (practiceMode === 'practice' && options.wrongMove) {
+      var wrongIdx = currentMoveIndex;
+      var wrongMoveNum = Math.floor(wrongIdx / 2) + 1;
+      var wrongIsWhite = wrongIdx % 2 === 0;
+      var wrongLabel = wrongMoveNum + (wrongIsWhite ? '.' : '...') + ' ' + options.played;
+      var bookLabel = wrongMoveNum + (wrongIsWhite ? '.' : '...') + ' ' + options.expected;
+      body.innerHTML =
+        '<div class="opn-coach-move-label" style="color:#ef9a9a">' + wrongLabel + ' <span class="coach-color-badge ' + (wrongIsWhite ? 'white-badge' : 'black-badge') + '">' + (wrongIsWhite ? 'White' : 'Black') + '</span></div>' +
+        '<div class="opn-coach-move-explain">Off the main line. Take a moment to look at the structure before retrying.</div>' +
+        '<div class="opn-coach-move-label" style="margin-top:10px">Book move — ' + bookLabel + '</div>' +
+        '<div class="opn-coach-move-explain">' + getExplanation(options.expected, wrongIdx) + '</div>' +
+        '<div class="opn-coach-next">Click <strong>Try Again</strong> to roll back and play the book move.</div>';
+      return;
+    }
 
     if (practiceMode === 'learn') {
       if (isStart || currentMoveIndex === 0) {
@@ -3140,7 +3243,7 @@ const OpeningPracticeController = (function () {
       return;
     }
 
-    // Practice mode: explain the last move(s)
+    // Practice mode: explain the last move(s) and prompt the next one.
     var html = '';
     var startIdx = Math.max(0, currentMoveIndex - 2);
     for (var i = startIdx; i < currentMoveIndex && i < expectedMoves.length; i++) {
@@ -3155,8 +3258,22 @@ const OpeningPracticeController = (function () {
     if (currentMoveIndex < expectedMoves.length) {
       var ntc = currentMoveIndex % 2 === 0 ? 'w' : 'b';
       var nt = ntc === 'w' ? 'White' : 'Black';
-      var ld = ntc === userColor ? 'Your turn' : 'Opponent turn';
-      html += '<div class="opn-coach-next">' + ld + ': <strong>' + nt + '</strong> to move.</div>';
+      var yourTurn = ntc === userColor;
+      html += '<div class="opn-coach-next" style="margin-top:10px">' +
+        (yourTurn
+          ? '<strong>Your move — ' + nt + ' to play.</strong> Recall the book line; tap <strong>Hint</strong> if stuck.'
+          : '<strong>Opponent to move (' + nt + ').</strong> Reply incoming…')
+        + '</div>';
+    } else {
+      html += '<div class="opn-coach-complete" style="margin-top:10px">&#127881; Line complete. Try the next variation or switch modes.</div>';
+    }
+
+    if (!html) {
+      // Defensive: if no explanations rendered, still show something useful.
+      html =
+        '<div class="opn-coach-move-label"><strong>' + (currentOpening.name || 'Practice') + '</strong></div>' +
+        '<div class="opn-coach-move-explain">Playing as <strong>' + getColorLabel(userColor) + '</strong> — <em>' + (currentVariation.name || '') + '</em></div>' +
+        '<div class="opn-coach-next">Play the next move. Use <strong>Hint</strong> if you get stuck.</div>';
     }
 
     body.innerHTML = html;
@@ -3591,10 +3708,14 @@ const OpeningPracticeController = (function () {
     var resetBtn = document.getElementById('practiceResetBtn');
     if (resetBtn) resetBtn.addEventListener('click', resetPractice);
 
+    var tryAgainBtn = document.getElementById('practiceTryAgainBtn');
+    if (tryAgainBtn) tryAgainBtn.addEventListener('click', handlePracticeTryAgain);
+
     var flipBtn = document.getElementById('practiceFlipBtn');
     if (flipBtn) {
       flipBtn.addEventListener('click', function () {
         ChessBoard.flip();
+        updatePracticeCoordinates();
       });
     }
 

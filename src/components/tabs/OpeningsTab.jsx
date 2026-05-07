@@ -160,12 +160,18 @@ export default function OpeningsTab() {
             <span id="practiceSideCopy"></span>
           </div>
 
-          <div className="opn-board-frame">
-            <canvas id="practiceChessBoard" width="640" height="640"></canvas>
-            <div id="practiceBoardOverlay" className="board-overlay"></div>
+          <div className="opn-board-coordinate-shell">
+            <div className="opn-board-frame">
+              <canvas id="practiceChessBoard" width="640" height="640"></canvas>
+              <div id="practiceBoardOverlay" className="board-overlay"></div>
+            </div>
+            <div className="opn-board-rank-coords" id="practiceRankCoords" aria-hidden="true"></div>
+            <div className="opn-board-file-coords" id="practiceFileCoords" aria-hidden="true"></div>
           </div>
 
           <div id="practiceStatus" className="practice-status" style={{ display: 'none' }}></div>
+
+          <button type="button" id="practiceTryAgainBtn" className="opn-ctrl-btn opn-ctrl-try-again" style={{ display: 'none' }}>&#8634; Try Again</button>
 
           <div className="opn-bottom-bar">
             <button type="button" className="opn-ctrl-btn opn-ctrl-icon" id="practiceFlipBtn" title="Flip board">&#8645;</button>

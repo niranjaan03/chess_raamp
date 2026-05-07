@@ -9,7 +9,10 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  background: var(--bg-base);
+  background:
+    radial-gradient(1100px 540px at 82% -8%, rgba(212, 175, 55, 0.06), transparent 60%),
+    radial-gradient(900px 460px at -10% 100%, rgba(212, 175, 55, 0.035), transparent 65%),
+    var(--bg-base);
 }
 
 /* Board column */
@@ -27,6 +30,61 @@
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 30px 60px -28px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.opn-board-coordinate-shell {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.opn-board-coordinate-shell .opn-board-frame {
+  width: 100%;
+  height: 100%;
+}
+
+.opn-board-rank-coords,
+.opn-board-file-coords {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: clamp(0.78rem, 1.3vw, 1rem);
+  font-weight: 900;
+  line-height: 1;
+  color: #ffffff;
+  -webkit-text-stroke: 0.75px rgba(0, 0, 0, 0.85);
+  text-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.95),
+    0 0 4px rgba(0, 0, 0, 0.9),
+    0 0 8px rgba(0, 0, 0, 0.75);
+}
+
+.opn-board-rank-coords {
+  top: 0;
+  bottom: 0;
+  left: 8px;
+  display: grid;
+  grid-template-rows: repeat(8, 1fr);
+  align-items: start;
+  padding-top: 7px;
+}
+
+.opn-board-file-coords {
+  left: 0;
+  right: 0;
+  bottom: 7px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  align-items: end;
+  text-align: right;
+  padding-right: 8px;
 }
 
 .opn-board-frame canvas {
@@ -81,6 +139,25 @@
   font-size: 1.2rem;
   font-weight: bold;
 }
+
+.opn-ctrl-try-again {
+  display: block;
+  width: 100%;
+  margin: 8px 0 4px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--accent-warn, #f0a35e);
+  color: #1a1208;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease;
+}
+
+.opn-ctrl-try-again:hover { filter: brightness(1.08); }
+.opn-ctrl-try-again:active { transform: translateY(1px); }
 
 /* Training column */
 .opn-train-col {
@@ -502,3 +579,492 @@
   }
 }
 
+/* =========================================
+   Premium Practice — visual refresh
+   ========================================= */
+
+/* Compact, breadcrumb-style nav instead of slab buttons */
+.opn-board-col .practice-nav-row {
+  gap: 4px;
+  padding: 2px 0 6px;
+}
+.opn-board-col .practice-nav-row .btn-back {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 6px 11px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-radius: 8px;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.opn-board-col .practice-nav-row .btn-back:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+/* Bottom bar — glassy panel + a primary gold action */
+.opn-bottom-bar {
+  gap: 6px;
+  padding: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  backdrop-filter: blur(8px);
+}
+.opn-ctrl-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  letter-spacing: 0.015em;
+  font-weight: 500;
+  padding: 9px 12px;
+  color: var(--text-secondary);
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.1s ease;
+}
+.opn-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+}
+.opn-ctrl-btn:active { transform: translateY(1px); }
+.opn-ctrl-icon {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+.opn-ctrl-hint {
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.22), rgba(212, 175, 55, 0.10));
+  border-color: rgba(212, 175, 55, 0.34);
+  color: #f7e6b0;
+  font-weight: 600;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+.opn-ctrl-hint:hover {
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.32), rgba(212, 175, 55, 0.16));
+  border-color: rgba(212, 175, 55, 0.5);
+  color: #fff7d6;
+}
+.opn-ctrl-mode {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.opn-ctrl-nav {
+  width: 44px;
+  padding: 9px 0;
+  background: rgba(255, 255, 255, 0.03);
+  font-weight: 500;
+}
+
+/* Train column ambient backdrop */
+.opn-train-col {
+  padding: 18px 20px 24px;
+  gap: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  background: radial-gradient(900px 360px at 100% 0%, rgba(212, 175, 55, 0.05), transparent 55%);
+}
+
+/* Train header — refined typography + chips */
+.opn-train-header {
+  padding: 4px 0 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.opn-mode-badge {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.20), rgba(212, 175, 55, 0.08));
+  border: 1px solid rgba(212, 175, 55, 0.32);
+  color: #ffd866;
+  border-radius: 999px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+.opn-train-name {
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.opn-train-step {
+  font-size: 0.68rem;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Coach bubble — inset gold accent + soft elevation */
+.opn-coach-bubble {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
+  padding: 16px 18px 18px 22px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 18px 34px -22px rgba(0, 0, 0, 0.65);
+  overflow: hidden;
+  min-height: 90px;
+}
+.opn-coach-bubble:empty,
+.opn-coach-body:empty::after {
+  content: "";
+}
+.opn-coach-bubble .opn-coach-body {
+  display: block;
+}
+.opn-coach-bubble::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 14px; bottom: 14px;
+  width: 3px;
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.7), rgba(212, 175, 55, 0.05));
+  border-radius: 0 3px 3px 0;
+}
+.opn-coach-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  color: #ffd866;
+}
+.opn-coach-icon {
+  font-size: 1rem;
+  filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.4));
+}
+.opn-coach-body {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+.opn-coach-body .opn-coach-move-label {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffd866;
+  margin-bottom: 4px;
+}
+.opn-coach-body .opn-coach-move-explain {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+.opn-coach-body .opn-coach-next {
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.opn-coach-body .opn-coach-complete {
+  color: #ffd866;
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin-top: 8px;
+}
+
+/* Lines discovered chip */
+.opn-lines-row {
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.025));
+  border-color: rgba(212, 175, 55, 0.22);
+  border-radius: 999px;
+  padding: 7px 14px;
+  align-self: flex-start;
+}
+.opn-lines-text {
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+/* Moves & Related Lines panels — layered cards */
+.practice-moves-panel,
+.related-lines-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.008)),
+    var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 14px 28px -22px rgba(0, 0, 0, 0.55);
+}
+.practice-moves-header {
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 10px;
+  font-family: var(--font-display);
+}
+
+/* PGN line — quieter inset chip */
+.practice-pgn-line {
+  font-size: 0.82rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 9px 12px;
+}
+.practice-pgn-line.is-concealed {
+  background: rgba(212, 175, 55, 0.05);
+  border: 1px dashed rgba(212, 175, 55, 0.28);
+}
+
+/* Move pills — current move glows gold */
+.pmove {
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.82rem;
+}
+.pmove-current {
+  background: linear-gradient(180deg, #ffd866, #d4a52e);
+  color: #1a1208;
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.4), 0 0 14px rgba(212, 175, 55, 0.4);
+  text-shadow: none;
+}
+.pmove-done {
+  color: #ffd866;
+  background: rgba(212, 175, 55, 0.10);
+}
+
+/* Progress text */
+.practice-progress-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.practice-progress-bar {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+  height: 4px;
+  overflow: hidden;
+}
+.practice-progress-fill {
+  background: linear-gradient(90deg, #d4a52e, #ffd866);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.45);
+}
+
+/* Related lines — refined rows */
+.related-line-btn {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.related-line-btn:hover {
+  background: rgba(212, 175, 55, 0.06);
+  border-color: rgba(212, 175, 55, 0.28);
+  transform: translateY(-1px);
+}
+.related-line-name {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+.related-line-badge {
+  background: rgba(212, 175, 55, 0.18);
+  color: #ffd866;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  padding: 2px 8px;
+  font-size: 9px;
+}
+.related-empty {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 6px 2px;
+}
+
+/* Practice status — slide-in feedback */
+.practice-status {
+  border-radius: 12px;
+  padding: 11px 16px;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  letter-spacing: 0.005em;
+  animation: opnStatusIn 0.22s ease-out;
+}
+@keyframes opnStatusIn {
+  from { transform: translateY(-3px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Try Again button — premium gold */
+.opn-ctrl-try-again {
+  margin: 10px 0 4px;
+  padding: 11px 14px;
+  font-family: var(--font-display);
+  background: linear-gradient(180deg, #ffd866, #d4a52e);
+  color: #1a1208;
+  border-radius: 12px;
+  letter-spacing: 0.015em;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.4) inset,
+    0 8px 18px -8px rgba(212, 175, 55, 0.5);
+}
+
+/* Mode cards — when shown (i.e. between sessions), give them more presence */
+.opn-mode-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    var(--bg-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+.opn-mode-card.active {
+  background:
+    linear-gradient(180deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.05)),
+    var(--bg-elevated);
+  border-color: rgba(212, 175, 55, 0.38);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 0 0 1px rgba(212, 175, 55, 0.12),
+    0 0 14px -4px rgba(212, 175, 55, 0.25);
+}
+
+/* Practice workspace: larger board with a compact right-side control panel */
+#tab-openings.active .opn-practice-root {
+  height: calc(100vh - 112px);
+  min-height: 720px;
+  align-items: stretch;
+  gap: 16px;
+  padding: 0;
+  background: var(--bg-base);
+}
+
+#tab-openings.active .opn-board-col {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px 0 18px 18px;
+}
+
+#tab-openings.active .opn-board-col .practice-nav-row,
+#tab-openings.active .practice-status,
+#tab-openings.active .opn-ctrl-try-again,
+#tab-openings.active .opn-bottom-bar {
+  width: min(100%, 820px);
+}
+
+#tab-openings.active .opn-board-coordinate-shell,
+#tab-openings.active .opn-board-frame {
+  width: min(100%, 820px, calc(100vh - 230px), calc(100vw - 520px));
+  min-width: min(100%, 600px);
+}
+
+#tab-openings.active .opn-board-frame {
+  width: 100%;
+  min-width: 0;
+  border-radius: 10px;
+}
+
+#tab-openings.active .opn-train-col {
+  flex: 0 0 390px;
+  width: 390px;
+  max-width: 390px;
+  margin: 14px 18px 18px 0;
+  padding: 16px;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
+    var(--bg-card);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 20px 42px -28px rgba(0, 0, 0, 0.72);
+}
+
+#tab-openings.active .opn-train-header {
+  padding-bottom: 12px;
+}
+
+#tab-openings.active .opn-coach-bubble,
+#tab-openings.active .practice-moves-panel,
+#tab-openings.active .related-lines-panel,
+#tab-openings.active .time-mode-panel,
+#tab-openings.active .srs-rating-panel {
+  border-radius: 10px;
+}
+
+#tab-openings.active .opn-coach-bubble {
+  padding: 14px 16px 15px 18px;
+}
+
+#tab-openings.active .practice-moves-panel,
+#tab-openings.active .related-lines-panel {
+  padding: 13px;
+}
+
+@media (min-width: 1500px) {
+  #tab-openings.active .opn-board-col .practice-nav-row,
+  #tab-openings.active .practice-status,
+  #tab-openings.active .opn-ctrl-try-again,
+  #tab-openings.active .opn-bottom-bar {
+    width: min(100%, 900px);
+  }
+
+  #tab-openings.active .opn-board-coordinate-shell,
+  #tab-openings.active .opn-board-frame {
+    width: min(100%, 900px, calc(100vh - 220px), calc(100vw - 560px));
+  }
+
+  #tab-openings.active .opn-board-frame {
+    width: 100%;
+  }
+
+  #tab-openings.active .opn-train-col {
+    flex-basis: 410px;
+    width: 410px;
+    max-width: 410px;
+  }
+}
+
+@media (max-width: 1120px) {
+  #tab-openings.active .opn-practice-root {
+    height: auto;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  #tab-openings.active .opn-board-col {
+    width: 100%;
+    padding: 12px;
+  }
+
+  #tab-openings.active .opn-board-col .practice-nav-row,
+  #tab-openings.active .practice-status,
+  #tab-openings.active .opn-ctrl-try-again,
+  #tab-openings.active .opn-bottom-bar,
+  #tab-openings.active .opn-board-coordinate-shell,
+  #tab-openings.active .opn-board-frame {
+    width: min(100%, 720px);
+    min-width: 0;
+  }
+
+  #tab-openings.active .opn-board-frame {
+    width: 100%;
+  }
+
+  #tab-openings.active .opn-train-col {
+    flex: none;
+    width: auto;
+    max-width: none;
+    margin: 0 12px 16px;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}
