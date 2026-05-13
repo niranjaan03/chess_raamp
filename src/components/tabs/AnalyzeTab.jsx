@@ -21,6 +21,7 @@ export default function AnalyzeTab() {
             <PlayerInfoBar
               side="black"
               avatar="♜"
+              avatarId="blackAvatar"
               nameId="blackName"
               ratingId="blackRating"
               flagId="blackFlag"
@@ -55,6 +56,7 @@ export default function AnalyzeTab() {
             <PlayerInfoBar
               side="white"
               avatar="♖"
+              avatarId="whiteAvatar"
               nameId="whiteName"
               ratingId="whiteRating"
               flagId="whiteFlag"

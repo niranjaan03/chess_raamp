@@ -203,6 +203,8 @@ const PGNParser = (function() {
       eco: headers.ECO || '',
       whiteCountry: headers.WhiteCountry || headers.WhiteFlag || headers.WhiteFederation || '',
       blackCountry: headers.BlackCountry || headers.BlackFlag || headers.BlackFederation || '',
+      whiteAvatar: headers.WhiteAvatar || headers.WhiteAvatarUrl || headers.WhitePhoto || headers.WhiteImage || '',
+      blackAvatar: headers.BlackAvatar || headers.BlackAvatarUrl || headers.BlackPhoto || headers.BlackImage || '',
       timeControl: headers.TimeControl || '',
       pgn: loadedWithOriginalPgn ? cleaned : buildCanonicalPgn(headers, history)
     };

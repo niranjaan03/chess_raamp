@@ -33,11 +33,6 @@ export default function GamesTab({ onFetchLatest }) {
               <strong className="games-overview-value" id="gamesMetricReviewed">--</strong>
               <span className="games-overview-foot">Analysis coverage</span>
             </div>
-            <div className="games-overview-item">
-              <span className="games-overview-label">Modes</span>
-              <strong className="games-overview-value games-overview-value-compact" id="gamesMetricModes">No archive</strong>
-              <span className="games-overview-foot">Most-played formats</span>
-            </div>
           </div>
         </section>
 

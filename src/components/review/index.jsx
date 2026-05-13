@@ -18,6 +18,7 @@ export function CapturedPiecesRow({ capturedId, materialId }) {
 export function PlayerInfoBar({
   side,
   avatar,
+  avatarId,
   nameId,
   ratingId,
   flagId,
@@ -28,7 +29,7 @@ export function PlayerInfoBar({
 }) {
   return (
     <div className={`player-info review-player-strip ${side}`} data-player-color={side === 'white' ? 'w' : 'b'}>
-      <div className={`player-avatar ${side}`}>{avatar}</div>
+      <div className={`player-avatar ${side}`} id={avatarId}>{avatar}</div>
       <div className="review-player-main">
         <div className="review-player-identity">
           <div className="review-player-name-line">
@@ -80,7 +81,7 @@ export function AccuracySummary() {
       <div className="gr-players-row review-summary-grid">
         <div className="gr-player-card review-player-card" id="grWhiteCard">
           <div className="gr-player-card-top">
-            <div className="gr-player-avatar">♙</div>
+            <div className="gr-player-avatar" id="grWhiteAvatar">♙</div>
             <div className="gr-player-meta">
               <span className="gr-player-role">White</span>
               <span className="gr-player-name" id="grWhiteName">White</span>
@@ -98,7 +99,7 @@ export function AccuracySummary() {
         </div>
         <div className="gr-player-card review-player-card" id="grBlackCard">
           <div className="gr-player-card-top">
-            <div className="gr-player-avatar">♟</div>
+            <div className="gr-player-avatar" id="grBlackAvatar">♟</div>
             <div className="gr-player-meta">
               <span className="gr-player-role">Black</span>
               <span className="gr-player-name" id="grBlackName">Black</span>

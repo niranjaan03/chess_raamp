@@ -22,6 +22,7 @@ export const GAME_REVIEW_SETTINGS_SCHEMA = {
       showMoveClassificationOnBoard: [true, false],
       autoplayShowMoves: [true, false],
       delayBetweenMoves: ['500', '1000', '1500', '2000', '3000'],
+      coachTone: ['beginner', 'intermediate', 'advanced'],
       showCoachAvatar: [true, false],
       showCourseRecommendations: [true, false],
     },
@@ -62,6 +63,7 @@ export const DEFAULT_GAME_REVIEW_SETTINGS = {
       showMoveClassificationOnBoard: true,
       autoplayShowMoves: true,
       delayBetweenMoves: '1000',
+      coachTone: 'intermediate',
       showCoachAvatar: true,
       showCourseRecommendations: true,
     },
@@ -121,6 +123,11 @@ export const GAME_REVIEW_SETTING_LABELS = {
     1500: '1.5 seconds',
     2000: '2 seconds',
     3000: '3 seconds',
+  },
+  coachTone: {
+    beginner: 'Beginner',
+    intermediate: 'Intermediate',
+    advanced: 'Advanced',
   },
   pieces: {
     classic: 'Classic',

@@ -1187,8 +1187,7 @@ const HomeController = (function() {
         reviewed: 0,
         wins: 0,
         losses: 0,
-        draws: 0,
-        modes: 'No archive'
+        draws: 0
       });
     } else {
       if (controls) controls.style.display = 'none';
@@ -1398,25 +1397,6 @@ const HomeController = (function() {
     '</nav>';
   }
 
-  function summarizeGamesTabModes(items) {
-    var counts = {};
-    (items || []).forEach(function(item) {
-      var key = String(item.timeLabel || '').trim() || 'Rapid';
-      counts[key] = (counts[key] || 0) + 1;
-    });
-    var ranked = Object.keys(counts)
-      .map(function(key) { return { label: key, count: counts[key] }; })
-      .sort(function(a, b) {
-        if (b.count !== a.count) return b.count - a.count;
-        return a.label.localeCompare(b.label);
-      })
-      .slice(0, 2);
-    if (!ranked.length) return 'No archive';
-    return ranked.map(function(entry) {
-      return entry.label + ' ' + entry.count;
-    }).join(' · ');
-  }
-
   function updateGamesTabOverview(state) {
     state = state || {};
     var total = Number(state.total || 0);
@@ -1457,14 +1437,12 @@ const HomeController = (function() {
     var totalEl = document.getElementById('gamesMetricTotal');
     var recordEl = document.getElementById('gamesMetricRecord');
     var reviewedEl = document.getElementById('gamesMetricReviewed');
-    var modesEl = document.getElementById('gamesMetricModes');
     var titleEl = document.getElementById('gamesSummaryTitle');
     var metaEl = document.getElementById('gamesSummaryMeta');
 
     if (totalEl) totalEl.textContent = username ? String(total) : '--';
     if (recordEl) recordEl.textContent = username ? (total ? (wins + '-' + losses + '-' + draws) : '0-0-0') : '--';
     if (reviewedEl) reviewedEl.textContent = username ? (total ? (reviewed + ' / ' + total) : '0 / 0') : '--';
-    if (modesEl) modesEl.textContent = username ? String(state.modes || 'No archive') : 'No archive';
     if (titleEl) titleEl.textContent = summaryTitle;
     if (metaEl) metaEl.textContent = summaryMeta;
   }
@@ -1490,8 +1468,7 @@ const HomeController = (function() {
       username: username,
       archive: archive,
       filter: getGamesTabFilter(),
-      loading: true,
-      modes: 'Syncing...'
+      loading: true
     });
     renderGamesTabSkeleton(container, 'Fetching 3 months of games for ' + username + '...');
 
@@ -1516,8 +1493,7 @@ const HomeController = (function() {
             reviewed: 0,
             wins: 0,
             losses: 0,
-            draws: 0,
-            modes: 'No archive'
+            draws: 0
           });
           container.innerHTML = buildGamesTabEmptyState('No games found in this period', 'Try again after you play a few games or switch to a newer archive range.');
           saveChesscomArchiveCache();
@@ -1544,8 +1520,7 @@ const HomeController = (function() {
           username: username,
           archive: archive,
           filter: getGamesTabFilter(),
-          error: errorText,
-          modes: 'Unavailable'
+          error: errorText
         });
         container.innerHTML = buildGamesTabEmptyState('Archive unavailable', errorText);
       });
@@ -1675,8 +1650,7 @@ const HomeController = (function() {
       reviewed: reviewedCount,
       wins: wins,
       losses: losses,
-      draws: draws,
-      modes: summarizeGamesTabModes(items)
+      draws: draws
     });
 
     var pageCount = Math.max(1, Math.ceil(filteredItems.length / GAMES_TAB_PAGE_SIZE));

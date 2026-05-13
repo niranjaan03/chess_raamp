@@ -109,6 +109,7 @@ export default function GameReviewSettingsModal() {
               <ToggleSetting id="grsReviewClassificationBoard" path="interface.review.showMoveClassificationOnBoard" label="Show Move Classification On Board" checked={defaults.interface.review.showMoveClassificationOnBoard} />
               <ToggleSetting id="grsReviewAutoplay" path="interface.review.autoplayShowMoves" label="Autoplay Show Moves" checked={defaults.interface.review.autoplayShowMoves} />
               <SelectSetting id="grsReviewDelay" path="interface.review.delayBetweenMoves" label="Delay Between Moves" value={defaults.interface.review.delayBetweenMoves} options={optionsFrom('delayBetweenMoves', ['500', '1000', '1500', '2000', '3000'])} />
+              <SelectSetting id="grsCoachTone" path="interface.review.coachTone" label="Coach Tone" value={defaults.interface.review.coachTone} options={optionsFrom('coachTone', ['beginner', 'intermediate', 'advanced'])} />
               <ToggleSetting id="grsShowCoachAvatar" path="interface.review.showCoachAvatar" label="Show Coach Avatar" checked={defaults.interface.review.showCoachAvatar} />
               <ToggleSetting id="grsShowCourseRecommendations" path="interface.review.showCourseRecommendations" label="Show Course Recommendations" checked={defaults.interface.review.showCourseRecommendations} />
             </div>

@@ -32,6 +32,8 @@ function save(game) {
   if (game.reviewUsername) summary.reviewUsername = game.reviewUsername;
   if (game.whiteCountry) summary.whiteCountry = game.whiteCountry;
   if (game.blackCountry) summary.blackCountry = game.blackCountry;
+  if (game.whiteAvatar) summary.whiteAvatar = game.whiteAvatar;
+  if (game.blackAvatar) summary.blackAvatar = game.blackAvatar;
   if (game.liveClocks) summary.liveClocks = game.liveClocks;
   if (game.reviewAccuracies) {
     summary.sourceAccuracies = {
@@ -114,6 +116,8 @@ function loadGame(id) {
       sourceAccuracies: game.sourceAccuracies || null,
       whiteCountry: game.whiteCountry || '',
       blackCountry: game.blackCountry || '',
+      whiteAvatar: game.whiteAvatar || '',
+      blackAvatar: game.blackAvatar || '',
       liveClocks: game.liveClocks || null
     });
     _switchTab('analyze');

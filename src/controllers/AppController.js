@@ -101,7 +101,6 @@ const AppController = (function() {
   var DEFAULT_MOVE_DESC = 'Run a full game review to see brilliance, inaccuracies, and more for each move.';
   var DEFAULT_COACH_TEXT = 'Run a full analysis to unlock personalized move-by-move coaching.';
   var COACH_COMMENTARY_URL = APP_BASE_URL.replace(/\/?$/, '/') + 'data/chess_commentary_cleaned_combined.json';
-  var lastCoachSummary = DEFAULT_COACH_TEXT;
   var coachCommentaryPromise = null;
   var coachCommentaryStore = null;
   var coachCommentaryRequestId = 0;
@@ -536,6 +535,24 @@ const AppController = (function() {
     bindClick('reviewPanelMenu', openEngineSettingsModal);
     bindClick('gameReviewSettingsClose', closeEngineSettingsModal);
     bindClick('grsFlipBoard', flipBoard);
+    document.querySelectorAll('[data-coach-tone]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        var tone = this.getAttribute('data-coach-tone') || 'intermediate';
+        gameReviewSettings = updateGameReviewSettings('interface.review.coachTone', tone);
+        applyGameReviewSettings();
+        if (lastAnalysisHistory) {
+          var counts = lastAnalysisCounts || { w: {}, b: {} };
+          var wMoves = lastAnalysisHistory.filter(function(m) { return m.color === 'w'; });
+          var bMoves = lastAnalysisHistory.filter(function(m) { return m.color === 'b'; });
+          updateCoachTip(
+            calculateAccuracyFromCPL(wMoves, 'w', lastAnalysisHistory),
+            calculateAccuracyFromCPL(bMoves, 'b', lastAnalysisHistory),
+            counts
+          );
+          setMoveQualityBanner(getSelectedReviewMove().moveInfo, getSelectedReviewMove().moveIndex);
+        }
+      });
+    });
     bind('settingsEngineSelect', 'change', handleEngineSettingChange);
     setupGameReviewSettingsModal();
     var gameReviewSettingsOverlay = document.getElementById('gameReviewSettingsOverlay');
@@ -789,6 +806,16 @@ const AppController = (function() {
           startAnalysis();
         }
         if (path.indexOf('interface.review.') === 0) {
+          if (path === 'interface.review.coachTone' && lastAnalysisHistory) {
+            var counts = lastAnalysisCounts || { w: {}, b: {} };
+            var wMoves = lastAnalysisHistory.filter(function(m) { return m.color === 'w'; });
+            var bMoves = lastAnalysisHistory.filter(function(m) { return m.color === 'b'; });
+            updateCoachTip(
+              calculateAccuracyFromCPL(wMoves, 'w', lastAnalysisHistory),
+              calculateAccuracyFromCPL(bMoves, 'b', lastAnalysisHistory),
+              counts
+            );
+          }
           var selected = getSelectedReviewMove();
           setMoveQualityBanner(selected.moveInfo, selected.moveIndex);
         }
@@ -900,12 +927,22 @@ const AppController = (function() {
     document.body.dataset.moveStrengthColoring = analysis.moveStrengthColoring;
     document.body.dataset.reviewCoachVisible = review.showCoachAvatar ? 'true' : 'false';
     document.body.dataset.reviewCourseRecommendations = review.showCourseRecommendations ? 'true' : 'false';
+    document.body.dataset.reviewCoachTone = review.coachTone || 'intermediate';
     document.body.dataset.reviewPieceAnimation = board.pieceAnimations;
+    syncCoachToneControls(review.coachTone || 'intermediate');
     syncGameReviewSettingsControls();
     syncEngineSettingsControls();
     updateEngineLinesVisibility();
     updateMovesList();
     setMoveQualityBanner(getSelectedReviewMove().moveInfo, getSelectedReviewMove().moveIndex);
+  }
+
+  function syncCoachToneControls(tone) {
+    document.querySelectorAll('[data-coach-tone]').forEach(function(button) {
+      var active = button.getAttribute('data-coach-tone') === tone;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
   }
 
   function updateEngineLinesVisibility() {
@@ -1396,6 +1433,143 @@ const AppController = (function() {
       '';
   }
 
+  function safeReviewImageUrl(value) {
+    try {
+      var raw = String(value || '').trim();
+      if (!raw) return '';
+      var base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+      var url = new URL(raw, base);
+      if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+    } catch { /* invalid avatar URL */ }
+    return '';
+  }
+
+  function getNestedAvatarValue(player) {
+    if (!player) return '';
+    return player.avatar ||
+      player.avatarUrl ||
+      player.avatar_url ||
+      player.image ||
+      player.imageUrl ||
+      player.photo ||
+      player.picture ||
+      (player.user && (
+        player.user.avatar ||
+        player.user.avatarUrl ||
+        player.user.avatar_url ||
+        player.user.image ||
+        player.user.imageUrl ||
+        player.user.photo ||
+        player.user.picture
+      )) ||
+      '';
+  }
+
+  function getSourcePlayerAvatar(sourceGame, color) {
+    var key = color === 'w' ? 'white' : 'black';
+    var player = getSourcePlayer(sourceGame, color);
+    var sourceAvatar = safeReviewImageUrl(getNestedAvatarValue(player));
+    if (sourceAvatar) return sourceAvatar;
+    return sourceGame
+      ? safeReviewImageUrl(
+          sourceGame[key + 'Avatar'] ||
+          sourceGame[key + '_avatar'] ||
+          sourceGame[key + 'AvatarUrl'] ||
+          sourceGame[key + '_avatar_url'] ||
+          ''
+        )
+      : '';
+  }
+
+  function findStoredAccountForPlayer(username, platform) {
+    var target = normalizePlayerLookupName(username);
+    if (!target) return null;
+    try {
+      var profile = ProfileController.migrateProfileAccounts(getJson('kv_profile', {}) || {});
+      var accounts = Array.isArray(profile.linkedAccounts) ? profile.linkedAccounts : [];
+      return accounts.find(function(account) {
+        if (!account) return false;
+        if (platform && account.platform && normalizePlayerLookupName(account.platform) !== normalizePlayerLookupName(platform)) return false;
+        return normalizePlayerLookupName(account.username || account.displayName) === target;
+      }) || null;
+    } catch { /* ignore corrupt profile state */ }
+    return null;
+  }
+
+  function getPlayerNameForColor(game, color) {
+    return color === 'b'
+      ? (game && game.black || 'Black')
+      : (game && game.white || 'White');
+  }
+
+  function getGameAvatarForColor(game, color) {
+    if (!game) return '';
+    var headers = game.headers || {};
+    var prefix = color === 'b' ? 'Black' : 'White';
+    return safeReviewImageUrl(
+      game[color === 'b' ? 'blackAvatar' : 'whiteAvatar'] ||
+      headers[prefix + 'Avatar'] ||
+      headers[prefix + 'AvatarUrl'] ||
+      headers[prefix + 'Photo'] ||
+      headers[prefix + 'Image'] ||
+      ''
+    );
+  }
+
+  function resolveReviewPlayerAvatar(game, color) {
+    var stored = getGameAvatarForColor(game, color);
+    if (stored) return stored;
+
+    var account = findStoredAccountForPlayer(getPlayerNameForColor(game, color), game && game.sourcePlatform);
+    if (account && account.avatar) {
+      var accountAvatar = safeReviewImageUrl(account.avatar);
+      if (accountAvatar) return accountAvatar;
+    }
+
+    return '';
+  }
+
+  function renderReviewAvatar(el, url, color, name) {
+    if (!el) return;
+    var fallback = color === 'b' ? '&#9820;' : '&#9814;';
+    var safeUrl = safeReviewImageUrl(url);
+    el.classList.toggle('has-photo', !!safeUrl);
+    if (safeUrl) {
+      el.innerHTML = '<img src="' + escapeAttr(safeUrl) + '" alt="' + escapeAttr(name || '') + '" loading="lazy" referrerpolicy="no-referrer">';
+    } else {
+      el.innerHTML = fallback;
+    }
+  }
+
+  function updateReviewPlayerAvatars(game) {
+    var whiteAvatar = resolveReviewPlayerAvatar(game, 'w');
+    var blackAvatar = resolveReviewPlayerAvatar(game, 'b');
+    renderReviewAvatar(document.getElementById('whiteAvatar'), whiteAvatar, 'w', getPlayerNameForColor(game, 'w'));
+    renderReviewAvatar(document.getElementById('blackAvatar'), blackAvatar, 'b', getPlayerNameForColor(game, 'b'));
+    renderReviewAvatar(document.getElementById('grWhiteAvatar'), whiteAvatar, 'w', getPlayerNameForColor(game, 'w'));
+    renderReviewAvatar(document.getElementById('grBlackAvatar'), blackAvatar, 'b', getPlayerNameForColor(game, 'b'));
+  }
+
+  function hydrateChesscomReviewAvatars(game) {
+    if (!game || game.sourcePlatform !== 'chesscom') return;
+    ['w', 'b'].forEach(function(color) {
+      if (getGameAvatarForColor(game, color)) return;
+      var username = getPlayerNameForColor(game, color);
+      if (!username || username === 'White' || username === 'Black') return;
+      PlatformFetchController.fetchChesscomWithFallback(
+        '/api/chesscom/player/' + encodeURIComponent(username),
+        'https://api.chess.com/pub/player/' + encodeURIComponent(username),
+        'json'
+      ).then(function(profile) {
+        var avatar = safeReviewImageUrl(profile && profile.avatar);
+        if (!avatar || currentGame !== game) return;
+        if (color === 'b') game.blackAvatar = avatar;
+        else game.whiteAvatar = avatar;
+        updateReviewPlayerAvatars(game);
+      }).catch(function() { /* Avatar is decorative; ignore lookup failures. */ });
+    });
+  }
+
   function getSourcePlayerClock(sourceGame, color) {
     var key = color === 'w' ? 'white' : 'black';
     var player = getSourcePlayer(sourceGame, color);
@@ -1591,6 +1765,16 @@ const AppController = (function() {
       game.blackCountry ||
       getSourcePlayerCountry(sourceGame, 'b') ||
       '';
+    var whiteAvatar = opts.whiteAvatar ||
+      (opts.playerAvatars && (opts.playerAvatars.white || opts.playerAvatars.w)) ||
+      getSourcePlayerAvatar(sourceGame, 'w') ||
+      game.whiteAvatar ||
+      '';
+    var blackAvatar = opts.blackAvatar ||
+      (opts.playerAvatars && (opts.playerAvatars.black || opts.playerAvatars.b)) ||
+      getSourcePlayerAvatar(sourceGame, 'b') ||
+      game.blackAvatar ||
+      '';
 
     if (sourcePlatform) {
       game.sourcePlatform = sourcePlatform;
@@ -1620,6 +1804,12 @@ const AppController = (function() {
     }
     if (blackCountry) {
       game.blackCountry = blackCountry;
+    }
+    if (whiteAvatar) {
+      game.whiteAvatar = whiteAvatar;
+    }
+    if (blackAvatar) {
+      game.blackAvatar = blackAvatar;
     }
 
     if (sourceUsername) {
@@ -1699,6 +1889,8 @@ const AppController = (function() {
     if (analysisBlackFlagEl) analysisBlackFlagEl.textContent = game && game.blackCountry ? getCountryFlag(game.blackCountry) : '';
     setPlayerCountryFlag('w', game ? game.whiteCountry : '');
     setPlayerCountryFlag('b', game ? game.blackCountry : '');
+    updateReviewPlayerAvatars(game);
+    hydrateChesscomReviewAvatars(game);
     updateAnalyzePlayerBarState(game);
   }
 
@@ -3595,7 +3787,6 @@ const AppController = (function() {
   function resetGameReviewUI() {
     lastAnalysisHistory = null;
     lastAnalysisCounts = null;
-    lastCoachSummary = DEFAULT_COACH_TEXT;
     coachCommentaryRequestId++;
     currentReviewCandidates = [];
     selectedMoveQuality = null;
@@ -3670,7 +3861,7 @@ const AppController = (function() {
         : 'Awaiting analysis';
       if (gradeEl) gradeEl.textContent = label;
       if (descEl) descEl.textContent = DEFAULT_MOVE_DESC;
-      setCoachMessage('Coach Ramp', lastCoachSummary || DEFAULT_COACH_TEXT);
+      setCoachMessage('Coach Ramp', DEFAULT_COACH_TEXT);
       return;
     }
 
@@ -4200,9 +4391,7 @@ const AppController = (function() {
         title: 'Coach Ramp',
         mood: 'idle',
         headline: 'Pick a move to review.',
-        text: lastCoachSummary && lastCoachSummary !== DEFAULT_COACH_TEXT
-          ? lastCoachSummary
-          : DEFAULT_COACH_TEXT,
+        text: DEFAULT_COACH_TEXT,
         tips: []
       });
       return;
@@ -4361,6 +4550,15 @@ const AppController = (function() {
       tips.push({ kind: 'threat', text: 'Critical moment' });
     } else if (equalish && phasePlan) {
       tips.push({ kind: 'plan', text: 'Plan: improve pieces' });
+    }
+
+    var tone = getCoachTone();
+    if (tone === 'beginner' && (quality === 'mistake' || quality === 'miss' || quality === 'blunder' || quality === 'inaccuracy')) {
+      detail += ' Simple rule: check your opponent\'s checks, captures, and threats before you move.';
+    } else if (tone === 'advanced' && (quality === 'mistake' || quality === 'miss' || quality === 'blunder' || quality === 'inaccuracy')) {
+      detail += ' The practical leak is candidate discipline: compare forcing replies before trusting the first playable move.';
+    } else if (tone === 'advanced' && (quality === 'best' || quality === 'great' || quality === 'brilliant')) {
+      detail += ' The important pattern is not the move alone, but the forcing sequence it creates.';
     }
 
     return {
@@ -4789,26 +4987,16 @@ const AppController = (function() {
     else blackCard.classList.add('active');
   }
 
-  function updateCoachTip(wAcc, bAcc, counts) {
-    if (wAcc === null || bAcc === null || isNaN(wAcc) || isNaN(bAcc)) {
-      lastCoachSummary = DEFAULT_COACH_TEXT;
-      return;
-    }
-    var diff = Math.abs(wAcc - bAcc);
-    if (diff < 2) {
-      lastCoachSummary = 'Balanced game. Step through the moves to catch the small turning points that decided the result.';
-      return;
-    }
-    var leader = wAcc > bAcc ? 'White' : 'Black';
-    var target = leader === 'White' ? counts.b : counts.w;
-    var blunders = target ? (target.blunder || 0) : 0;
-    var mistakes = target ? (target.mistake || 0) : 0;
-    var misses = target ? (target.miss || 0) : 0;
-    var issueLabel = blunders ? (blunders + ' blunder' + (blunders === 1 ? '' : 's')) :
-      mistakes ? (mistakes + ' mistake' + (mistakes === 1 ? '' : 's')) :
-      misses ? (misses + ' miss' + (misses === 1 ? '' : 'es')) :
-      'the accuracy gap';
-    lastCoachSummary = leader + ' controlled more of the game. Review ' + issueLabel + ' to find the decisive moments.';
+  function getCoachTone() {
+    var settings = getCurrentGameReviewSettings();
+    var tone = settings && settings.interface && settings.interface.review
+      ? settings.interface.review.coachTone
+      : 'intermediate';
+    return tone === 'beginner' || tone === 'advanced' ? tone : 'intermediate';
+  }
+
+  function updateCoachTip() {
+    setCoachMessage('Coach Ramp', 'Select a move from the review to see move-by-move coaching.');
   }
 
   function setReviewBusyState(isBusy, label) {

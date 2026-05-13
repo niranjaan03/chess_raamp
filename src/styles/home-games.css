@@ -196,6 +196,7 @@
   color: var(--text-primary);
   letter-spacing: -0.02em;
   text-shadow: 0 0 18px var(--accent-glow);
+  font-variant-numeric: tabular-nums;
 }
 .home-daily-elo-caption {
   font-family: var(--font-mono);
@@ -226,9 +227,10 @@
 }
 .home-daily-streak-badge.is-active { color: var(--text-primary); }
 .home-daily-streak-fire {
-  font-family: var(--font-display);
-  font-size: 1.05rem;
-  line-height: 1;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  align-self: center;
   color: var(--accent);
 }
 .home-daily-streak-badge.is-zero .home-daily-streak-fire { color: var(--text-muted); opacity: 0.55; }
@@ -237,6 +239,7 @@
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 .home-daily-streak-label {
   font-size: 0.7rem;
