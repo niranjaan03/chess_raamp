@@ -47,13 +47,97 @@ export function PlayerInfoBar({
 
 export function MoveNavigationControls({ compact = false }) {
   return (
-    <div className={`nav-controls review-nav-controls${compact ? ' is-compact' : ''}`}>
-      <button type="button" className="nav-btn" id="btnFirst" aria-label="First move">&#171;</button>
-      <button type="button" className="nav-btn" id="btnPrev" aria-label="Previous move">&#8249;</button>
-      <button type="button" className="nav-btn" id="btnPlay" aria-label="Play game">&#9654;</button>
-      <button type="button" className="nav-btn" id="btnNext" aria-label="Next move">&#8250;</button>
-      <button type="button" className="nav-btn" id="btnLast" aria-label="Last move">&#187;</button>
-      <button type="button" className="nav-btn review-menu-btn" id="reviewPanelMenu" aria-label="Open engine settings">&#8942;</button>
+    <div className={`cr-control-panel${compact ? ' is-compact' : ''}`}>
+      <div className="cr-eval-graph" aria-hidden="true">
+        <button
+          type="button"
+          className="cr-eval-menu nav-btn review-menu-btn"
+          id="reviewPanelMenu"
+          aria-label="Open engine settings"
+        >
+          &#8942;
+        </button>
+        <svg
+          className="cr-eval-svg"
+          viewBox="0 0 600 100"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Game evaluation graph"
+        >
+          <line className="cr-eval-mid" x1="0" y1="50" x2="600" y2="50" />
+          <path
+            className="cr-eval-area"
+            d="M0,50 L40,49 L80,46 L120,47 L160,44 L200,40 L240,46 L280,30 L320,50 L360,38 L400,54 L440,55 L480,62 L520,60 L560,68 L600,70 L600,100 L0,100 Z"
+          />
+          <polyline
+            className="cr-eval-line"
+            points="0,50 40,49 80,46 120,47 160,44 200,40 240,46 280,30 320,50 360,38 400,54 440,55 480,62 520,60 560,68 600,70"
+          />
+          <circle className="cr-marker is-book"    cx="80"  cy="46" r="5" />
+          <circle className="cr-marker is-good"    cx="160" cy="44" r="5" />
+          <circle className="cr-marker is-inacc"   cx="200" cy="40" r="5" />
+          <circle className="cr-marker is-good"    cx="240" cy="46" r="5" />
+          <circle className="cr-marker is-blunder" cx="280" cy="30" r="5" />
+          <circle className="cr-marker is-mistake" cx="320" cy="50" r="5" />
+          <circle className="cr-marker is-best"    cx="360" cy="38" r="5" />
+          <circle className="cr-marker is-inacc"   cx="400" cy="54" r="5" />
+          <circle className="cr-marker is-good"    cx="440" cy="55" r="5" />
+          <circle className="cr-marker is-mistake" cx="480" cy="62" r="5" />
+          <circle className="cr-marker is-good"    cx="520" cy="60" r="5" />
+          <circle className="cr-marker is-inacc"   cx="560" cy="68" r="5" />
+          <circle className="cr-marker is-best"    cx="600" cy="70" r="5" />
+        </svg>
+      </div>
+
+      <div
+        className="cr-control-row nav-controls review-nav-controls"
+        role="group"
+        aria-label="Move navigation"
+      >
+        <button type="button" className="cr-nav-btn nav-btn" id="btnFirst" aria-label="First move">
+          <span className="cr-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <line className="cr-stroke" x1="6.5" y1="6.5" x2="6.5" y2="17.5" />
+              <polyline className="cr-stroke" points="17.5 6.5 10.5 12 17.5 17.5" />
+            </svg>
+          </span>
+        </button>
+        <button type="button" className="cr-nav-btn nav-btn" id="btnPrev" aria-label="Previous move">
+          <span className="cr-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <polyline className="cr-stroke" points="15 6 9 12 15 18" />
+            </svg>
+          </span>
+        </button>
+        <button type="button" className="cr-nav-btn nav-btn" id="btnPlay" aria-label="Play game">
+          <span className="cr-icon cr-icon-play" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path className="cr-fill" d="M8 5.5 L18 12 L8 18.5 Z" />
+            </svg>
+          </span>
+          <span className="cr-icon cr-icon-pause" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect className="cr-fill" x="6.5" y="5" width="3.6" height="14" rx="0.8" />
+              <rect className="cr-fill" x="13.9" y="5" width="3.6" height="14" rx="0.8" />
+            </svg>
+          </span>
+        </button>
+        <button type="button" className="cr-nav-btn nav-btn" id="btnNext" aria-label="Next move">
+          <span className="cr-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <polyline className="cr-stroke" points="9 6 15 12 9 18" />
+            </svg>
+          </span>
+        </button>
+        <button type="button" className="cr-nav-btn nav-btn" id="btnLast" aria-label="Last move">
+          <span className="cr-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <polyline className="cr-stroke" points="6.5 6.5 13.5 12 6.5 17.5" />
+              <line className="cr-stroke" x1="17.5" y1="6.5" x2="17.5" y2="17.5" />
+            </svg>
+          </span>
+        </button>
+      </div>
     </div>
   );
 }

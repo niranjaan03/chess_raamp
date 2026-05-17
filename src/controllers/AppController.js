@@ -220,7 +220,10 @@ const AppController = (function() {
     showToast('Welcome to chess ramp!', 'success');
 
     setTimeout(function() {
-      loadSharedReviewFromLocation();
+      var loadedFromUrl = loadSharedReviewFromLocation();
+      if (!loadedFromUrl) {
+        restorePersistedReview();
+      }
     }, 0);
 
     setTimeout(function() {
@@ -1940,6 +1943,16 @@ const AppController = (function() {
     if (window.HomeController) window.HomeController.renderRecentGames();
 
     showToast('Game loaded: '   + game.white + ' vs ' + game.black, 'success');
+    // A brand-new game invalidates any persisted report from the prior game.
+    // During restorePersistedReview() the flag is set, and we keep the saved
+    // report so the report-restore branch can replay it.
+    persistReviewState({
+      type: 'pgn',
+      pgn: game.pgn,
+      fen: null,
+      moveIndex: 0,
+      report: restoringReviewState ? undefined : null
+    });
     return true;
   }
 
@@ -1960,6 +1973,13 @@ const AppController = (function() {
       startAnalysis();
       document.getElementById('fenInput').value = fen;
       showToast('Position loaded from FEN', 'success');
+      persistReviewState({
+        type: 'fen',
+        fen: fen,
+        pgn: null,
+        moveIndex: 0,
+        report: restoringReviewState ? undefined : null
+      });
     } catch(e) {
       showToast('Invalid FEN position', 'error');
     }
@@ -2059,17 +2079,109 @@ const AppController = (function() {
   }
 
   function loadSharedReviewFromLocation() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return false;
     var params = new URLSearchParams(window.location.search || '');
     var encoded = params.get('review');
-    if (!encoded) return;
+    if (!encoded) return false;
     var pgn = decodeSharePayload(encoded);
-    if (!pgn || pgn.indexOf('[') === -1) return;
+    if (!pgn || pgn.indexOf('[') === -1) return false;
     loadPGNGame(pgn);
     switchTab('analyze');
     setTimeout(function() {
       analyzeFullGame();
     }, 120);
+    return true;
+  }
+
+  // ===== REVIEW PERSISTENCE =====
+  // Survive a page refresh by remembering the last loaded game (PGN or FEN)
+  // and the current move index. Restored on app init when the URL has no
+  // ?review= share param.
+  var REVIEW_STATE_KEY = 'cr_review_state';
+  var restoringReviewState = false;
+
+  function persistReviewState(patch) {
+    if (typeof window === 'undefined') return;
+    if (restoringReviewState) return;
+    // Don't overwrite the saved state while the user is exploring a
+    // variation (engine preview / analysis sandbox) — those are transient.
+    if (enginePreviewSnapshot || (sandboxState && sandboxState.active)) return;
+    if (!gamePositions || gamePositions.length <= 1) {
+      // No real game loaded; only allow explicit clears.
+      if (patch && patch.clear) {
+        try { localStorage.removeItem(REVIEW_STATE_KEY); } catch (e) {}
+      }
+      return;
+    }
+    var existing = getJson(REVIEW_STATE_KEY, null) || {};
+    var next = {
+      type: patch && patch.type ? patch.type : existing.type || 'pgn',
+      pgn: patch && 'pgn' in patch ? patch.pgn : existing.pgn,
+      fen: patch && 'fen' in patch ? patch.fen : existing.fen,
+      moveIndex: typeof (patch && patch.moveIndex) === 'number'
+        ? patch.moveIndex
+        : (typeof currentMoveIndex === 'number' ? currentMoveIndex : 0),
+      // Full per-move analysis (counts, accuracy, critical moments are all
+      // derived from `report` by showAccuracySection on restore).
+      // Pass `report: null` to explicitly clear; `report: undefined` keeps the
+      // existing report (used during restore so the report survives the
+      // intermediate loadPGNGame() call that reset would otherwise wipe).
+      report: patch && 'report' in patch && patch.report !== undefined
+        ? patch.report
+        : existing.report,
+      savedAt: Date.now()
+    };
+    if (next.type === 'pgn' && !next.pgn) return;
+    if (next.type === 'fen' && !next.fen) return;
+    setJson(REVIEW_STATE_KEY, next);
+  }
+
+  function clearPersistedReviewState() {
+    try { localStorage.removeItem(REVIEW_STATE_KEY); } catch (e) {}
+  }
+
+  function restorePersistedReview() {
+    if (typeof window === 'undefined') return false;
+    var saved = getJson(REVIEW_STATE_KEY, null);
+    if (!saved) return false;
+    restoringReviewState = true;
+    try {
+      if (saved.type === 'fen' && saved.fen) {
+        loadFenGame(saved.fen);
+      } else if (saved.pgn) {
+        var ok = loadPGNGame(saved.pgn);
+        if (!ok) return false;
+        // Replay the analysis report (accuracy, classifications, critical
+        // moments, coach timeline) so the user sees the same review after
+        // a refresh without having to re-analyze the whole game.
+        if (saved.report && Array.isArray(saved.report) && saved.report.length) {
+          try {
+            lastAnalysisHistory = saved.report;
+            saved.report.forEach(function(move, i) {
+              if (!move) return;
+              var el = document.querySelector('.move-san[data-move-index="' + (i + 1) + '"]');
+              if (el && move.quality) {
+                el.setAttribute('data-quality', move.quality);
+              }
+            });
+            showAccuracySection(saved.report);
+            switchReviewTab('report');
+          } catch (err) {
+            console.warn('Failed to restore review report:', err);
+          }
+        }
+        if (typeof saved.moveIndex === 'number' && saved.moveIndex > 0) {
+          goToMove(Math.min(saved.moveIndex, gamePositions.length - 1));
+        }
+      } else {
+        return false;
+      }
+    } finally {
+      restoringReviewState = false;
+    }
+    // Re-save so the moveIndex/savedAt stay fresh for next refresh.
+    persistReviewState({ moveIndex: currentMoveIndex });
+    return true;
   }
 
   // ===== NAVIGATION =====
@@ -2255,7 +2367,11 @@ const AppController = (function() {
   function setPlayButtonState(isPlaying) {
     var playBtn = document.getElementById('btnPlay');
     if (!playBtn) return;
-    playBtn.textContent = isPlaying ? '⏸' : '▶';
+    // Icon swap is handled by CSS via the `.is-playing` class (see cr-control-panel.css).
+    // Legacy fallback: if the button has no SVG children, fall back to setting textContent.
+    if (!playBtn.querySelector('svg')) {
+      playBtn.textContent = isPlaying ? '⏸' : '▶';
+    }
     playBtn.classList.toggle('is-playing', !!isPlaying);
     playBtn.setAttribute('aria-label', isPlaying ? 'Pause game playback' : 'Play game');
     syncReviewNavControls();
@@ -2275,6 +2391,7 @@ const AppController = (function() {
     if (nextBtn) nextBtn.disabled = atEnd;
     if (lastBtn) lastBtn.disabled = atEnd;
     if (playBtn) playBtn.disabled = !hasPositions;
+    persistReviewState({ moveIndex: currentMoveIndex });
   }
 
   function uciFromMoveObject(move) {
@@ -3033,6 +3150,9 @@ const AppController = (function() {
         }
         showAccuracySection(history);
         showToast('Full game analysis complete!', 'success');
+        // Persist the full report so a page refresh restores the same review
+        // without forcing the user to re-analyze the whole game.
+        persistReviewState({ report: history, moveIndex: currentMoveIndex });
       } finally {
         switchReviewTab('report');
       }

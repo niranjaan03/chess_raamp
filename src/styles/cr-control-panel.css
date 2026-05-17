@@ -1,0 +1,345 @@
+/* ChessRamp game review control panel
+ * Eval graph + 5 navigation buttons.
+ * Matches the reference: dark charcoal shell, flat dark-gray rounded buttons,
+ * thin stroked chevron icons, filled play triangle, soft shadows, no gradient
+ * accent colour. Loaded last in index.css so it overrides earlier
+ * .review-nav-controls rules from sigma-refresh.css. */
+
+.cr-control-panel {
+  --crc-shell:       #232527;
+  --crc-shell-2:     #1c1d1f;
+  --crc-btn:         #3a3d42;
+  --crc-btn-hover:   #44474d;
+  --crc-btn-active:  #2f3236;
+  --crc-btn-disabled:#2a2c2f;
+  --crc-icon:        #ffffff;
+  --crc-icon-dim:    rgba(255, 255, 255, 0.32);
+  --crc-mid:         rgba(255, 255, 255, 0.16);
+  --crc-book:        #c79a6b;
+  --crc-good:        #5b8ed8;
+  --crc-best:        #6fbf73;
+  --crc-inacc:       #f5a44b;
+  --crc-mistake:     #f1843a;
+  --crc-blunder:     #e25757;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 22px;
+  background: linear-gradient(180deg, var(--crc-shell) 0%, var(--crc-shell-2) 100%);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  isolation: isolate;
+}
+
+/* ── Eval graph ─────────────────────────────────────────────────────── */
+.cr-eval-graph {
+  position: relative;
+  width: 100%;
+  height: 104px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #2a2c2f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.cr-eval-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cr-eval-mid {
+  stroke: var(--crc-mid);
+  stroke-width: 1;
+  opacity: 0.8;
+}
+
+.cr-eval-area {
+  fill: rgba(245, 246, 248, 0.92);
+  stroke: none;
+}
+
+.cr-eval-line {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.cr-marker {
+  stroke: #1c1d1f;
+  stroke-width: 1.4;
+}
+
+.cr-marker.is-book    { fill: var(--crc-book); }
+.cr-marker.is-good    { fill: var(--crc-good); }
+.cr-marker.is-best    { fill: var(--crc-best); }
+.cr-marker.is-inacc   { fill: var(--crc-inacc); }
+.cr-marker.is-mistake { fill: var(--crc-mistake); }
+.cr-marker.is-blunder { fill: var(--crc-blunder); }
+
+.cr-eval-menu {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.32);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.cr-eval-menu:hover {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.cr-eval-menu:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+/* ── 5-button control row ───────────────────────────────────────────── */
+/* All 5 buttons share a single equal-width track. minmax(0, 1fr) is
+ * required so grid items can shrink below their content size; without it
+ * the auto-min-size of a button can blow the column out and make widths
+ * look uneven. Selector specificity beats the earlier
+ * .review-nav-controls rules in sigma-refresh.css. */
+.cr-control-panel .cr-control-row.review-nav-controls,
+.cr-control-panel .cr-control-row.nav-controls,
+.cr-control-panel .cr-control-row {
+  display: grid;
+  /* Four equal-width side buttons; play column is slightly wider so the
+   * play/pause control reads as the emphasized center action. */
+  grid-template-columns:
+    minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-flow: column;
+  align-items: stretch;
+  justify-items: stretch;
+  gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Flat dark gray buttons, wide and short, ~22px radius */
+.cr-control-panel .cr-control-row .cr-nav-btn,
+.cr-control-panel .cr-control-row .nav-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;        /* allow shrinking inside its grid track */
+  max-width: 100%;
+  height: 54px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 20px;
+  background: var(--crc-btn);
+  color: var(--crc-icon);
+  font-size: 0;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  transition:
+    transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+/* Hover */
+.cr-control-panel .cr-control-row .cr-nav-btn:not(:disabled):hover,
+.cr-control-panel .cr-control-row .nav-btn:not(:disabled):hover {
+  background: var(--crc-btn-hover);
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* Active (press) */
+.cr-control-panel .cr-control-row .cr-nav-btn:not(:disabled):active,
+.cr-control-panel .cr-control-row .nav-btn:not(:disabled):active {
+  background: var(--crc-btn-active);
+  transform: translateY(0) scale(0.985);
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* Focus ring */
+.cr-control-panel .cr-control-row .cr-nav-btn:focus,
+.cr-control-panel .cr-control-row .nav-btn:focus { outline: none; }
+.cr-control-panel .cr-control-row .cr-nav-btn:focus-visible,
+.cr-control-panel .cr-control-row .nav-btn:focus-visible {
+  box-shadow:
+    0 0 0 2px #1c1d1f,
+    0 0 0 4px rgba(255, 255, 255, 0.35),
+    0 6px 14px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Disabled */
+.cr-control-panel .cr-control-row .cr-nav-btn:disabled,
+.cr-control-panel .cr-control-row .nav-btn:disabled {
+  cursor: default;
+  background: var(--crc-btn-disabled);
+  color: var(--crc-icon-dim);
+  box-shadow:
+    0 3px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Icon shell — keeps SVGs centered and sized */
+.cr-control-panel .cr-control-row .cr-nav-btn .cr-icon,
+.cr-control-panel .cr-control-row .nav-btn .cr-icon {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: currentColor;
+}
+
+.cr-control-panel .cr-control-row .cr-nav-btn .cr-icon svg,
+.cr-control-panel .cr-control-row .nav-btn .cr-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Strokes used inside icons (chevrons, bars) */
+.cr-control-panel .cr-icon .cr-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cr-control-panel .cr-icon .cr-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* Play / Pause icon swap (driven by .is-playing class on #btnPlay).
+ * Specificity must match the general `.cr-icon` rule above (4 classes),
+ * otherwise both icons stay visible at once. */
+.cr-control-panel .cr-control-row .cr-nav-btn .cr-icon-pause,
+.cr-control-panel .cr-control-row .cr-nav-btn.is-playing .cr-icon-play {
+  display: none;
+}
+.cr-control-panel .cr-control-row .cr-nav-btn.is-playing .cr-icon-pause {
+  display: inline-flex;
+}
+
+/* Slightly larger play icon so the emphasized center column reads
+ * intentionally larger than the side buttons. */
+.cr-control-panel .cr-control-row #btnPlay .cr-icon {
+  width: 32px;
+  height: 32px;
+}
+.cr-control-panel.is-compact .cr-control-row #btnPlay .cr-icon {
+  width: 26px;
+  height: 26px;
+}
+
+/* Hide the legacy in-grid menu button if it still renders inside the row */
+.cr-control-panel .cr-control-row .review-menu-btn { display: none; }
+
+/* ── Compact / responsive ───────────────────────────────────────────── */
+.cr-control-panel.is-compact { padding: 12px; gap: 12px; }
+.cr-control-panel.is-compact .cr-eval-graph { height: 88px; }
+.cr-control-panel.is-compact .cr-control-row .cr-nav-btn,
+.cr-control-panel.is-compact .cr-control-row .nav-btn {
+  height: 46px;
+  border-radius: 16px;
+}
+.cr-control-panel.is-compact .cr-control-row { gap: 10px; }
+.cr-control-panel.is-compact .cr-control-row .cr-nav-btn .cr-icon,
+.cr-control-panel.is-compact .cr-control-row .nav-btn .cr-icon {
+  width: 22px; height: 22px;
+}
+
+@media (max-width: 720px) {
+  .cr-control-panel { padding: 12px 10px; border-radius: 20px; }
+  .cr-eval-graph { height: 84px; border-radius: 12px; }
+  .cr-control-panel .cr-control-row { gap: 8px; }
+  .cr-control-panel .cr-control-row .cr-nav-btn,
+  .cr-control-panel .cr-control-row .nav-btn {
+    height: 44px;
+    border-radius: 14px;
+  }
+  .cr-control-panel .cr-control-row .cr-nav-btn .cr-icon,
+  .cr-control-panel .cr-control-row .nav-btn .cr-icon {
+    width: 20px; height: 20px;
+  }
+}
+
+/* Light mode adaptation */
+:root[data-color-mode="light"] .cr-control-panel {
+  --crc-shell:       #eef0f4;
+  --crc-shell-2:     #dfe3ea;
+  --crc-btn:         #ffffff;
+  --crc-btn-hover:   #f4f6fa;
+  --crc-btn-active:  #e7eaf0;
+  --crc-btn-disabled:#e9ecf1;
+  --crc-icon:        #1c2027;
+  --crc-icon-dim:    rgba(28, 32, 39, 0.34);
+  --crc-mid:         rgba(28, 32, 39, 0.22);
+  border-color: rgba(28, 32, 39, 0.08);
+  box-shadow:
+    0 18px 40px rgba(20, 25, 40, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+:root[data-color-mode="light"] .cr-eval-graph {
+  background: #f4f6fa;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+}
+:root[data-color-mode="light"] .cr-eval-area { fill: rgba(40, 50, 70, 0.85); }
+:root[data-color-mode="light"] .cr-eval-line { stroke: #1c2027; }
+:root[data-color-mode="light"] .cr-marker { stroke: #ffffff; }
+
+:root[data-color-mode="light"] .cr-control-panel .cr-control-row .cr-nav-btn,
+:root[data-color-mode="light"] .cr-control-panel .cr-control-row .nav-btn {
+  box-shadow:
+    0 6px 14px rgba(20, 25, 40, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+}
